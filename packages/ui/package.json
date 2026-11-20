@@ -1,0 +1,13 @@
+{
+  "name": "@runvara/ui",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    "./tokens.css": "./dist/tokens.css",
+    "./tokens.json": "./tokens.json"
+  },
+  "scripts": {
+    "build": "node scripts/build-tokens.mjs",
+    "test": "node ../../scripts/contrast-report.mjs"
+  }
+}

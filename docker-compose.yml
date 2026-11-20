@@ -1,0 +1,118 @@
+# Local stack: `node scripts/dev-env.mjs` (writes .env with random secrets) then `docker compose up --build`.
+# Web http://localhost:3000 · API http://localhost:4000 (docs /docs) · Mailpit http://localhost:8025
+# Host ports are overridable in .env: RUNVARA_WEB_PORT, RUNVARA_API_PORT, RUNVARA_PG_PORT, RUNVARA_REDIS_PORT, RUNVARA_MAILPIT_PORT
+name: runvara
+
+x-node-env: &node-env
+  NODE_ENV: production
+  LOG_LEVEL: info
+  REDIS_URL: redis://redis:6379
+  RUNVARA_MASTER_KEY: ${RUNVARA_MASTER_KEY:?run node scripts/dev-env.mjs}
+  DATABASE_URL: postgres://runvara_app:${RUNVARA_APP_PASSWORD}@postgres:5432/runvara
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: runvara
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run node scripts/dev-env.mjs}
+      RUNVARA_OWNER_PASSWORD: ${RUNVARA_OWNER_PASSWORD}
+      RUNVARA_APP_PASSWORD: ${RUNVARA_APP_PASSWORD}
+      RUNVARA_RELAY_PASSWORD: ${RUNVARA_RELAY_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./packages/db/sql/roles.sql:/runvara/roles.sql:ro
+    ports: ["127.0.0.1:${RUNVARA_PG_PORT:-5432}:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d runvara"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes: [redisdata:/data]
+    ports: ["127.0.0.1:${RUNVARA_REDIS_PORT:-6379}:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports: ["127.0.0.1:${RUNVARA_MAILPIT_PORT:-8025}:8025"]
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build: { context: ., dockerfile: infra/docker/node-app.Dockerfile, args: { APP: api } }
+    image: runvara-api:local
+    command: ["node", "node_modules/@runvara/db/dist/cli.js"]
+    environment:
+      DATABASE_OWNER_URL: postgres://runvara_owner:${RUNVARA_OWNER_PASSWORD}@postgres:5432/runvara
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    image: runvara-api:local
+    environment:
+      <<: *node-env
+      API_PORT: 4000
+      API_PUBLIC_URL: http://localhost:${RUNVARA_API_PORT:-4000}
+      WEB_BASE_URL: http://localhost:${RUNVARA_WEB_PORT:-3000}
+      CORS_ORIGINS: http://localhost:${RUNVARA_WEB_PORT:-3000}
+      JWT_PRIVATE_KEY_B64: ${JWT_PRIVATE_KEY_B64}
+      CSRF_SECRET: ${CSRF_SECRET}
+      # Local stack runs over plain http; production must keep the default (true).
+      COOKIE_SECURE: "false"
+      TRUST_PROXY: "true"
+    ports: ["127.0.0.1:${RUNVARA_API_PORT:-4000}:4000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  worker:
+    build: { context: ., dockerfile: infra/docker/node-app.Dockerfile, args: { APP: worker } }
+    image: runvara-worker:local
+    environment:
+      <<: *node-env
+      SMTP_URL: smtp://mailpit:1025
+      WORKER_HEALTH_PORT: 4100
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+      mailpit: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4100/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  web:
+    build: { context: ., dockerfile: infra/docker/web.Dockerfile, args: { API_INTERNAL_URL: "http://api:4000" } }
+    image: runvara-web:local
+    ports: ["127.0.0.1:${RUNVARA_WEB_PORT:-3000}:3000"]
+    depends_on:
+      api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/login"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:
+  redisdata:

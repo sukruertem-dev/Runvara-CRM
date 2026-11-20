@@ -1,0 +1,1447 @@
+{
+  "$comment": "Module catalog (CRM_TASK_PLATFORM_PROMPT.md §10.3.1). Single source of the module registry (packages/modules). Validate: node scripts/check-module-catalog.mjs",
+  "modules": [
+    {
+      "id": "core",
+      "version": "0.1.0",
+      "displayNameKey": "module.core.name",
+      "descriptionKey": "module.core.description",
+      "family": 1,
+      "dependsOn": [],
+      "permissions": [
+        {
+          "key": "tenant.modules.manage",
+          "labelKey": "permission.tenant.modules.manage"
+        },
+        {
+          "key": "tenant.sales_mode.manage",
+          "labelKey": "permission.tenant.sales_mode.manage"
+        },
+        {
+          "key": "tenant.config.read",
+          "labelKey": "permission.tenant.config.read"
+        },
+        {
+          "key": "tenant.config.manage",
+          "labelKey": "permission.tenant.config.manage"
+        },
+        {
+          "key": "authz.matrix.read",
+          "labelKey": "permission.authz.matrix.read"
+        },
+        {
+          "key": "authz.matrix.edit",
+          "labelKey": "permission.authz.matrix.edit"
+        },
+        {
+          "key": "users.invite",
+          "labelKey": "permission.users.invite"
+        },
+        {
+          "key": "users.manage",
+          "labelKey": "permission.users.manage"
+        },
+        {
+          "key": "authz.segments.grant",
+          "labelKey": "permission.authz.segments.grant"
+        },
+        {
+          "key": "teams.manage",
+          "labelKey": "permission.teams.manage"
+        },
+        {
+          "key": "teams.members.manage",
+          "labelKey": "permission.teams.members.manage"
+        },
+        {
+          "key": "authz.delegation.create",
+          "labelKey": "permission.authz.delegation.create"
+        },
+        {
+          "key": "*record*.read",
+          "labelKey": "permission.anyrecordany.read"
+        },
+        {
+          "key": "*record*.create",
+          "labelKey": "permission.anyrecordany.create"
+        },
+        {
+          "key": "*record*.update",
+          "labelKey": "permission.anyrecordany.update"
+        },
+        {
+          "key": "*record*.archive",
+          "labelKey": "permission.anyrecordany.archive"
+        },
+        {
+          "key": "*record*.purge",
+          "labelKey": "permission.anyrecordany.purge"
+        },
+        {
+          "key": "*record*.reassign",
+          "labelKey": "permission.anyrecordany.reassign"
+        },
+        {
+          "key": "reports.view",
+          "labelKey": "permission.reports.view"
+        },
+        {
+          "key": "reports.export",
+          "labelKey": "permission.reports.export"
+        },
+        {
+          "key": "dashboards.customize",
+          "labelKey": "permission.dashboards.customize"
+        },
+        {
+          "key": "audit.read",
+          "labelKey": "permission.audit.read"
+        },
+        {
+          "key": "*record*.bulk",
+          "labelKey": "permission.anyrecordany.bulk"
+        },
+        {
+          "key": "mentions.create",
+          "labelKey": "permission.mentions.create"
+        },
+        {
+          "key": "notifications.preferences.manage",
+          "labelKey": "permission.notifications.preferences.manage"
+        },
+        {
+          "key": "core.task.read",
+          "labelKey": "permission.core.task.read"
+        },
+        {
+          "key": "core.task.create",
+          "labelKey": "permission.core.task.create"
+        },
+        {
+          "key": "core.task.update",
+          "labelKey": "permission.core.task.update"
+        },
+        {
+          "key": "core.task.archive",
+          "labelKey": "permission.core.task.archive"
+        },
+        {
+          "key": "core.note.create",
+          "labelKey": "permission.core.note.create"
+        },
+        {
+          "key": "core.comment.create",
+          "labelKey": "permission.core.comment.create"
+        },
+        {
+          "key": "core.attachment.create",
+          "labelKey": "permission.core.attachment.create"
+        },
+        {
+          "key": "notifications.read",
+          "labelKey": "permission.notifications.read"
+        },
+        {
+          "key": "authz.roles.assign",
+          "labelKey": "permission.authz.roles.assign"
+        },
+        {
+          "key": "authz.delegation.approve",
+          "labelKey": "permission.authz.delegation.approve"
+        },
+        {
+          "key": "authz.access_request.create",
+          "labelKey": "permission.authz.access_request.create"
+        },
+        {
+          "key": "users.read",
+          "labelKey": "permission.users.read"
+        }
+      ],
+      "resources": [
+        {
+          "type": "task",
+          "table": "tasks",
+          "segmentMode": "contextual",
+          "mentionFields": [
+            "description"
+          ],
+          "customFields": true,
+          "workflow": true
+        },
+        {
+          "type": "note",
+          "table": "notes",
+          "segmentMode": "contextual",
+          "mentionFields": [
+            "body"
+          ],
+          "customFields": true,
+          "workflow": false
+        }
+      ],
+      "routes": {
+        "apiPrefixes": [
+          "/v1/tasks",
+          "/v1/teams",
+          "/v1/roles",
+          "/v1/entitlements",
+          "/v1/notifications",
+          "/v1/mentions",
+          "/v1/config",
+          "/v1/modules",
+          "/v1/audit",
+          "/v1/stream",
+          "/v1/me",
+          "/v1/search"
+        ]
+      },
+      "menu": [
+        {
+          "id": "tasks",
+          "labelKey": "module.core.menu.tasks",
+          "path": "/tasks",
+          "icon": "check-square",
+          "requires": [
+            "core.task.read"
+          ]
+        }
+      ],
+      "jobs": [
+        {
+          "name": "core.recurrence.materialize",
+          "kind": "event"
+        },
+        {
+          "name": "core.retention.purge",
+          "kind": "cron",
+          "cron": "0 3 * * *"
+        },
+        {
+          "name": "core.delegation.expire",
+          "kind": "cron",
+          "cron": "*/5 * * * *"
+        }
+      ],
+      "events": {
+        "publishes": [
+          "task.created",
+          "task.updated",
+          "task.status_changed",
+          "mention.created",
+          "notification.created",
+          "module.toggled",
+          "config.changed",
+          "authz.changed"
+        ],
+        "consumes": [
+          "*.*"
+        ]
+      },
+      "configKeys": [
+        "tenant.locale",
+        "tenant.timezone",
+        "tenant.currency",
+        "notifications.defaults"
+      ],
+      "planEntitlement": {
+        "includedIn": [
+          "starter",
+          "growth",
+          "enterprise"
+        ],
+        "addOn": false
+      },
+      "defaultConfig": {},
+      "alwaysOn": true
+    },
+    {
+      "id": "crm",
+      "version": "0.1.0",
+      "displayNameKey": "module.crm.name",
+      "descriptionKey": "module.crm.description",
+      "family": 5,
+      "dependsOn": [
+        [
+          "core"
+        ]
+      ],
+      "permissions": [
+        {
+          "key": "catalog.product.manage",
+          "labelKey": "permission.catalog.product.manage"
+        },
+        {
+          "key": "catalog.price_list.manage",
+          "labelKey": "permission.catalog.price_list.manage"
+        },
+        {
+          "key": "fields.cost_margin.read",
+          "labelKey": "permission.fields.cost_margin.read"
+        },
+        {
+          "key": "crm.lead.convert",
+          "labelKey": "permission.crm.lead.convert"
+        },
+        {
+          "key": "crm.record.merge",
+          "labelKey": "permission.crm.record.merge"
+        }
+      ],
+      "resources": [
+        {
+          "type": "lead",
+          "table": "leads",
+          "segmentMode": "transactional",
+          "mentionFields": [
+            "description"
+          ],
+          "customFields": true,
+          "workflow": true
+        },
+        {
+          "type": "account",
+          "table": "accounts",
+          "segmentMode": "identity",
+          "mentionFields": [
+            "description"
+          ],
+          "customFields": true,
+          "workflow": false
+        },
+        {
+          "type": "contact",
+          "table": "contacts",
+          "segmentMode": "identity",
+          "mentionFields": [
+            "description"
+          ],
+          "customFields": true,
+          "workflow": false
+        },
+        {
+          "type": "opportunity",
+          "table": "opportunities",
+          "segmentMode": "transactional",
+          "mentionFields": [
+            "description"
+          ],
+          "customFields": true,
+          "workflow": true
+        },
+        {
+          "type": "case",
+          "table": "cases",
+          "segmentMode": "contextual",
+          "mentionFields": [
+            "description"
+          ],
+          "customFields": true,
+          "workflow": true
+        }
+      ],
+      "routes": {
+        "apiPrefixes": [
+          "/v1/leads",
+          "/v1/accounts",
+          "/v1/contacts",
+          "/v1/opportunities",
+          "/v1/cases",
+          "/v1/products",
+          "/v1/price-lists"
+        ]
+      },
+      "menu": [
+        {
+          "id": "customers",
+          "labelKey": "module.crm.menu.customers",
+          "path": "/crm",
+          "icon": "users",
+          "requires": [
+            "*record*.read"
+          ]
+        }
+      ],
+      "jobs": [],
+      "events": {
+        "publishes": [
+          "lead.created",
+          "lead.converted",
+          "opportunity.stage_changed",
+          "case.created",
+          "record.merged"
+        ],
+        "consumes": [
+          "sla.*"
+        ]
+      },
+      "configKeys": [
+        "crm.pipelines",
+        "crm.lead_sources",
+        "crm.duplicate_rules"
+      ],
+      "planEntitlement": {
+        "includedIn": [
+          "starter",
+          "growth",
+          "enterprise"
+        ],
+        "addOn": false
+      },
+      "defaultConfig": {}
+    },
+    {
+      "id": "sales_b2b",
+      "version": "0.1.0",
+      "displayNameKey": "module.sales_b2b.name",
+      "descriptionKey": "module.sales_b2b.description",
+      "family": 7,
+      "dependsOn": [
+        [
+          "crm"
+        ]
+      ],
+      "permissions": [
+        {
+          "key": "sales_b2b.quote.create",
+          "labelKey": "permission.sales_b2b.quote.create"
+        },
+        {
+          "key": "sales_b2b.quote.send",
+          "labelKey": "permission.sales_b2b.quote.send"
+        },
+        {
+          "key": "sales_b2b.discount.approve",
+          "labelKey": "permission.sales_b2b.discount.approve"
+        },
+        {
+          "key": "sales_b2b.contract.manage",
+          "labelKey": "permission.sales_b2b.contract.manage"
+        },
+        {
+          "key": "sales_b2b.forecast.read",
+          "labelKey": "permission.sales_b2b.forecast.read"
+        },
+        {
+          "key": "sales_b2b.forecast.adjust",
+          "labelKey": "permission.sales_b2b.forecast.adjust"
+        }
+      ],
+      "resources": [
+        {
+          "type": "quote",
+          "table": "quotes",
+          "segmentMode": "transactional",
+          "mentionFields": [
+            "note"
+          ],
+          "customFields": true,
+          "workflow": true
+        },
+        {
+          "type": "contract",
+          "table": "contracts",
+          "segmentMode": "transactional",
+          "mentionFields": [],
+          "customFields": true,
+          "workflow": false
+        }
+      ],
+      "routes": {
+        "apiPrefixes": [
+          "/v1/sales/b2b"
+        ]
+      },
+      "menu": [
+        {
+          "id": "pipeline",
+          "labelKey": "module.sales_b2b.menu.pipeline",
+          "path": "/sales/b2b",
+          "icon": "briefcase",
+          "requires": [
+            "sales_b2b.quote.create",
+            "*record*.read"
+          ],
+          "salesModes": [
+            "b2b_only",
+            "both"
+          ]
+        }
+      ],
+      "jobs": [
+        {
+          "name": "sales_b2b.forecast.snapshot",
+          "kind": "cron",
+          "cron": "0 1 * * 1"
+        },
+        {
+          "name": "sales_b2b.contract.renewal_reminder",
+          "kind": "cron",
+          "cron": "0 7 * * *"
+        }
+      ],
+      "events": {
+        "publishes": [
+          "quote.created",
+          "quote.sent",
+          "discount.approval_requested",
+          "contract.created",
+          "contract.renewal_due"
+        ],
+        "consumes": [
+          "approval.decided",
+          "opportunity.stage_changed"
+        ]
+      },
+      "configKeys": [
+        "sales_b2b.quote_template",
+        "sales_b2b.discount_rules"
+      ],
+      "planEntitlement": {
+        "includedIn": [
+          "growth",
+          "enterprise"
+        ],
+        "addOn": false
+      },
+      "defaultConfig": {}
+    },
+    {
+      "id": "sales_b2c",
+      "version": "0.1.0",
+      "displayNameKey": "module.sales_b2c.name",
+      "descriptionKey": "module.sales_b2c.description",
+      "family": 8,
+      "dependsOn": [
+        [
+          "crm"
+        ]
+      ],
+      "permissions": [
+        {
+          "key": "sales_b2c.return.approve",
+          "labelKey": "permission.sales_b2c.return.approve"
+        },
+        {
+          "key": "sales_b2c.consent.read",
+          "labelKey": "permission.sales_b2c.consent.read"
+        },
+        {
+          "key": "sales_b2c.consent.manage",
+          "labelKey": "permission.sales_b2c.consent.manage"
+        },
+        {
+          "key": "sales_b2c.campaign.manage",
+          "labelKey": "permission.sales_b2c.campaign.manage"
+        },
+        {
+          "key": "sales_b2c.coupon.manage",
+          "labelKey": "permission.sales_b2c.coupon.manage"
+        },
+        {
+          "key": "sales_b2c.order.transition",
+          "labelKey": "permission.sales_b2c.order.transition"
+        },
+        {
+          "key": "sales_b2c.return.create",
+          "labelKey": "permission.sales_b2c.return.create"
+        },
+        {
+          "key": "sales_b2c.rfm.read",
+          "labelKey": "permission.sales_b2c.rfm.read"
+        }
+      ],
+      "resources": [
+        {
+          "type": "order",
+          "table": "orders",
+          "segmentMode": "transactional",
+          "mentionFields": [
+            "note"
+          ],
+          "customFields": true,
+          "workflow": true
+        },
+        {
+          "type": "return",
+          "table": "returns",
+          "segmentMode": "transactional",
+          "mentionFields": [
+            "note"
+          ],
+          "customFields": true,
+          "workflow": true
+        },
+        {
+          "type": "campaign",
+          "table": "campaigns",
+          "segmentMode": "transactional",
+          "mentionFields": [],
+          "customFields": true,
+          "workflow": false
+        }
+      ],
+      "routes": {
+        "apiPrefixes": [
+          "/v1/sales/b2c"
+        ]
+      },
+      "menu": [
+        {
+          "id": "orders",
+          "labelKey": "module.sales_b2c.menu.orders",
+          "path": "/sales/b2c",
+          "icon": "shopping-bag",
+          "requires": [
+            "*record*.read"
+          ],
+          "salesModes": [
+            "b2c_only",
+            "both"
+          ]
+        }
+      ],
+      "jobs": [
+        {
+          "name": "sales_b2c.rfm.recompute",
+          "kind": "cron",
+          "cron": "0 2 * * *"
+        }
+      ],
+      "events": {
+        "publishes": [
+          "order.created",
+          "order.status_changed",
+          "return.requested",
+          "consent.changed",
+          "campaign.started"
+        ],
+        "consumes": [
+          "approval.decided"
+        ]
+      },
+      "configKeys": [
+        "sales_b2c.order_workflow",
+        "sales_b2c.consent_channels",
+        "sales_b2c.rfm"
+      ],
+      "planEntitlement": {
+        "includedIn": [
+          "growth",
+          "enterprise"
+        ],
+        "addOn": false
+      },
+      "defaultConfig": {}
+    },
+    {
+      "id": "sales_tracking",
+      "version": "0.1.0",
+      "displayNameKey": "module.sales_tracking.name",
+      "descriptionKey": "module.sales_tracking.description",
+      "family": 9,
+      "dependsOn": [
+        [
+          "sales_b2b",
+          "sales_b2c"
+        ]
+      ],
+      "permissions": [
+        {
+          "key": "sales_tracking.target.manage",
+          "labelKey": "permission.sales_tracking.target.manage"
+        },
+        {
+          "key": "sales_tracking.target.read",
+          "labelKey": "permission.sales_tracking.target.read"
+        },
+        {
+          "key": "sales_tracking.manager_cockpit.view",
+          "labelKey": "permission.sales_tracking.manager_cockpit.view"
+        },
+        {
+          "key": "sales_tracking.approvals.inbox",
+          "labelKey": "permission.sales_tracking.approvals.inbox"
+        }
+      ],
+      "resources": [],
+      "routes": {
+        "apiPrefixes": [
+          "/v1/targets",
+          "/v1/manager",
+          "/v1/approvals"
+        ]
+      },
+      "menu": [
+        {
+          "id": "targets",
+          "labelKey": "module.sales_tracking.menu.targets",
+          "path": "/targets",
+          "icon": "target",
+          "requires": [
+            "sales_tracking.target.read"
+          ]
+        },
+        {
+          "id": "manager",
+          "labelKey": "module.sales_tracking.menu.manager",
+          "path": "/manager",
+          "icon": "gauge",
+          "requires": [
+            "sales_tracking.manager_cockpit.view"
+          ]
+        }
+      ],
+      "jobs": [
+        {
+          "name": "sales_tracking.target.risk_scan",
+          "kind": "cron",
+          "cron": "0 * * * *"
+        }
+      ],
+      "events": {
+        "publishes": [
+          "target.at_risk",
+          "approval.decided"
+        ],
+        "consumes": [
+          "opportunity.*",
+          "order.*",
+          "call.ended"
+        ]
+      },
+      "configKeys": [
+        "sales_tracking.leaderboard"
+      ],
+      "planEntitlement": {
+        "includedIn": [
+          "growth",
+          "enterprise"
+        ],
+        "addOn": false
+      },
+      "defaultConfig": {}
+    },
+    {
+      "id": "call_center",
+      "version": "0.1.0",
+      "displayNameKey": "module.call_center.name",
+      "descriptionKey": "module.call_center.description",
+      "family": 10,
+      "dependsOn": [
+        [
+          "crm"
+        ]
+      ],
+      "permissions": [
+        {
+          "key": "call_center.call.place",
+          "labelKey": "permission.call_center.call.place"
+        },
+        {
+          "key": "call_center.call.receive",
+          "labelKey": "permission.call_center.call.receive"
+        },
+        {
+          "key": "call_center.recording.listen",
+          "labelKey": "permission.call_center.recording.listen"
+        },
+        {
+          "key": "call_center.monitor.listen",
+          "labelKey": "permission.call_center.monitor.listen"
+        },
+        {
+          "key": "call_center.monitor.whisper",
+          "labelKey": "permission.call_center.monitor.whisper"
+        },
+        {
+          "key": "call_center.monitor.barge",
+          "labelKey": "permission.call_center.monitor.barge"
+        },
+        {
+          "key": "call_center.wallboard.view",
+          "labelKey": "permission.call_center.wallboard.view"
+        },
+        {
+          "key": "call_center.telephony.configure",
+          "labelKey": "permission.call_center.telephony.configure"
+        },
+        {
+          "key": "call_center.call_note.create",
+          "labelKey": "permission.call_center.call_note.create"
+        },
+        {
+          "key": "call_center.disposition.set",
+          "labelKey": "permission.call_center.disposition.set"
+        },
+        {
+          "key": "call_center.agent_state.set",
+          "labelKey": "permission.call_center.agent_state.set"
+        },
+        {
+          "key": "call_center.callback.manage",
+          "labelKey": "permission.call_center.callback.manage"
+        },
+        {
+          "key": "call_center.screen_pop",
+          "labelKey": "permission.call_center.screen_pop"
+        }
+      ],
+      "resources": [
+        {
+          "type": "call",
+          "table": "calls",
+          "segmentMode": "transactional",
+          "mentionFields": [
+            "note"
+          ],
+          "customFields": true,
+          "workflow": false
+        }
+      ],
+      "routes": {
+        "apiPrefixes": [
+          "/v1/telephony",
+          "/v1/calls",
+          "/v1/agents",
+          "/v1/wallboard"
+        ]
+      },
+      "menu": [
+        {
+          "id": "calls",
+          "labelKey": "module.call_center.menu.calls",
+          "path": "/calls",
+          "icon": "phone",
+          "requires": [
+            "call_center.call.receive",
+            "call_center.call.place"
+          ]
+        },
+        {
+          "id": "wallboard",
+          "labelKey": "module.call_center.menu.wallboard",
+          "path": "/wallboard",
+          "icon": "monitor",
+          "requires": [
+            "call_center.wallboard.view"
+          ]
+        }
+      ],
+      "jobs": [
+        {
+          "name": "call_center.reconcile_cdr",
+          "kind": "cron",
+          "cron": "*/15 * * * *"
+        },
+        {
+          "name": "call_center.recording.retention",
+          "kind": "cron",
+          "cron": "30 3 * * *"
+        }
+      ],
+      "events": {
+        "publishes": [
+          "call.ringing",
+          "call.answered",
+          "call.ended",
+          "recording.ready",
+          "agent.state_changed",
+          "telephony.connection_lost"
+        ],
+        "consumes": [
+          "consent.changed"
+        ]
+      },
+      "configKeys": [
+        "call_center.dispositions",
+        "call_center.recording_policy",
+        "call_center.calling_hours",
+        "call_center.monitoring_policy"
+      ],
+      "planEntitlement": {
+        "includedIn": [
+          "growth",
+          "enterprise"
+        ],
+        "addOn": true
+      },
+      "defaultConfig": {}
+    },
+    {
+      "id": "dialer",
+      "version": "0.1.0",
+      "displayNameKey": "module.dialer.name",
+      "descriptionKey": "module.dialer.description",
+      "family": 10,
+      "dependsOn": [
+        [
+          "call_center"
+        ],
+        [
+          "sales_b2b",
+          "sales_b2c"
+        ]
+      ],
+      "permissions": [
+        {
+          "key": "dialer.campaign.manage",
+          "labelKey": "permission.dialer.campaign.manage"
+        },
+        {
+          "key": "dialer.campaign.run",
+          "labelKey": "permission.dialer.campaign.run"
+        },
+        {
+          "key": "dialer.list.manage",
+          "labelKey": "permission.dialer.list.manage"
+        },
+        {
+          "key": "dialer.dnc.manage",
+          "labelKey": "permission.dialer.dnc.manage"
+        }
+      ],
+      "resources": [],
+      "routes": {
+        "apiPrefixes": [
+          "/v1/dialer"
+        ]
+      },
+      "menu": [
+        {
+          "id": "campaigns",
+          "labelKey": "module.dialer.menu.campaigns",
+          "path": "/dialer",
+          "icon": "phone-outgoing",
+          "requires": [
+            "dialer.campaign.manage"
+          ]
+        }
+      ],
+      "jobs": [
+        {
+          "name": "dialer.campaign.pace",
+          "kind": "event"
+        }
+      ],
+      "events": {
+        "publishes": [
+          "dialer.attempt.completed",
+          "dialer.campaign.finished"
+        ],
+        "consumes": [
+          "call.ended",
+          "consent.changed"
+        ]
+      },
+      "configKeys": [
+        "dialer.retry_rules"
+      ],
+      "planEntitlement": {
+        "includedIn": [
+          "enterprise"
+        ],
+        "addOn": true
+      },
+      "defaultConfig": {}
+    },
+    {
+      "id": "call_qa",
+      "version": "0.1.0",
+      "displayNameKey": "module.call_qa.name",
+      "descriptionKey": "module.call_qa.description",
+      "family": 10,
+      "dependsOn": [
+        [
+          "call_center"
+        ]
+      ],
+      "permissions": [
+        {
+          "key": "call_qa.evaluation.manage",
+          "labelKey": "permission.call_qa.evaluation.manage"
+        },
+        {
+          "key": "call_qa.evaluation.read",
+          "labelKey": "permission.call_qa.evaluation.read"
+        },
+        {
+          "key": "call_qa.form.manage",
+          "labelKey": "permission.call_qa.form.manage"
+        }
+      ],
+      "resources": [
+        {
+          "type": "qa_evaluation",
+          "table": "qa_evaluations",
+          "segmentMode": "contextual",
+          "mentionFields": [
+            "coaching_note"
+          ],
+          "customFields": true,
+          "workflow": false
+        }
+      ],
+      "routes": {
+        "apiPrefixes": [
+          "/v1/qa"
+        ]
+      },
+      "menu": [
+        {
+          "id": "quality",
+          "labelKey": "module.call_qa.menu.quality",
+          "path": "/qa",
+          "icon": "clipboard-check",
+          "requires": [
+            "call_qa.evaluation.read"
+          ]
+        }
+      ],
+      "jobs": [],
+      "events": {
+        "publishes": [
+          "qa.evaluation.completed"
+        ],
+        "consumes": [
+          "call.ended",
+          "recording.ready"
+        ]
+      },
+      "configKeys": [
+        "call_qa.sampling"
+      ],
+      "planEntitlement": {
+        "includedIn": [
+          "enterprise"
+        ],
+        "addOn": true
+      },
+      "defaultConfig": {}
+    },
+    {
+      "id": "data_service",
+      "version": "0.1.0",
+      "displayNameKey": "module.data_service.name",
+      "descriptionKey": "module.data_service.description",
+      "family": 12,
+      "dependsOn": [
+        [
+          "crm"
+        ]
+      ],
+      "permissions": [
+        {
+          "key": "data_service.client.manage",
+          "labelKey": "permission.data_service.client.manage"
+        },
+        {
+          "key": "data_service.access_log.read",
+          "labelKey": "permission.data_service.access_log.read"
+        }
+      ],
+      "resources": [],
+      "routes": {
+        "apiPrefixes": [
+          "/dataservice/v1",
+          "/v1/dataservice-clients"
+        ]
+      },
+      "menu": [
+        {
+          "id": "clients",
+          "labelKey": "module.data_service.menu.clients",
+          "path": "/settings/data-service",
+          "icon": "plug",
+          "requires": [
+            "data_service.client.manage"
+          ]
+        }
+      ],
+      "jobs": [],
+      "events": {
+        "publishes": [
+          "dataservice.lookup.field_denied"
+        ],
+        "consumes": [
+          "contact.*",
+          "contact_point.*"
+        ]
+      },
+      "configKeys": [
+        "data_service.field_policy"
+      ],
+      "planEntitlement": {
+        "includedIn": [
+          "growth",
+          "enterprise"
+        ],
+        "addOn": true
+      },
+      "defaultConfig": {}
+    },
+    {
+      "id": "automation_sla",
+      "version": "0.1.0",
+      "displayNameKey": "module.automation_sla.name",
+      "descriptionKey": "module.automation_sla.description",
+      "family": 13,
+      "dependsOn": [
+        [
+          "core"
+        ]
+      ],
+      "permissions": [
+        {
+          "key": "automation.rule.manage",
+          "labelKey": "permission.automation.rule.manage"
+        },
+        {
+          "key": "automation.run.read",
+          "labelKey": "permission.automation.run.read"
+        },
+        {
+          "key": "automation.dlq.replay",
+          "labelKey": "permission.automation.dlq.replay"
+        },
+        {
+          "key": "sla.policy.manage",
+          "labelKey": "permission.sla.policy.manage"
+        },
+        {
+          "key": "sla.calendar.manage",
+          "labelKey": "permission.sla.calendar.manage"
+        }
+      ],
+      "resources": [],
+      "routes": {
+        "apiPrefixes": [
+          "/v1/automations",
+          "/v1/sla",
+          "/v1/calendars"
+        ]
+      },
+      "menu": [
+        {
+          "id": "rules",
+          "labelKey": "module.automation_sla.menu.rules",
+          "path": "/settings/automation",
+          "icon": "zap",
+          "requires": [
+            "automation.rule.manage"
+          ]
+        }
+      ],
+      "jobs": [
+        {
+          "name": "automation.rule.execute",
+          "kind": "event"
+        },
+        {
+          "name": "sla.timers.tick",
+          "kind": "cron",
+          "cron": "* * * * *"
+        }
+      ],
+      "events": {
+        "publishes": [
+          "automation.run.failed",
+          "sla.warning",
+          "sla.breached"
+        ],
+        "consumes": [
+          "*.*"
+        ]
+      },
+      "configKeys": [
+        "automation.max_depth",
+        "sla.default_calendar"
+      ],
+      "planEntitlement": {
+        "includedIn": [
+          "growth",
+          "enterprise"
+        ],
+        "addOn": false
+      },
+      "defaultConfig": {}
+    },
+    {
+      "id": "reporting_advanced",
+      "version": "0.1.0",
+      "displayNameKey": "module.reporting_advanced.name",
+      "descriptionKey": "module.reporting_advanced.description",
+      "family": 2,
+      "dependsOn": [
+        [
+          "core"
+        ]
+      ],
+      "permissions": [
+        {
+          "key": "reports.builder.use",
+          "labelKey": "permission.reports.builder.use"
+        },
+        {
+          "key": "reports.schedule.manage",
+          "labelKey": "permission.reports.schedule.manage"
+        }
+      ],
+      "resources": [],
+      "routes": {
+        "apiPrefixes": [
+          "/v1/reports"
+        ]
+      },
+      "menu": [
+        {
+          "id": "reports",
+          "labelKey": "module.reporting_advanced.menu.reports",
+          "path": "/reports",
+          "icon": "bar-chart",
+          "requires": [
+            "reports.view"
+          ]
+        }
+      ],
+      "jobs": [
+        {
+          "name": "reporting.scheduled.send",
+          "kind": "cron",
+          "cron": "*/10 * * * *"
+        },
+        {
+          "name": "reporting.mv.refresh",
+          "kind": "cron",
+          "cron": "*/15 * * * *"
+        }
+      ],
+      "events": {
+        "publishes": [
+          "report.scheduled_sent",
+          "export.completed"
+        ],
+        "consumes": []
+      },
+      "configKeys": [
+        "reporting.export_policy"
+      ],
+      "planEntitlement": {
+        "includedIn": [
+          "growth",
+          "enterprise"
+        ],
+        "addOn": false
+      },
+      "defaultConfig": {}
+    },
+    {
+      "id": "api_webhooks",
+      "version": "0.1.0",
+      "displayNameKey": "module.api_webhooks.name",
+      "descriptionKey": "module.api_webhooks.description",
+      "family": 12,
+      "dependsOn": [
+        [
+          "core"
+        ]
+      ],
+      "permissions": [
+        {
+          "key": "api_keys.manage",
+          "labelKey": "permission.api_keys.manage"
+        },
+        {
+          "key": "webhooks.manage",
+          "labelKey": "permission.webhooks.manage"
+        }
+      ],
+      "resources": [],
+      "routes": {
+        "apiPrefixes": [
+          "/v1/api-keys",
+          "/v1/webhooks"
+        ]
+      },
+      "menu": [
+        {
+          "id": "integrations",
+          "labelKey": "module.api_webhooks.menu.integrations",
+          "path": "/settings/integrations",
+          "icon": "link",
+          "requires": [
+            "api_keys.manage",
+            "webhooks.manage"
+          ]
+        }
+      ],
+      "jobs": [
+        {
+          "name": "webhooks.deliver",
+          "kind": "event"
+        }
+      ],
+      "events": {
+        "publishes": [
+          "webhook.delivery_failed",
+          "webhook.disabled"
+        ],
+        "consumes": [
+          "*.*"
+        ]
+      },
+      "configKeys": [
+        "webhooks.auto_disable"
+      ],
+      "planEntitlement": {
+        "includedIn": [
+          "growth",
+          "enterprise"
+        ],
+        "addOn": false
+      },
+      "defaultConfig": {}
+    },
+    {
+      "id": "ai_assistant",
+      "version": "0.1.0",
+      "displayNameKey": "module.ai_assistant.name",
+      "descriptionKey": "module.ai_assistant.description",
+      "family": 3,
+      "dependsOn": [
+        [
+          "core"
+        ]
+      ],
+      "optionalIntegrations": [
+        "crm",
+        "sales_tracking",
+        "call_center"
+      ],
+      "permissions": [
+        {
+          "key": "ai_assistant.module.configure",
+          "labelKey": "permission.ai_assistant.module.configure"
+        },
+        {
+          "key": "ai_assistant.models.manage",
+          "labelKey": "permission.ai_assistant.models.manage"
+        },
+        {
+          "key": "ai_assistant.quota.manage",
+          "labelKey": "permission.ai_assistant.quota.manage"
+        },
+        {
+          "key": "ai_assistant.glossary.manage",
+          "labelKey": "permission.ai_assistant.glossary.manage"
+        },
+        {
+          "key": "ai_assistant.kill_switch",
+          "labelKey": "permission.ai_assistant.kill_switch"
+        },
+        {
+          "key": "ai_assistant.summary.own",
+          "labelKey": "permission.ai_assistant.summary.own"
+        },
+        {
+          "key": "ai_assistant.summary.team",
+          "labelKey": "permission.ai_assistant.summary.team"
+        },
+        {
+          "key": "ai_assistant.summary.tenant",
+          "labelKey": "permission.ai_assistant.summary.tenant"
+        },
+        {
+          "key": "ai_assistant.report.own",
+          "labelKey": "permission.ai_assistant.report.own"
+        },
+        {
+          "key": "ai_assistant.report.other",
+          "labelKey": "permission.ai_assistant.report.other"
+        },
+        {
+          "key": "ai_assistant.report.schedule",
+          "labelKey": "permission.ai_assistant.report.schedule"
+        },
+        {
+          "key": "ai_assistant.report.export",
+          "labelKey": "permission.ai_assistant.report.export"
+        },
+        {
+          "key": "ai_assistant.query",
+          "labelKey": "permission.ai_assistant.query"
+        },
+        {
+          "key": "ai_assistant.suggestion.accept",
+          "labelKey": "permission.ai_assistant.suggestion.accept"
+        },
+        {
+          "key": "ai_assistant.audit.read",
+          "labelKey": "permission.ai_assistant.audit.read"
+        },
+        {
+          "key": "ai_assistant.transparency.read",
+          "labelKey": "permission.ai_assistant.transparency.read"
+        },
+        {
+          "key": "ai_assistant.feedback.create",
+          "labelKey": "permission.ai_assistant.feedback.create"
+        },
+        {
+          "key": "ai_assistant.transcript.include",
+          "labelKey": "permission.ai_assistant.transcript.include"
+        }
+      ],
+      "resources": [],
+      "routes": {
+        "apiPrefixes": [
+          "/v1/ai"
+        ]
+      },
+      "menu": [
+        {
+          "id": "assistant",
+          "labelKey": "module.ai_assistant.menu.assistant",
+          "path": "/ai",
+          "icon": "sparkle",
+          "requires": [
+            "ai_assistant.summary.own"
+          ]
+        }
+      ],
+      "jobs": [
+        {
+          "name": "ai.summary.daily",
+          "kind": "cron",
+          "cron": "*/5 * * * *"
+        },
+        {
+          "name": "ai.report.generate",
+          "kind": "on_demand"
+        }
+      ],
+      "events": {
+        "publishes": [
+          "ai.summary.generated",
+          "ai.report.generated"
+        ],
+        "consumes": [
+          "notification.created"
+        ]
+      },
+      "configKeys": [
+        "ai.enabled",
+        "ai.model",
+        "ai.glossary",
+        "ai.summary_time"
+      ],
+      "planEntitlement": {
+        "includedIn": [
+          "enterprise"
+        ],
+        "addOn": true
+      },
+      "defaultConfig": {}
+    }
+  ]
+}
