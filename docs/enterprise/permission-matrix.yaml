@@ -1,0 +1,603 @@
+# Runvara permission matrix — single source for seed data and generated authorization tests.
+# Source: CRM_TASK_PLATFORM_PROMPT.md §10.4.3 (Matrix A), §10.4.4 (Matrix B + scenarios),
+#         §10.4.5 (Matrix C), §11.4 (AI matrix + scenarios). Semantics: docs/adr/0004-yetki-motoru.md
+# Consistency with the source tables is verified by scripts/check-permission-matrix.mjs
+# (every `label` and every `cells` string must equal the source table cell, markdown bold removed).
+#
+# Cell symbols: ● full · ◐ scoped · ✓ can approve · R read only · T can request · — none
+# grant.mode:  full | read | approve | request | none
+# grant.scope: own | queue | team | segment | all   (list = union)
+# grant.policy: tenant policy key that must be enabled (see `policies`)
+# grant.constraints: named rules enforced by packages/authz (see `constraints`)
+
+version: 1
+roles:
+  admin:      { label: Admin,             system: true, default_scope: all }
+  manager:    { label: Yönetici,          system: true, default_scope: team }
+  sales_rep:  { label: Satış Temsilcisi,  system: true, default_scope: own }
+  call_agent: { label: Çağrı Temsilcisi,  system: true, default_scope: [queue, own] }
+  analyst:    { label: Analist,           system: true, default_scope: all, read_only: true }
+
+protected_permissions:          # cannot be removed from the Admin system role (ADR-0004 §8)
+  - authz.matrix.edit
+  - tenant.modules.manage
+  - users.manage
+
+constraints:
+  no_escalation:        Granter may only grant permission keys and scopes they hold themselves (scope order own < {queue,team} < segment < all).
+  own_segments_only:    Granted segments must be a subset of the granter's active segments.
+  managed_teams_only:   Target user must be a member of a team the granter manages.
+  not_self:             Granter cannot change their own roles, segments, scopes or delegations.
+  no_admin_assignment:  Granter cannot assign the Admin role or any role containing authz.matrix.edit, tenant.modules.manage or platform.*.
+  approve_within_limit: Approver's approve_limit must cover the request; otherwise escalate to the next level.
+  requires_approval:    Action creates an approval request instead of taking effect immediately.
+  requires_notice:      Monitored party is notified (and announcement played if policy requires).
+  bulk_limit:           Bulk operations limited to policies.bulk_max_items_own items.
+  consent_required:     B2C outbound contact requires channel consent, calling hours and DNC check.
+
+policies:                      # defaults from §10.2.4; changed only by Admin, audited
+  report_export_enabled:            { default: false }
+  recording_listen_enabled:         { default: false }
+  recording_listen_own_enabled:     { default: false }
+  live_monitoring_enabled:          { default: false, requires: [requires_notice] }
+  mention_grants_access:            { default: false }
+  cost_margin_visible_to_manager:   { default: false }
+  cost_margin_visible_to_analyst:   { default: false }
+  sales_rep_telephony_enabled:      { default: false }
+  ai_user_reports_enabled:          { default: true }
+  ai_transcript_inclusion_enabled:  { default: false, note: next release }
+  bulk_max_items_own:               { default: 100 }
+
+# Generic record resources: expanded at seed time to every record resource of every enabled module
+# (crm.lead, crm.contact, crm.account, crm.opportunity, crm.case, core.task, sales_b2b.quote,
+#  sales_b2b.contract, sales_b2c.order, sales_b2c.return, call_center.call, ...).
+record_resources: "*record*"
+
+matrix_a:
+  - id: A01
+    label: Modül ve satış modu yapılandırma (plan sınırları içinde)
+    module: core
+    permissions: [tenant.modules.manage, tenant.sales_mode.manage]
+    cells: { admin: "●", manager: "—", sales_rep: "—", call_agent: "—", analyst: "—" }
+    grants:
+      admin: { mode: full, scope: all }
+  - id: A02
+    label: Tenant yapılandırması (pipeline, alan, workflow, marka)
+    module: core
+    permissions: [tenant.config.read, tenant.config.manage]
+    cells: { admin: "●", manager: "R", sales_rep: "—", call_agent: "—", analyst: "—" }
+    grants:
+      admin:   { mode: full, scope: all }
+      manager: { mode: read, scope: all }
+  - id: A03
+    label: Rol ve yetki matrisini düzenleme
+    module: core
+    permissions: [authz.matrix.read, authz.matrix.edit]
+    cells: { admin: "●", manager: "R (ekibi)", sales_rep: "—", call_agent: "—", analyst: "—" }
+    grants:
+      admin:   { mode: full, scope: all }
+      manager: { mode: read, scope: team }
+  - id: A04
+    label: Kullanıcı davet etme / oluşturma
+    module: core
+    permissions: [users.invite, users.manage]
+    cells: { admin: "●", manager: "◐ (kendi ekibine, kendi yetkisini aşmadan)", sales_rep: "—", call_agent: "—", analyst: "—" }
+    grants:
+      admin:   { mode: full, scope: all }
+      manager: { mode: full, scope: team, permissions: [users.invite], constraints: [managed_teams_only, no_escalation, no_admin_assignment] }
+  - id: A05
+    label: Kullanıcıya segment yetkisi verme
+    module: core
+    permissions: [authz.segments.grant]
+    cells: { admin: "●", manager: "◐ (yalnızca kendi segmentlerinden)", sales_rep: "—", call_agent: "—", analyst: "—" }
+    grants:
+      admin:   { mode: full, scope: all }
+      manager: { mode: full, scope: team, constraints: [own_segments_only, managed_teams_only, not_self] }
+  - id: A06
+    label: Ekip ve üye yönetimi
+    module: core
+    permissions: [teams.manage, teams.members.manage]
+    cells: { admin: "●", manager: "◐", sales_rep: "—", call_agent: "—", analyst: "—" }
+    grants:
+      admin:   { mode: full, scope: all }
+      manager: { mode: full, scope: team, permissions: [teams.members.manage], constraints: [managed_teams_only] }
+  - id: A07
+    label: Geçici yetki devri (delegasyon)
+    module: core
+    permissions: [authz.delegation.create]
+    cells: { admin: "●", manager: "◐", sales_rep: "T", call_agent: "T", analyst: "—" }
+    grants:
+      admin:      { mode: full, scope: all }
+      manager:    { mode: full, scope: team, constraints: [managed_teams_only, no_escalation, not_self] }
+      sales_rep:  { mode: request, scope: own }
+      call_agent: { mode: request, scope: own }
+  - id: A08
+    label: Kayıt görüntüleme
+    module: core
+    permissions: ["*record*.read"]
+    cells: { admin: "●", manager: "◐ ekip", sales_rep: "◐ kendi", call_agent: "◐ kuyruk/kendi", analyst: "R" }
+    grants:
+      admin:      { mode: full, scope: all }
+      manager:    { mode: full, scope: team }
+      sales_rep:  { mode: full, scope: own }
+      call_agent: { mode: full, scope: [queue, own] }
+      analyst:    { mode: read, scope: all }
+  - id: A09
+    label: Kayıt oluşturma
+    module: core
+    permissions: ["*record*.create"]
+    cells: { admin: "●", manager: "◐", sales_rep: "◐", call_agent: "◐ (lead, müşteri, çağrı notu)", analyst: "—" }
+    grants:
+      admin:      { mode: full, scope: all }
+      manager:    { mode: full, scope: team }
+      sales_rep:  { mode: full, scope: own }
+      call_agent: { mode: full, scope: own, resources: [crm.lead, crm.contact, call_center.call_note] }
+  - id: A10
+    label: Kayıt düzenleme
+    module: core
+    permissions: ["*record*.update"]
+    cells: { admin: "●", manager: "◐ ekip", sales_rep: "◐ kendi", call_agent: "◐ kendi", analyst: "—" }
+    grants:
+      admin:      { mode: full, scope: all }
+      manager:    { mode: full, scope: team }
+      sales_rep:  { mode: full, scope: own }
+      call_agent: { mode: full, scope: own }
+  - id: A11
+    label: Arşivleme
+    module: core
+    permissions: ["*record*.archive"]
+    cells: { admin: "●", manager: "◐ ekip", sales_rep: "—", call_agent: "—", analyst: "—" }
+    grants:
+      admin:   { mode: full, scope: all }
+      manager: { mode: full, scope: team }
+  - id: A12
+    label: Kalıcı silme
+    module: core
+    permissions: ["*record*.purge"]
+    cells: { admin: "●", manager: "—", sales_rep: "—", call_agent: "—", analyst: "—" }
+    grants:
+      admin: { mode: full, scope: all }
+  - id: A13
+    label: Kayıt yeniden atama
+    module: core
+    permissions: ["*record*.reassign"]
+    cells: { admin: "●", manager: "◐ ekip", sales_rep: "T", call_agent: "T", analyst: "—" }
+    grants:
+      admin:      { mode: full, scope: all }
+      manager:    { mode: full, scope: team }
+      sales_rep:  { mode: request, scope: own }
+      call_agent: { mode: request, scope: own }
+  - id: A14
+    label: Teklif oluşturma ve gönderme (B2B)
+    module: sales_b2b
+    permissions: [sales_b2b.quote.create, sales_b2b.quote.send]
+    cells: { admin: "●", manager: "◐", sales_rep: "◐", call_agent: "—", analyst: "—" }
+    grants:
+      admin:     { mode: full, scope: all }
+      manager:   { mode: full, scope: team }
+      sales_rep: { mode: full, scope: own }
+  - id: A15
+    label: İskonto onayı
+    module: sales_b2b
+    permissions: [sales_b2b.discount.approve]
+    cells: { admin: "●", manager: "✓ (limitine kadar)", sales_rep: "T", call_agent: "—", analyst: "—" }
+    grants:
+      admin:     { mode: full, scope: all }
+      manager:   { mode: approve, scope: team, constraints: [approve_within_limit] }
+      sales_rep: { mode: request, scope: own }
+  - id: A16
+    label: İade / iptal onayı
+    module: sales_b2c
+    permissions: [sales_b2c.return.approve]
+    cells: { admin: "●", manager: "✓", sales_rep: "T", call_agent: "T", analyst: "—" }
+    grants:
+      admin:      { mode: full, scope: all }
+      manager:    { mode: approve, scope: team, constraints: [approve_within_limit] }
+      sales_rep:  { mode: request, scope: own }
+      call_agent: { mode: request, scope: own }
+  - id: A17
+    label: Ürün kataloğu ve fiyat listesi yönetimi
+    module: crm
+    permissions: [catalog.product.manage, catalog.price_list.manage]
+    cells: { admin: "●", manager: "R", sales_rep: "R", call_agent: "R", analyst: "R" }
+    grants:
+      admin:      { mode: full, scope: all }
+      manager:    { mode: read, scope: all }
+      sales_rep:  { mode: read, scope: all }
+      call_agent: { mode: read, scope: all }
+      analyst:    { mode: read, scope: all }
+  - id: A18
+    label: Maliyet ve marj alanlarını görme
+    module: crm
+    permissions: [fields.cost_margin.read]
+    field_policy: { fields: [cost, margin, margin_percent, unit_cost], default_hidden_for: [sales_rep, call_agent] }
+    cells: { admin: "●", manager: "◐ (politikaya bağlı)", sales_rep: "—", call_agent: "—", analyst: "R (politikaya bağlı)" }
+    grants:
+      admin:   { mode: full, scope: all }
+      manager: { mode: full, scope: team, policy: cost_margin_visible_to_manager }
+      analyst: { mode: read, scope: all, policy: cost_margin_visible_to_analyst }
+  - id: A19
+    label: Hedef (kota) tanımlama
+    module: sales_tracking
+    permissions: [sales_tracking.target.manage, sales_tracking.target.read]
+    cells: { admin: "●", manager: "◐ ekip", sales_rep: "R (kendi)", call_agent: "R (kendi)", analyst: "R" }
+    grants:
+      admin:      { mode: full, scope: all }
+      manager:    { mode: full, scope: team }
+      sales_rep:  { mode: read, scope: own }
+      call_agent: { mode: read, scope: own }
+      analyst:    { mode: read, scope: all }
+  - id: A20
+    label: Raporları görüntüleme
+    module: core
+    permissions: [reports.view]
+    cells: { admin: "● tüm", manager: "◐ ekip ve segmentleri", sales_rep: "◐ kendi", call_agent: "◐ kendi", analyst: "R tüm (segment dahilinde)" }
+    grants:
+      admin:      { mode: full, scope: all }
+      manager:    { mode: full, scope: team }
+      sales_rep:  { mode: full, scope: own }
+      call_agent: { mode: full, scope: own }
+      analyst:    { mode: read, scope: all }
+  - id: A21
+    label: Rapor dışa aktarma
+    module: core
+    permissions: [reports.export]
+    cells: { admin: "●", manager: "◐ (Admin politikasına bağlı)", sales_rep: "—", call_agent: "—", analyst: "◐ (politikaya bağlı)" }
+    grants:
+      admin:   { mode: full, scope: all }
+      manager: { mode: full, scope: team, policy: report_export_enabled }
+      analyst: { mode: full, scope: all, policy: report_export_enabled }
+  - id: A22
+    label: Dashboard özelleştirme
+    module: core
+    permissions: [dashboards.customize]
+    cells: { admin: "●", manager: "◐ ekip panosu", sales_rep: "◐ kişisel", call_agent: "◐ kişisel", analyst: "R" }
+    grants:
+      admin:      { mode: full, scope: all }
+      manager:    { mode: full, scope: team }
+      sales_rep:  { mode: full, scope: own }
+      call_agent: { mode: full, scope: own }
+      analyst:    { mode: read, scope: all }
+  - id: A23
+    label: Audit log görüntüleme
+    module: core
+    permissions: [audit.read]
+    cells: { admin: "●", manager: "R (ekibin eylemleri)", sales_rep: "—", call_agent: "—", analyst: "—" }
+    grants:
+      admin:   { mode: full, scope: all }
+      manager: { mode: read, scope: team }
+  - id: A24
+    label: Toplu işlemler
+    module: core
+    permissions: ["*record*.bulk"]
+    cells: { admin: "●", manager: "◐ ekip", sales_rep: "◐ kendi (limitli)", call_agent: "—", analyst: "—" }
+    grants:
+      admin:     { mode: full, scope: all }
+      manager:   { mode: full, scope: team }
+      sales_rep: { mode: full, scope: own, constraints: [bulk_limit] }
+  - id: A25
+    label: Müşteri rıza kayıtları (B2C)
+    module: sales_b2c
+    permissions: [sales_b2c.consent.read, sales_b2c.consent.manage]
+    cells: { admin: "●", manager: "◐", sales_rep: "◐", call_agent: "◐", analyst: "R" }
+    grants:
+      admin:      { mode: full, scope: all }
+      manager:    { mode: full, scope: team }
+      sales_rep:  { mode: full, scope: own }
+      call_agent: { mode: full, scope: [queue, own] }
+      analyst:    { mode: read, scope: all }
+  - id: A26
+    label: Kampanya / kupon yönetimi (B2C)
+    module: sales_b2c
+    permissions: [sales_b2c.campaign.manage, sales_b2c.coupon.manage]
+    cells: { admin: "●", manager: "◐ (onay akışıyla)", sales_rep: "R", call_agent: "R", analyst: "R" }
+    grants:
+      admin:      { mode: full, scope: all }
+      manager:    { mode: full, scope: team, constraints: [requires_approval] }
+      sales_rep:  { mode: read, scope: all }
+      call_agent: { mode: read, scope: all }
+      analyst:    { mode: read, scope: all }
+  - id: A27
+    label: Not/açıklamada kullanıcı anma (mention)
+    module: core
+    permissions: [mentions.create]
+    cells: { admin: "●", manager: "◐", sales_rep: "◐", call_agent: "◐", analyst: "—" }
+    grants:
+      admin:      { mode: full, scope: all }
+      manager:    { mode: full, scope: team }
+      sales_rep:  { mode: full, scope: own }
+      call_agent: { mode: full, scope: [queue, own] }
+  - id: A28
+    label: Bildirim tercihlerini yönetme (kendi)
+    module: core
+    permissions: [notifications.preferences.manage]
+    cells: { admin: "●", manager: "●", sales_rep: "●", call_agent: "●", analyst: "●" }
+    grants:
+      admin:      { mode: full, scope: own }
+      manager:    { mode: full, scope: own }
+      sales_rep:  { mode: full, scope: own }
+      call_agent: { mode: full, scope: own }
+      analyst:    { mode: full, scope: own }
+  - id: A29
+    label: Arama yapma/alma (softphone/CTI)
+    module: call_center
+    permissions: [call_center.call.place, call_center.call.receive]
+    cells: { admin: "●", manager: "◐", sales_rep: "◐ (izinliyse)", call_agent: "● kendi", analyst: "—" }
+    grants:
+      admin:      { mode: full, scope: all, constraints: [consent_required] }
+      manager:    { mode: full, scope: team, constraints: [consent_required] }
+      sales_rep:  { mode: full, scope: own, policy: sales_rep_telephony_enabled, constraints: [consent_required] }
+      call_agent: { mode: full, scope: own, constraints: [consent_required] }
+  - id: A30
+    label: Çağrı kaydı dinleme
+    module: call_center
+    permissions: [call_center.recording.listen]
+    cells: { admin: "●", manager: "◐ ekip", sales_rep: "◐ kendi (politika)", call_agent: "◐ kendi (politika)", analyst: "—" }
+    grants:
+      admin:      { mode: full, scope: all, policy: recording_listen_enabled }
+      manager:    { mode: full, scope: team, policy: recording_listen_enabled }
+      sales_rep:  { mode: full, scope: own, policy: recording_listen_own_enabled }
+      call_agent: { mode: full, scope: own, policy: recording_listen_own_enabled }
+  - id: A31
+    label: Canlı dinleme / fısıldama / devreye girme
+    module: call_center
+    permissions: [call_center.monitor.listen, call_center.monitor.whisper, call_center.monitor.barge]
+    cells: { admin: "●", manager: "◐ ekip (politika + bildirim)", sales_rep: "—", call_agent: "—", analyst: "—" }
+    grants:
+      admin:   { mode: full, scope: all, policy: live_monitoring_enabled, constraints: [requires_notice] }
+      manager: { mode: full, scope: team, policy: live_monitoring_enabled, constraints: [requires_notice] }
+  - id: A32
+    label: Wallboard
+    module: call_center
+    permissions: [call_center.wallboard.view]
+    cells: { admin: "●", manager: "◐ ekip/kuyruk", sales_rep: "—", call_agent: "R (kendi kuyruğu)", analyst: "R" }
+    grants:
+      admin:      { mode: full, scope: all }
+      manager:    { mode: full, scope: [team, queue] }
+      call_agent: { mode: read, scope: queue }
+      analyst:    { mode: read, scope: all }
+  - id: A33
+    label: Telefoni/santral yapılandırma
+    module: call_center
+    permissions: [call_center.telephony.configure]
+    cells: { admin: "●", manager: "—", sales_rep: "—", call_agent: "—", analyst: "—" }
+    grants:
+      admin: { mode: full, scope: all }
+  - id: A34
+    label: Arama kampanyası (dialer) yönetimi
+    module: dialer
+    permissions: [dialer.campaign.manage]
+    cells: { admin: "●", manager: "◐ ekip", sales_rep: "—", call_agent: "—", analyst: "—" }
+    grants:
+      admin:   { mode: full, scope: all, constraints: [consent_required] }
+      manager: { mode: full, scope: team, constraints: [consent_required] }
+  - id: A35
+    label: Kalite (QA) değerlendirme
+    module: call_qa
+    permissions: [call_qa.evaluation.manage, call_qa.evaluation.read]
+    cells: { admin: "●", manager: "◐ ekip", sales_rep: "—", call_agent: "R (kendi sonuçları)", analyst: "R" }
+    grants:
+      admin:      { mode: full, scope: all }
+      manager:    { mode: full, scope: team }
+      call_agent: { mode: read, scope: own }
+      analyst:    { mode: read, scope: all }
+  - id: A36
+    label: Data Servisi istemci/anahtar yönetimi
+    module: data_service
+    permissions: [data_service.client.manage]
+    cells: { admin: "●", manager: "—", sales_rep: "—", call_agent: "—", analyst: "—" }
+    grants:
+      admin: { mode: full, scope: all }
+
+matrix_ai:
+  - id: AI01
+    label: AI modülünü açma ve yapılandırma
+    module: ai_assistant
+    permissions: [ai_assistant.module.configure]
+    cells: { admin: "●", manager: "—", sales_rep: "—", call_agent: "—", analyst: "—" }
+    grants: { admin: { mode: full, scope: all } }
+  - id: AI02
+    label: Model/uç nokta, kota, terminoloji yönetimi
+    module: ai_assistant
+    permissions: [ai_assistant.models.manage, ai_assistant.quota.manage, ai_assistant.glossary.manage]
+    cells: { admin: "●", manager: "—", sales_rep: "—", call_agent: "—", analyst: "—" }
+    grants: { admin: { mode: full, scope: all } }
+  - id: AI03
+    label: Kill switch (AI'yı durdurma)
+    module: ai_assistant
+    permissions: [ai_assistant.kill_switch]
+    cells: { admin: "●", manager: "—", sales_rep: "—", call_agent: "—", analyst: "—" }
+    grants: { admin: { mode: full, scope: all } }
+  - id: AI04
+    label: Kendi günlük özetini görme ve zamanlama
+    module: ai_assistant
+    permissions: [ai_assistant.summary.own]
+    cells: { admin: "●", manager: "●", sales_rep: "●", call_agent: "●", analyst: "◐" }
+    grants:
+      admin:      { mode: full, scope: own }
+      manager:    { mode: full, scope: own }
+      sales_rep:  { mode: full, scope: own }
+      call_agent: { mode: full, scope: own }
+      analyst:    { mode: read, scope: own }
+  - id: AI05
+    label: Ekip özeti
+    module: ai_assistant
+    permissions: [ai_assistant.summary.team]
+    cells: { admin: "●", manager: "◐ ekip", sales_rep: "—", call_agent: "—", analyst: "—" }
+    grants:
+      admin:   { mode: full, scope: all }
+      manager: { mode: full, scope: team }
+  - id: AI06
+    label: Tenant geneli özet
+    module: ai_assistant
+    permissions: [ai_assistant.summary.tenant]
+    cells: { admin: "●", manager: "—", sales_rep: "—", call_agent: "—", analyst: "R" }
+    grants:
+      admin:   { mode: full, scope: all }
+      analyst: { mode: read, scope: all }
+  - id: AI07
+    label: Kendi kullanıcı raporunu üretme
+    module: ai_assistant
+    permissions: [ai_assistant.report.own]
+    cells: { admin: "●", manager: "●", sales_rep: "●", call_agent: "●", analyst: "◐" }
+    grants:
+      admin:      { mode: full, scope: own }
+      manager:    { mode: full, scope: own }
+      sales_rep:  { mode: full, scope: own }
+      call_agent: { mode: full, scope: own }
+      analyst:    { mode: read, scope: own }
+  - id: AI08
+    label: Başka kullanıcı hakkında rapor üretme
+    module: ai_assistant
+    permissions: [ai_assistant.report.other]
+    cells: { admin: "●", manager: "◐ ekip, segment dahilinde", sales_rep: "—", call_agent: "—", analyst: "—" }
+    grants:
+      admin:   { mode: full, scope: all, policy: ai_user_reports_enabled }
+      manager: { mode: full, scope: team, policy: ai_user_reports_enabled, constraints: [managed_teams_only] }
+  - id: AI09
+    label: Rapor kaydetme/zamanlama
+    module: ai_assistant
+    permissions: [ai_assistant.report.schedule]
+    cells: { admin: "●", manager: "◐", sales_rep: "◐ kendi", call_agent: "◐ kendi", analyst: "◐ kendi" }
+    grants:
+      admin:      { mode: full, scope: all }
+      manager:    { mode: full, scope: team }
+      sales_rep:  { mode: full, scope: own }
+      call_agent: { mode: full, scope: own }
+      analyst:    { mode: full, scope: own }
+  - id: AI10
+    label: Rapor dışa aktarma (PDF/DOCX/MD)
+    module: ai_assistant
+    permissions: [ai_assistant.report.export]
+    cells: { admin: "●", manager: "◐ (export politikası)", sales_rep: "—", call_agent: "—", analyst: "◐ (politika)" }
+    grants:
+      admin:   { mode: full, scope: all }
+      manager: { mode: full, scope: team, policy: report_export_enabled }
+      analyst: { mode: full, scope: own, policy: report_export_enabled }
+  - id: AI11
+    label: Doğal dil soru sorma (kendi yetki kapsamında)
+    module: ai_assistant
+    permissions: [ai_assistant.query]
+    cells: { admin: "●", manager: "◐", sales_rep: "◐", call_agent: "◐", analyst: "R" }
+    grants:
+      admin:      { mode: full, scope: all }
+      manager:    { mode: full, scope: team }
+      sales_rep:  { mode: full, scope: own }
+      call_agent: { mode: full, scope: [queue, own] }
+      analyst:    { mode: read, scope: all }
+  - id: AI12
+    label: AI önerisinden görev/not oluşturma (onayla)
+    module: ai_assistant
+    permissions: [ai_assistant.suggestion.accept]
+    cells: { admin: "●", manager: "◐", sales_rep: "◐", call_agent: "◐", analyst: "—" }
+    grants:
+      admin:      { mode: full, scope: all }
+      manager:    { mode: full, scope: team }
+      sales_rep:  { mode: full, scope: own }
+      call_agent: { mode: full, scope: own }
+  - id: AI13
+    label: AI kullanımını ve audit'i görme
+    module: ai_assistant
+    permissions: [ai_assistant.audit.read]
+    cells: { admin: "●", manager: "R (ekibi)", sales_rep: "—", call_agent: "—", analyst: "—" }
+    grants:
+      admin:   { mode: full, scope: all }
+      manager: { mode: read, scope: team }
+  - id: AI14
+    label: '"Benim hakkımda üretilen raporlar" ekranı'
+    module: ai_assistant
+    permissions: [ai_assistant.transparency.read]
+    cells: { admin: "●", manager: "●", sales_rep: "●", call_agent: "●", analyst: "●" }
+    grants:
+      admin:      { mode: full, scope: own }
+      manager:    { mode: full, scope: own }
+      sales_rep:  { mode: full, scope: own }
+      call_agent: { mode: full, scope: own }
+      analyst:    { mode: full, scope: own }
+  - id: AI15
+    label: Geri bildirim verme
+    module: ai_assistant
+    permissions: [ai_assistant.feedback.create]
+    cells: { admin: "●", manager: "●", sales_rep: "●", call_agent: "●", analyst: "●" }
+    grants:
+      admin:      { mode: full, scope: own }
+      manager:    { mode: full, scope: own }
+      sales_rep:  { mode: full, scope: own }
+      call_agent: { mode: full, scope: own }
+      analyst:    { mode: full, scope: own }
+  - id: AI16
+    label: Çağrı kaydı transkriptini AI'ya dahil etme (sonraki sürüm)
+    module: ai_assistant
+    permissions: [ai_assistant.transcript.include]
+    cells: { admin: "●", manager: "◐ (politika)", sales_rep: "—", call_agent: "—", analyst: "—" }
+    grants:
+      admin:   { mode: full, scope: all, policy: ai_transcript_inclusion_enabled }
+      manager: { mode: full, scope: team, policy: ai_transcript_inclusion_enabled }
+
+# §10.4.4 Matrix B — demo users (seed) — "●" = segment granted
+teams:
+  b2b_corporate:    { name: B2B Kurumsal,        segments: [b2b],      managers: [mert] }
+  b2c_retail:       { name: B2C Perakende,       segments: [b2c],      managers: [elif] }
+  mixed:            { name: Karma,               segments: [b2b, b2c], managers: [burak] }
+  customer_service: { name: Müşteri Hizmetleri,  segments: [b2c],      managers: [burak], call_queue: true }
+  mixed_queue:      { name: Karma Kuyruk,        segments: [b2b, b2c], managers: [burak], call_queue: true }
+
+users:
+  ayse:   { name: Ayşe Yılmaz,   role: admin,      b2b: true,  b2c: true,  scope: all,  teams: [],                 telephony: configure,           report_scope: all,          export: "Evet" }
+  mert:   { name: Mert Kaya,     role: manager,    b2b: true,  b2c: false, scope: team, teams: [b2b_corporate],    telephony: recording_listen,    report_scope: "team,b2b",   export: "Politikaya bağlı" }
+  elif:   { name: Elif Demir,    role: manager,    b2b: false, b2c: true,  scope: team, teams: [b2c_retail],       telephony: recording_listen,    report_scope: "team,b2c",   export: "Politikaya bağlı" }
+  burak:  { name: Burak Aydın,   role: manager,    b2b: true,  b2c: true,  scope: team, teams: [mixed, customer_service, mixed_queue], telephony: recording_listen_and_live_monitoring, report_scope: "team,b2b,b2c", export: "Hayır" }
+  can:    { name: Can Öz,        role: sales_rep,  b2b: true,  b2c: false, scope: own,  teams: [b2b_corporate],    telephony: place_calls,         report_scope: personal,     export: "Hayır" }
+  zeynep: { name: Zeynep Arslan, role: sales_rep,  b2b: false, b2c: true,  scope: own,  teams: [b2c_retail],       telephony: none,                report_scope: personal,     export: "Hayır" }
+  deniz:  { name: Deniz Çelik,   role: sales_rep,  b2b: true,  b2c: true,  scope: own,  teams: [mixed],            telephony: place_calls,         report_scope: personal,     export: "Hayır" }
+  tuba:   { name: Tuba Sönmez,   role: call_agent, b2b: false, b2c: true,  scope: queue, teams: [customer_service], telephony: receive_and_place,  report_scope: personal,     export: "Hayır" }
+  okan:   { name: Okan Tekin,    role: call_agent, b2b: true,  b2c: true,  scope: queue, teams: [mixed_queue],     telephony: receive_and_place,   report_scope: personal,     export: "Hayır" }
+  selin:  { name: Selin Acar,    role: analyst,    b2b: true,  b2c: true,  scope: all,  teams: [],                 telephony: none,                report_scope: all,          export: "Evet" }
+# Note: Matrix B gives Burak "Hayır" for export and Selin "Evet": seed sets user-level export overrides
+# (user_scope_overrides) on top of the report_export_enabled policy, which the demo tenant enables.
+
+# §10.4.5 Matrix C — module/sales-mode behaviour (E2E expectations)
+matrix_c:
+  b2b_only:            { menus: [b2b], segment_switcher: hidden,  reports: [b2b] }
+  b2c_only:            { menus: [b2c], segment_switcher: hidden,  reports: [b2c] }
+  both:                { menus: [b2b, b2c], segment_switcher: visible, switcher_options: [b2b, b2c, all], reports: [b2b, b2c, segment_comparison] }
+  call_center_off:     { hidden: [telephony, wallboard, dialer, qa], call_metrics: false }
+  call_center_on:      { visible: [softphone_bar, call_screens], segment_badge_in_call: true, reports: [calls, call_to_sale] }
+
+# Decision scenarios (§10.4.4, §11.4) — machine-readable expectations for generated tests.
+# IDs match docs/enterprise/requirements-traceability.md (SCN-nn, SCN-AI-nn).
+scenarios:
+  - { id: SCN-01, actor: can,    action: sales_b2c.order.read,          target: { type: order, segment: b2c },                       expect: 404 }
+  - { id: SCN-02, actor: zeynep, action: search,                        target: { query: account_name, segment: b2b },               expect: { results: 0, suggestions_exclude: b2b, counts_exclude: b2b } }
+  - { id: SCN-03, actor: tuba,   action: call_center.screen_pop,        target: { caller: contact, segments: [b2b] },                expect: { display: unknown_or_unauthorized, leak_fields: [] } }
+  - { id: SCN-04, actor: okan,   action: call_center.screen_pop,        target: { caller: contact, segments: [b2b, b2c] },           expect: { display: customer_360, segment_badges: [b2b, b2c] } }
+  - { id: SCN-05, actor: mert,   action: crm.opportunity.reassign,      target: { owner: can, segment: b2b },                        expect: { status: 200, audit: true } }
+  - { id: SCN-06, actor: mert,   action: sales_b2c.order.update,        target: { owner: zeynep, segment: b2c },                     expect: 404 }
+  - { id: SCN-07, actor: mert,   action: authz.segments.grant,          target: { user: can, segment: b2c },                         expect: { status: 403, reason: own_segments_only } }
+  - { id: SCN-08, actor: mert,   action: authz.roles.assign,            target: { user: mert, role: admin },                         expect: { status: 403, reason: not_self } }
+  - { id: SCN-09, actor: mert,   action: call_center.recording.listen,  target: { team: b2c_retail, segment: b2c },                  expect: 404 }
+  - { id: SCN-10, actor: burak,  action: call_center.monitor.listen,    target: { team: customer_service },                          expect: { status: 200, notice_to_agent: true, audit: true }, policies: { live_monitoring_enabled: true } }
+  - { id: SCN-11, actor: selin,  action: "*record*.update",             target: { any: visible_record },                              expect: 403 }
+  - { id: SCN-12, tenant_mode: b2b_only, action: sales_b2c.any,         expect: { status: 404, code: MODULE_DISABLED, menu: absent } }
+  - { id: SCN-13, tenant_modules_off: [call_center], action: call_center.any, expect: { status: 404, code: MODULE_DISABLED, permissions_effective: false, data_retained: true } }
+  - { id: SCN-14, telephony_event: { did_tenant: A, body_tenant: B },    expect: { processed_in: A, tenant_b_touched: false } }
+  - { id: SCN-15, actor: can,    action: mentions.create,               target: { user: zeynep, record_segment: b2c },               expect: { picker_lists: false, api_status: 422 } }
+  - { id: SCN-16, actor: mert,   action: mentions.create,               target: { user: can, field: opportunity.description },       expect: { notification: separate, latency_p95_sec: 2, deep_link: true } }
+  - { id: SCN-17, actor: can,    action: notifications.read,            target: { after: access_revoked },                           expect: { content_hidden: true } }
+  - { id: SCN-18, event: delegation_expired,                             expect: { permission_removed: true, audit: true } }
+  - { id: SCN-19, actor: deniz,  action: call_center.call.place,        target: { customer: b2c, consent: false },                   expect: { status: 422, code: CONSENT_REQUIRED, reason_shown: true } }
+  - { id: SCN-20, client: data_service, action: lookup,                  target: { fields: [non_whitelisted] },                       expect: { field_returned: false, logged: true } }
+  - { id: SCN-AI-01, actor: can,  action: ai_assistant.report.other,    target: { user: zeynep },                                    expect: { status: 403, reason: no_permission, existence_leak: false }, note: "Can has no report.other permission, so the target is never resolved; response is identical for any target id" }
+  - { id: SCN-AI-02, actor: mert, action: ai_assistant.report.other,    target: { user: can, period: week },                         expect: { status: 200, transparency_log_for: can } }
+  - { id: SCN-AI-03, actor: mert, action: ai_assistant.report.other,    target: { user: zeynep },                                    expect: { status: 404, existence_leak: false } }
+  - { id: SCN-AI-04, actor: mert, action: ai_assistant.report.other,    target: { user: can, can_has_b2c: true },                    expect: { b2c_records_included: false } }
+  - { id: SCN-AI-05, actor: mert, action: ai_assistant.report.other,    target: { user: can, private_note: true },                   expect: { private_note_included: false } }
+  - { id: SCN-AI-06, content: prompt_injection_note,                    expect: { instruction_followed: false, tool_called: false, output_affected: false } }
+  - { id: SCN-AI-07, content: summary_numbers,                          expect: { numbers_match_engine: exact, mismatch: reject } }
+  - { id: SCN-AI-08, tenant: A,   action: ai_assistant.summary.own,     expect: { tenant_b_in_prompt_or_cache: false } }
+  - { id: SCN-AI-09, users_with_different_authz: 2,                     expect: { cache_shared: false } }
+  - { id: SCN-AI-10, event: access_revoked_then_open_old_summary,       expect: { unauthorized_sources_shown: false } }
+  - { id: SCN-AI-11, model_server: down,                                expect: { deterministic_summary: true, notice: ai_narrative_unavailable } }
+  - { id: SCN-AI-12, tenant_modules_off: [ai_assistant],                expect: { status: 404, menu: absent, scheduled_summaries: stopped, data_retained: true } }
+  - { id: SCN-AI-13, content: note_with_mention,                         expect: { notification_triggered: false } }
+  - { id: SCN-AI-14, event: user_deleted_kvkk,                          expect: { summaries_reports_history_embeddings_purged: true } }
