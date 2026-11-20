@@ -9,18 +9,18 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc turbo.json tsconfig.
 COPY packages ./packages
 COPY apps/web ./apps/web
 COPY docs/enterprise/permission-matrix.yaml ./docs/enterprise/permission-matrix.yaml
-RUN pnpm install --frozen-lockfile --filter "@runvara/web..."
+RUN pnpm install --frozen-lockfile --filter "@flexa/web..."
 # API_INTERNAL_URL is read by next.config rewrites at build time and baked into the routes manifest.
 ARG API_INTERNAL_URL=http://api:4000
 ENV API_INTERNAL_URL=${API_INTERNAL_URL}
-RUN pnpm exec turbo run build --filter="@runvara/web..."
+RUN pnpm exec turbo run build --filter="@flexa/web..."
 
 FROM ${NODE_IMAGE} AS runtime
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 WORKDIR /app
-RUN apk add --no-cache wget && addgroup -S runvara && adduser -S runvara -G runvara
-COPY --from=build --chown=runvara:runvara /repo/apps/web/.next/standalone ./
-COPY --from=build --chown=runvara:runvara /repo/apps/web/.next/static ./apps/web/.next/static
-COPY --from=build --chown=runvara:runvara /repo/apps/web/public ./apps/web/public
-USER runvara
+RUN apk add --no-cache wget && addgroup -S flexa && adduser -S flexa -G flexa
+COPY --from=build --chown=flexa:flexa /repo/apps/web/.next/standalone ./
+COPY --from=build --chown=flexa:flexa /repo/apps/web/.next/static ./apps/web/.next/static
+COPY --from=build --chown=flexa:flexa /repo/apps/web/public ./apps/web/public
+USER flexa
 CMD ["node", "apps/web/server.js"]

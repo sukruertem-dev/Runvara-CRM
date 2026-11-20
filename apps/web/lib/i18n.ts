@@ -1,8 +1,8 @@
 /** Minimal i18n: Turkish is the default UI language, English mirrors the same keys. */
 
 const tr = {
-  'brand.name': 'runvara',
-  'brand.tagline': 'Görev, müşteri ve satış tek yerde.',
+  'brand.name': 'Flexa',
+  'brand.tagline': 'İşini Tek Platformda Yönet',
   'common.loading': 'Yükleniyor…',
   'common.copy': 'Kopyala',
   'common.copied': 'Kopyalandı',
@@ -194,8 +194,8 @@ const tr = {
 export type MessageKey = keyof typeof tr;
 
 const en: Record<MessageKey, string> = {
-  'brand.name': 'runvara',
-  'brand.tagline': 'Tasks, customers and sales in one place.',
+  'brand.name': 'Flexa',
+  'brand.tagline': 'Run your business on one platform',
   'common.loading': 'Loading…',
   'common.copy': 'Copy',
   'common.copied': 'Copied',

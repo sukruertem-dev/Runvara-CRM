@@ -3,7 +3,7 @@
 - Durum: Önerildi (yorum onayı bekliyor: `assumptions.md` Q1) · Tarih: 2026-11-20 · Kapsam: G7 · Gereksinimler: DS-01…09
 
 ## Karar
-- **Konum:** `apps/api` içinde ayrı Nest modülü, ayrı önek `/dataservice/v1`, ayrı hız sınırı ve ayrı OpenAPI dokümanı; aynı imaj `RUNVARA_ROLE=dataservice` ile bağımsız ölçeklenebilir.
+- **Konum:** `apps/api` içinde ayrı Nest modülü, ayrı önek `/dataservice/v1`, ayrı hız sınırı ve ayrı OpenAPI dokümanı; aynı imaj `FLEXA_ROLE=dataservice` ile bağımsız ölçeklenebilir.
 - **Kimlik:** `data_service_clients` (tenant'lı): API anahtarı (hash) **veya** mTLS istemci sertifikası parmak izi; isteğe bağlı IP izin listesi; kapsamlar `lookup`, `ingest`, `dialer_export`, `routing`. İstemci, en az yetkili bir **servis bağlamı** ile yetkilendirilir: segment kümesi ve alan politikası istemci kaydında tanımlıdır.
 - **Lookup** `GET /dataservice/v1/lookup?phone=+90…` (DS-01, DS-02):
   - Numara E.164'e normalize → `contact_points(tenant_id, e164)` indeksi → yetki predicate'i (istemcinin segmentleri) → **alan politikası** (`data_service_field_policies`, varsayılan minimum: `displayName`, `segment`, `priority`, `ownerExtension`, `openCaseCount`).

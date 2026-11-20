@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://runvara.app/schemas/module-manifest.v1.json",
-  "title": "Runvara module manifest",
+  "$id": "https://flexa.app/schemas/module-manifest.v1.json",
+  "title": "Flexa module manifest",
   "description": "Declared by every module in packages/modules/manifests/<id>.ts and validated at boot (ADR-0014).",
   "type": "object",
   "additionalProperties": false,
@@ -68,7 +68,7 @@
           "id": { "type": "string" },
           "labelKey": { "type": "string" },
           "path": { "type": "string", "pattern": "^/" },
-          "icon": { "type": "string", "description": "Icon id from the Runvara line icon set (2px, round caps)" },
+          "icon": { "type": "string", "description": "Icon id from the Flexa line icon set (2px, round caps)" },
           "requires": { "type": "array", "items": { "type": "string" }, "description": "Permission keys; ANY grants visibility" },
           "salesModes": { "type": "array", "items": { "enum": ["b2b_only", "b2c_only", "both"] } }
         }

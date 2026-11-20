@@ -7,11 +7,8 @@ import { t } from '../../lib/i18n';
 export function Brand({ context, large = false }: { context: 'surface' | 'panel'; large?: boolean }) {
   return (
     <span className={`brand ctx-${context}${large ? ' brand-lg' : ''}`}>
-      <img className="mark-primary" src="/runvara-mark.svg" alt="Runvara" />
-      <img className="mark-inverse" src="/runvara-mark-dark.svg" alt="Runvara" />
-      <span className="wordmark" aria-hidden="true">
-        {t('brand.name')}
-      </span>
+      {/* Official symbol artwork has not been supplied yet (docs/brand.md); the wordmark stands alone. */}
+      <span className="wordmark">{t('brand.name')}</span>
     </span>
   );
 }

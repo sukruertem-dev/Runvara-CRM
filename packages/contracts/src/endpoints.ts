@@ -1,5 +1,6 @@
 import type { ZodType } from 'zod';
 import * as S from './schemas';
+import * as T from './tasks';
 
 export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 export type AuthMode = 'none' | 'access' | 'tenant' | 'refresh_cookie';
@@ -45,4 +46,25 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   { method: 'post', path: '/v1/invitations/accept', summary: 'Accept an invitation (new account, or signed-in existing account)', tag: 'invitations', auth: 'none', body: S.AcceptInvitationRequest, responses: { 200: S.AcceptInvitationResponse }, errors: [401, 410, 422] },
   { method: 'get', path: '/v1/sso-providers', summary: 'List OIDC providers', tag: 'sso', auth: 'tenant', responses: { 200: S.SsoProviderResponse.array() }, errors: [401, 403] },
   { method: 'post', path: '/v1/sso-providers', summary: 'Add an OIDC provider (client secret stored encrypted)', tag: 'sso', auth: 'tenant', body: S.CreateSsoProviderRequest, responses: { 201: S.SsoProviderResponse }, errors: [401, 403] },
+  { method: 'get', path: '/v1/tasks', summary: 'List tasks (RQL ?q=, ?sort=, cursor pagination, ?fields=, ?count=true)', tag: 'tasks', auth: 'tenant', responses: { 200: T.TaskListResponse }, errors: [400, 401, 403] },
+  { method: 'post', path: '/v1/tasks', summary: 'Create a task', tag: 'tasks', auth: 'tenant', body: T.TaskCreate, responses: { 201: T.TaskView }, errors: [400, 401, 403, 404, 422] },
+  { method: 'post', path: '/v1/tasks/bulk', summary: 'Bulk update up to 1000 tasks', tag: 'tasks', auth: 'tenant', body: T.TaskBulkRequest, responses: { 200: T.TaskBulkResponse }, errors: [400, 401, 403] },
+  { method: 'get', path: '/v1/tasks/{id}', summary: 'Get a task (ETag = version)', tag: 'tasks', auth: 'tenant', responses: { 200: T.TaskView }, errors: [401, 404] },
+  { method: 'patch', path: '/v1/tasks/{id}', summary: 'Update a task (If-Match required; status changes use /transition)', tag: 'tasks', auth: 'tenant', body: T.TaskPatch, responses: { 200: T.TaskView }, errors: [400, 401, 403, 404, 409, 412, 422] },
+  { method: 'delete', path: '/v1/tasks/{id}', summary: 'Soft-delete a task (If-Match required)', tag: 'tasks', auth: 'tenant', responses: { 204: null }, errors: [401, 403, 404, 412] },
+  { method: 'post', path: '/v1/tasks/{id}/restore', summary: 'Restore a soft-deleted task', tag: 'tasks', auth: 'tenant', responses: { 200: T.TaskView }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/tasks/{id}/transition', summary: 'Workflow transition (by key or target status)', tag: 'tasks', auth: 'tenant', body: T.TaskTransitionRequest, responses: { 200: T.TaskView }, errors: [400, 401, 403, 404, 422] },
+  { method: 'post', path: '/v1/tasks/{id}/move', summary: 'Reorder (fractional position) and optionally transition', tag: 'tasks', auth: 'tenant', body: T.TaskMoveRequest, responses: { 200: T.TaskView }, errors: [400, 401, 403, 404, 422] },
+  { method: 'get', path: '/v1/tasks/{id}/subtasks', summary: 'Sub-tasks and completion progress', tag: 'tasks', auth: 'tenant', responses: { 200: T.SubtaskListResponse }, errors: [401, 404] },
+  { method: 'get', path: '/v1/tasks/{id}/dependencies', summary: 'Blockers of this task and tasks it blocks', tag: 'tasks', auth: 'tenant', responses: { 200: T.DependencyListResponse }, errors: [401, 404] },
+  { method: 'post', path: '/v1/tasks/{id}/dependencies', summary: 'Add a blocker (cycles are rejected)', tag: 'tasks', auth: 'tenant', body: T.DependencyCreate, responses: { 201: T.DependencyView }, errors: [401, 403, 404, 409, 422] },
+  { method: 'delete', path: '/v1/tasks/{id}/dependencies/{blockerId}', summary: 'Remove a blocker', tag: 'tasks', auth: 'tenant', responses: { 204: null }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/task-series', summary: 'Create a recurring task series (RRULE) and its first occurrence', tag: 'tasks', auth: 'tenant', body: T.TaskSeriesCreate, responses: { 201: T.TaskSeriesView }, errors: [400, 401, 403, 422] },
+  { method: 'get', path: '/v1/workflows', summary: 'Workflows with statuses and transitions', tag: 'workflows', auth: 'tenant', responses: { 200: T.WorkflowListResponse }, errors: [401] },
+  { method: 'post', path: '/v1/workflows', summary: 'Create a workflow (validated state machine)', tag: 'workflows', auth: 'tenant', body: T.WorkflowCreate, responses: { 201: T.WorkflowView }, errors: [400, 401, 403, 409, 422] },
+  { method: 'get', path: '/v1/custom-fields', summary: 'Custom field definitions (?resourceType=task)', tag: 'custom-fields', auth: 'tenant', responses: { 200: T.CustomFieldListResponse }, errors: [401] },
+  { method: 'post', path: '/v1/custom-fields', summary: 'Define a custom field', tag: 'custom-fields', auth: 'tenant', body: T.CustomFieldCreate, responses: { 201: T.CustomFieldView }, errors: [400, 401, 403, 409, 422] },
+  { method: 'post', path: '/v1/custom-fields/{id}/archive', summary: 'Archive a custom field (values are kept)', tag: 'custom-fields', auth: 'tenant', responses: { 204: null }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/rql/validate', summary: 'Validate an RQL query (error position for the filter bar)', tag: 'rql', auth: 'tenant', body: T.RqlValidateRequest, responses: { 200: T.RqlValidateResponse }, errors: [401] },
+  { method: 'get', path: '/v1/rql/fields', summary: 'Fields the caller may query/sort (?resource=task)', tag: 'rql', auth: 'tenant', responses: { 200: T.RqlFieldsResponse }, errors: [401] },
 ];

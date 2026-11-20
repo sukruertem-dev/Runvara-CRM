@@ -9,7 +9,7 @@
 |---|---|---|---|
 | **P0** ✅ | F0 + G0 (+ G11 çerçevesi) | ADR'ler, ER, API, olaylar, riskler, matris YAML, manifest şeması, token'lar, wireframe'ler | Veri modeli ve yetki modeli baştan doğru kurulmalı |
 | **P1** ✅ | F1 + G1-çekirdek | Monorepo, Compose, CI, auth (parola, JWT+refresh, TOTP, OIDC), RLS + DB rolleri, tenant yaşam döngüsü, **modül kayıt defteri ve kapısı**, sızıntı test iskeleti, minimal auth arayüzü | Her şey bunun üzerine kurulur; modül kapısı sonradan eklenirse tüm rotalar elden geçer |
-| **P2** | F2 | Task, status, workflow, custom field, bağımlılık DAG, RRULE, **RQL**, cursor API, outbox yazıcısı (yayın P5'te) | Çekirdek varlık + sorgu dili diğer tüm modüllerce kullanılır |
+| **P2** ✅ | F2 | Task, status, workflow, custom field, bağımlılık DAG, RRULE, **RQL**, cursor API, outbox yazıcısı (yayın P5'te) | Çekirdek varlık + sorgu dili diğer tüm modüllerce kullanılır |
 | **P3** | F3 (segment sütunları dahil) | Lead/Account/Contact/Opportunity/Case, dönüştürme, merge, `contact_points` (E.164), seed | Segment sütunları ilk günden |
 | **P4** | F4 + G2 | **Tek yetki motoru** (`can` + predicate), rol hiyerarşisi, OWD, sharing, FLS, segment RLS, Yönetici sınırları, matris API'leri, timeline, yorum, dosya, audit, bildirim temeli; matris tabanlı üretilmiş testler | Tüm yüzeylerin güvenlik temeli |
 | **P5** | F5 | Outbox relay, kural motoru, SLA, webhook, API anahtarı, SSE | Bildirim, çağrı ve satış olayları buna dayanır |

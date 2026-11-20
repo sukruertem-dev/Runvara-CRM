@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { ApiEnv } from '@runvara/config';
-import { and, eq, isNull, schema, sql, type DbHandle } from '@runvara/db';
+import type { ApiEnv } from '@flexa/config';
+import { and, eq, isNull, schema, sql, type DbHandle } from '@flexa/db';
 import {
   checkPasswordPolicy,
   decrypt,
@@ -13,7 +13,7 @@ import {
   verifyTotp,
   type KeyRing,
   type TokenSigner,
-} from '@runvara/security';
+} from '@flexa/security';
 import type { FastifyReply } from 'fastify';
 import { authEvent } from '../../common/audit';
 import { ProblemError } from '../../common/problem';

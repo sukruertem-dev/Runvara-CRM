@@ -1,5 +1,5 @@
 import { createParamDecorator, type ExecutionContext } from '@nestjs/common';
-import type { AuthzContext } from '@runvara/authz';
+import type { AuthzContext } from '@flexa/authz';
 import type { FastifyRequest } from 'fastify';
 
 export interface Principal {

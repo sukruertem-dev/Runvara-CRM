@@ -1,4 +1,4 @@
-import { MAIL_QUEUE, MailJob } from '@runvara/contracts';
+import { MAIL_QUEUE, MailJob } from '@flexa/contracts';
 import { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 import type { Mailer } from './tokens';

@@ -1,12 +1,11 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
-import '@runvara/ui/tokens.css';
+import '@flexa/ui/tokens.css';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: { default: 'Runvara', template: '%s · Runvara' },
-  description: 'Runvara',
-  icons: { icon: '/runvara-mark.svg' },
+  title: { default: 'Flexa', template: '%s · Flexa' },
+  description: 'Flexa',
 };
 
 export const viewport: Viewport = { width: 'device-width', initialScale: 1 };

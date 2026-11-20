@@ -1,4 +1,4 @@
-# Runvara
+# Flexa
 
 Çok kiracılı CRM + görev yönetimi + B2B/B2C satış + çağrı merkezi + AI asistan platformu.
 Gereksinimler: [`CRM_TASK_PLATFORM_PROMPT.md`](CRM_TASK_PLATFORM_PROMPT.md) · Mimari: [`docs/architecture.md`](docs/architecture.md) · Faz planı: [`docs/phase-plan.md`](docs/phase-plan.md) · Durum: [`docs/progress.md`](docs/progress.md)
@@ -19,7 +19,7 @@ docker compose up --build --wait  # postgres, redis, mailpit, migrate, api, work
 | API + OpenAPI | http://localhost:4000 · `/docs` · `/openapi.json` · `/healthz` · `/readyz` |
 | Mailpit (gelen e-postalar) | http://localhost:8025 |
 
-Portlar başka bir projeyle çakışıyorsa `.env` içine `RUNVARA_WEB_PORT`, `RUNVARA_API_PORT`, `RUNVARA_PG_PORT`, `RUNVARA_REDIS_PORT`, `RUNVARA_MAILPIT_PORT` yazın.
+Portlar başka bir projeyle çakışıyorsa `.env` içine `FLEXA_WEB_PORT`, `FLEXA_API_PORT`, `FLEXA_PG_PORT`, `FLEXA_REDIS_PORT`, `FLEXA_MAILPIT_PORT` yazın.
 
 ## Geliştirme komutları
 ```bash
@@ -48,4 +48,4 @@ docs/           ADR'ler, ER, API, olaylar, riskler, varsayımlar, izlenebilirlik
 ```
 
 ## Güvenlik kuralları (özet)
-Tenant bağlamı yalnızca imzalı token'dan gelir; uygulama veritabanı rolü RLS'i atlayamaz; yetki kararı yalnızca `@runvara/authz` üzerinden verilir. Ayrıntı: [`CLAUDE.md`](CLAUDE.md), [`docs/adr/`](docs/adr/README.md).
+Tenant bağlamı yalnızca imzalı token'dan gelir; uygulama veritabanı rolü RLS'i atlayamaz; yetki kararı yalnızca `@flexa/authz` üzerinden verilir. Ayrıntı: [`CLAUDE.md`](CLAUDE.md), [`docs/adr/`](docs/adr/README.md).

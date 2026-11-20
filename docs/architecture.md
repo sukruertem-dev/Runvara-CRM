@@ -1,4 +1,4 @@
-# Runvara Mimari Dokümanı
+# Flexa Mimari Dokümanı
 
 > Durum: **Faz 0 + G0 çıktısı (taslak, onay bekliyor)** · Tarih: 2026-11-20
 > Kaynak gereksinimler: `CRM_TASK_PLATFORM_PROMPT.md` (Bölüm 1–12). Kararların gerekçeleri `docs/adr/` altındadır.
@@ -14,7 +14,7 @@ flowchart LR
     IVR[IVR / santral<br/>Data Servisi istemcisi]:::x
     EXT[Dış sistemler<br/>API anahtarı / webhook]:::x
   end
-  subgraph Runvara
+  subgraph Flexa
     API[apps/api<br/>NestJS + Fastify<br/>REST + SSE]
     DS[Data Servisi<br/>/dataservice/v1<br/>apps/api içinde ayrı modül]
     TG[apps/telephony-gateway<br/>adaptörler ARI / webhook]
@@ -58,7 +58,7 @@ flowchart LR
 | Gerçek zamanlı | **SSE** (Last-Event-ID ile yeniden oynatma) + Redis pub/sub fan-out; softphone medyası SIP/WSS (WebRTC) doğrudan santrale | 0007 |
 | Kimlik | argon2id, kısa ömürlü erişim JWT (EdDSA, 10 dk) + httpOnly döner refresh çerezi, TOTP, OIDC (openid-client), SAML (G1) | 0009 |
 | Yetki | Merkezi motor `can()` + aynı kuraldan SQL predicate; RLS son savunma hattı | 0004 |
-| Sorgu dili | **RQL** (Runvara Query Language): el yazımı lexer/parser → AST → parametreli SQL | 0008 |
+| Sorgu dili | **RQL** (Flexa Query Language): el yazımı lexer/parser → AST → parametreli SQL | 0008 |
 | Dosya | S3 uyumlu (MinIO dev), imzalı URL, tenant ön eki | 0013 |
 | Gözlemlenebilirlik | Pino, OpenTelemetry (OTLP), `/healthz`, `/readyz` | 0001 |
 | Test | Vitest, Testcontainers (PG + Redis), Playwright, fast-check (property/fuzz), k6 | 0001 |
@@ -68,7 +68,7 @@ flowchart LR
 ## 3. Monorepo yapısı
 
 ```text
-runvara/
+flexa/
 ├─ apps/
 │  ├─ api/                    # NestJS + Fastify: REST, SSE, Data Servisi, OpenAPI
 │  │  └─ src/modules/<modül>/ # her iş modülü: controller, service, repository, dto (zod)
@@ -143,12 +143,12 @@ sequenceDiagram
 
 | Rol | Kullanım | Özellik |
 |---|---|---|
-| `runvara_owner` | Migration'lar | Tabloların sahibi; uygulama asla bu rolle bağlanmaz |
-| `runvara_app` | API ve worker iş işleme | `NOBYPASSRLS`, tablo sahibi değil, tüm tenant tablolarında `FORCE ROW LEVEL SECURITY` |
-| `runvara_relay` | Outbox relay | `BYPASSRLS` ama yalnızca `outbox_events` üzerinde `SELECT, UPDATE` izni |
-| (çözümleyiciler) | Kimlik/tenant çözümü | Ayrı rol yerine `app` şemasındaki dar kapsamlı `SECURITY DEFINER` fonksiyonları (`find_user_for_login`, `list_my_tenants`, `find_refresh_token`, `consume_email_token`, `find_invitation`, `resolve_sso_provider`, G7'de `resolve_tenant_by_did`); sahipleri `runvara_owner`, `runvara_app` yalnızca EXECUTE iznine sahip. Kullanıcıya bağlı olanlar parametre yerine `app.user_id()` kullanır (P1 kararı) |
-| `runvara_platform` | Operatör konsolu | Tenant meta tabloları; tenant iş verisine erişimi yok (destek erişimi `support_access_grants` ile, süreli) |
-| `runvara_readonly` | Raporlama read-replica | Salt okuma, RLS açık |
+| `flexa_owner` | Migration'lar | Tabloların sahibi; uygulama asla bu rolle bağlanmaz |
+| `flexa_app` | API ve worker iş işleme | `NOBYPASSRLS`, tablo sahibi değil, tüm tenant tablolarında `FORCE ROW LEVEL SECURITY` |
+| `flexa_relay` | Outbox relay | `BYPASSRLS` ama yalnızca `outbox_events` üzerinde `SELECT, UPDATE` izni |
+| (çözümleyiciler) | Kimlik/tenant çözümü | Ayrı rol yerine `app` şemasındaki dar kapsamlı `SECURITY DEFINER` fonksiyonları (`find_user_for_login`, `list_my_tenants`, `find_refresh_token`, `consume_email_token`, `find_invitation`, `resolve_sso_provider`, G7'de `resolve_tenant_by_did`); sahipleri `flexa_owner`, `flexa_app` yalnızca EXECUTE iznine sahip. Kullanıcıya bağlı olanlar parametre yerine `app.user_id()` kullanır (P1 kararı) |
+| `flexa_platform` | Operatör konsolu | Tenant meta tabloları; tenant iş verisine erişimi yok (destek erişimi `support_access_grants` ile, süreli) |
+| `flexa_readonly` | Raporlama read-replica | Salt okuma, RLS açık |
 
 ## 6. Tenant'a bağlı olmayan (global) tablolar: kapalı liste
 
@@ -158,7 +158,7 @@ sequenceDiagram
 |---|---|---|
 | `tenants` | Tenant kaydının kendisi | RLS: `id = app.tenant_id` (uygulama), operatör rolü ayrı |
 | `users`, `user_credentials`, `user_mfa`, `auth_sessions`, `refresh_tokens` | Bir kişi birden çok tenant'a üye olabilir (tenant seçimi akışı) | Uygulama rolü yalnızca kendi `app.user_id` satırını görür; giriş araması `find_user_for_login()` definer fonksiyonu |
-| `platform_operators`, `operator_sessions` | Tenant dışı rol | Yalnızca `runvara_platform` |
+| `platform_operators`, `operator_sessions` | Tenant dışı rol | Yalnızca `flexa_platform` |
 | `plans` | Platform plan kataloğu | Salt okuma |
 | `telephony_numbers` | DID → tenant çözümü tenant bilinmeden yapılır | Doğrudan erişim yok; `resolve_tenant_by_did()` |
 | `ai_models` | Platform model kaydı | Salt okuma; tenant izni `ai_tenant_settings` (tenant'lı) |
@@ -215,10 +215,10 @@ ERİŞİM = ModülAçık ∧ RolYetkisi(eylem) ∧ SegmentYetkisi ∧ KapsamEşl
 | `redis` | redis:7 | AOF açık (kuyruk dayanıklılığı) |
 | `minio` | minio | dosyalar, çağrı kayıtları |
 | `mailpit` | mailpit | geliştirme e-postası |
-| `api` | `runvara-api` | yatay ölçeklenebilir, durumsuz |
-| `worker` | `runvara-worker` | yatay ölçeklenebilir |
-| `telephony-gateway` | `runvara-telephony` | `telephony` profili |
-| `web`, `operator` | `runvara-web`, `runvara-operator` | |
+| `api` | `flexa-api` | yatay ölçeklenebilir, durumsuz |
+| `worker` | `flexa-worker` | yatay ölçeklenebilir |
+| `telephony-gateway` | `flexa-telephony` | `telephony` profili |
+| `web`, `operator` | `flexa-web`, `flexa-operator` | |
 | `otel-collector` | otel/opentelemetry-collector | isteğe bağlı `observability` profili |
 | `ollama` / `vllm` | | `ai` profili (G11) |
 

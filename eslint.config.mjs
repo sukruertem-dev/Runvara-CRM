@@ -33,7 +33,7 @@ export default tseslint.config(
     rules: {
       'no-restricted-imports': [
         'error',
-        { paths: [{ name: 'pg', message: 'Import database access from @runvara/db (withTenant/withUser/withAnonymous).' }] },
+        { paths: [{ name: 'pg', message: 'Import database access from @flexa/db (withTenant/withUser/withAnonymous).' }] },
       ],
     },
   },

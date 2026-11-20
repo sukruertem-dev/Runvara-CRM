@@ -3,7 +3,7 @@ import { render } from './templates';
 
 describe('mail templates', () => {
   it('renders Turkish and English with the action link in text and HTML', () => {
-    const url = 'https://app.runvara.test/verify-email?token=abc';
+    const url = 'https://app.flexa.test/verify-email?token=abc';
     const tr = render({ template: 'verify_email', to: 'a@b.c', locale: 'tr-TR', vars: { displayName: 'Ayşe', url } });
     expect(tr.subject).toBe('E-posta adresinizi doğrulayın');
     expect(tr.text).toContain(url);

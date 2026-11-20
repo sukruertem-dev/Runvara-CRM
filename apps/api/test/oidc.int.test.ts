@@ -38,15 +38,15 @@ async function ssoLogin(providerId: string): Promise<{ client: Client; status: n
 describe('OIDC login (Faz 1: OIDC girişi)', () => {
   it('signs an existing member in through the tenant IdP; the browser then refreshes into a tenant session', async () => {
     const admin = await signupAndLogin(h);
-    const created = await admin.c.post('/v1/sso-providers', { name: 'Kurumsal IdP', issuer: idp.issuer.url, clientId: 'runvara', clientSecret: 'idp-secret', emailDomains: ['firma.test'] });
+    const created = await admin.c.post('/v1/sso-providers', { name: 'Kurumsal IdP', issuer: idp.issuer.url, clientId: 'flexa', clientSecret: 'idp-secret', emailDomains: ['firma.test'] });
     expect(created.status).toBe(201);
     expect(JSON.stringify(created.body)).not.toContain('idp-secret');
 
     nextEmail = admin.email;
     const r = await ssoLogin(String(created.body.id));
     expect(r.status).toBe(302);
-    expect(r.location).toBe('http://app.runvara.test/auth/callback');
-    r.client.csrf = r.client.cookies.get('rv_csrf') ?? null;
+    expect(r.location).toBe('http://app.flexa.test/auth/callback');
+    r.client.csrf = r.client.cookies.get('fx_csrf') ?? null;
     const session = await r.client.post('/v1/auth/refresh', undefined, r.client.withCsrf());
     expect(session.status).toBe(200);
     expect(session.body.tenant).toMatchObject({ id: admin.tenantId });
@@ -64,7 +64,7 @@ describe('OIDC login (Faz 1: OIDC girişi)', () => {
     const jit = await admin.c.post('/v1/sso-providers', { name: 'JIT', issuer: idp.issuer.url, clientId: 'c2', clientSecret: 's2', emailDomains: ['firma.test'], jitEnabled: true });
     const ok = await ssoLogin(String(jit.body.id));
     expect(ok.status).toBe(302);
-    ok.client.csrf = ok.client.cookies.get('rv_csrf') ?? null;
+    ok.client.csrf = ok.client.cookies.get('fx_csrf') ?? null;
     const s = await ok.client.post('/v1/auth/refresh', undefined, ok.client.withCsrf());
     expect(s.body.tenant).toMatchObject({ id: admin.tenantId, roles: ['analyst'] });
   });

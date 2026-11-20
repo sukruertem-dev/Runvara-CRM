@@ -86,11 +86,11 @@ describe('schema guard (ADR-0003 §5)', () => {
     }
   });
 
-  it('runvara_app cannot bypass RLS and owns no table', async () => {
+  it('flexa_app cannot bypass RLS and owns no table', async () => {
     const [role] = await superQuery<{ rolbypassrls: boolean; rolsuper: boolean }>(
-      tdb.superUrl, `SELECT rolbypassrls, rolsuper FROM pg_roles WHERE rolname = 'runvara_app'`);
+      tdb.superUrl, `SELECT rolbypassrls, rolsuper FROM pg_roles WHERE rolname = 'flexa_app'`);
     expect(role).toEqual({ rolbypassrls: false, rolsuper: false });
-    const owned = await superQuery(tdb.superUrl, `SELECT relname FROM pg_class WHERE relowner = 'runvara_app'::regrole`);
+    const owned = await superQuery(tdb.superUrl, `SELECT relname FROM pg_class WHERE relowner = 'flexa_app'::regrole`);
     expect(owned).toEqual([]);
   });
 });
@@ -218,7 +218,7 @@ describe('SECURITY DEFINER resolvers', () => {
     expect(second.rows).toEqual([{ u: null }]);
   });
 
-  it('runvara_app cannot call owner-only helpers it was not granted', async () => {
+  it('flexa_app cannot call owner-only helpers it was not granted', async () => {
     await expect(db.withAnonymous((tx) => tx.execute(sql`SELECT app.forbid_mutation()`))).rejects.toThrow();
   });
 });

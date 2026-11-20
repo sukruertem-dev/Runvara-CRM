@@ -1,4 +1,4 @@
-import { schema, type Db, type DbHandle } from '@runvara/db';
+import { schema, type Db, type DbHandle } from '@flexa/db';
 
 export interface AuditEntry {
   action: string;

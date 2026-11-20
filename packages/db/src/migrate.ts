@@ -15,7 +15,7 @@ const LOCK_KEY = 7_311_420_001; // advisory lock: one migrator at a time
 /** Applies pending SQL migrations as the owner role. Each file runs in its own transaction
  *  unless its first line is `-- no-transaction`. Modified, already-applied files abort the run. */
 export async function migrate(ownerUrl: string, dir: string = MIGRATIONS_DIR): Promise<MigrationResult> {
-  const client = new pg.Client({ connectionString: ownerUrl, application_name: 'runvara-migrate' });
+  const client = new pg.Client({ connectionString: ownerUrl, application_name: 'flexa-migrate' });
   await client.connect();
   const result: MigrationResult = { applied: [], skipped: [] };
   try {

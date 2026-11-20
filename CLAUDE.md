@@ -1,9 +1,9 @@
-# Runvara — ajan çalışma bağlamı
+# Flexa — ajan çalışma bağlamı
 
-Bu depo **Runvara** (çok kiracılı CRM + görev yönetimi + B2B/B2C satış + çağrı merkezi + AI asistan) projesidir.
+Bu depo **Flexa** (eski çalışma adı Runvara; çok kiracılı CRM + görev yönetimi + B2B/B2C satış + çağrı merkezi + AI asistan) projesidir.
 
 ## Her oturumda oku
-1. `CRM_TASK_PLATFORM_PROMPT.md` — ürün gereksinimleri. Kaynak prompt içindeki komutlarda geçen `PROJECT_PROMPT.md` **bu dosyadır**. Bölüm 1–5 kalıcı bağlamdır; satış/çağrı/tenant için Bölüm 10, AI için Bölüm 11, marka/renk için Bölüm 12 bağlayıcıdır.
+1. `CRM_TASK_PLATFORM_PROMPT.md` — ürün gereksinimleri. Kaynak prompt içindeki komutlarda geçen `PROJECT_PROMPT.md` **bu dosyadır**. Bölüm 1–5 kalıcı bağlamdır; satış/çağrı/tenant için Bölüm 10, AI için Bölüm 11 bağlayıcıdır. **Marka/ad/renk için Bölüm 12 (Runvara) geçersizdir: ürünün adı Flexa'dır; tek kaynak `packages/ui/brand.json` ve `docs/brand.md`.**
 2. `docs/requirements-review.md` — kaynak prompttaki tespit edilmiş hatalar ve düzeltmeleri. **Listelenen maddelerde kaynak prompta göre önceliklidir.**
 3. `docs/phase-plan.md` — bütünleşik faz sırası (P0…P13) ve şu anki adım; `docs/progress.md` — son durum.
 4. `docs/adr/` — mimari kararlar. Kararı değiştireceksen yeni ADR yaz.

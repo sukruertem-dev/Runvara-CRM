@@ -24,7 +24,7 @@
 | R-18 | Gürültülü komşu (tek tenant kuyruğu/DB'yi doyurur) | 2 | 2 | 4 | Shard + tenant semaforu, token bucket, `statement_timeout`, rapor read-replica | G1 | Kuyruk gecikmesi tenant dağılımı |
 | R-19 | AI: prompt injection, sayı uydurma, tenant/yetki sızıntısı | 2 | 3 | 6 | Deterministik veri + yer tutucu metrikler, doğrulayıcı, `<data>` bloğu, salt okuma araçları, red-team ve eval CI kapısı | G11–G13 | Eval skorları |
 | R-20 | AI: model lisansı ticari kullanıma uygun değil / Türkçe kalitesi yetersiz | 2 | 2 | 4 | G11'de lisans + Türkçe eval ile seçim, gateway ile model değişimi üst katmanı etkilemez | G11 | Eval eşiği |
-| R-21 | **Marka adı (Runvara) tescil/alan adı çakışması** | 2 | 2 | 4 | TÜRKPATENT/EUIPO/WIPO (sınıf 9, 35, 38, 42), alan adı ve npm/GitHub ad kontrolü **kod yayımlanmadan önce**; paket öneki tek yerde (`@runvara`) değiştirilebilir | F1 öncesi | Araştırma sonucu |
+| R-21 | **Marka adı (Flexa) tescil/alan adı çakışması** | 2 | 2 | 4 | TÜRKPATENT/EUIPO/WIPO (sınıf 9, 35, 38, 42), alan adı ve npm/GitHub ad kontrolü **kod yayımlanmadan önce**; paket öneki tek yerde (`@flexa`) değiştirilebilir | F1 öncesi | Araştırma sonucu |
 | R-22 | Kapsam genişliği (13 modül, 22 faz) → teslim gecikmesi | 3 | 2 | 6 | Bütünleşik faz planı (`phase-plan.md`), her fazın kabul kriterleri, modül kapısıyla kademeli açılış | Tümü | Faz süre sapması |
 | R-23 | Teklif/sipariş tutarlarında yuvarlama farkı (PDF ≠ API ≠ rapor) | 2 | 2 | 4 | Tek fiyatlama fonksiyonu, decimal aritmetik, belgelenmiş yuvarlama | G4 | Mutabakat testi |
 | R-24 | CI'ın çalışmaması: depo için uzak sunucu (GitHub) yok | 3 | 1 | 3 | Q3 ile kullanıcıya soruldu; yerelde `pnpm ci:local` ile aynı adımlar | F1 | — |

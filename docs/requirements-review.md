@@ -20,8 +20,8 @@
 | # | Bulgu | Önem | Karar | ADR |
 |---|---|---|---|---|
 | B1 | "Her tabloda `tenant_id`" kuralı; ancak `users` (bir kişi birden çok tenant'a üye), `tenants`, `telephony_numbers` (DID → tenant çözümü tenant bilinmeden yapılır), platform operatörü ve model kaydı doğası gereği tenant dışıdır. Kural istisnasız uygulanırsa giriş ve gelen arama akışı çalışmaz; istisna gelişigüzel yapılırsa sızıntı olur. | K | Kapalı istisna listesi + `SECURITY DEFINER` çözümleyici fonksiyonlar + CI denetimi. | 0003 |
-| B2 | RLS'in atlanamaması için uygulama rolünün tablo sahibi olmaması ve `FORCE ROW LEVEL SECURITY` gerektiği belirtilmemiş (tablo sahibi RLS'i varsayılan olarak atlar). | K | `runvara_owner` / `runvara_app` (NOBYPASSRLS) ayrımı, tüm tenant tablolarında FORCE RLS, bağlam yoksa 0 satır. | 0003 |
-| B3 | Outbox relay'in tüm tenant'ları tarayabilmesi RLS ile çelişir. | Y | Yalnızca `outbox_events` üzerinde yetkili `runvara_relay` rolü; iş işleme her olayda `SET LOCAL` ile tenant bağlamında. | 0003, 0006 |
+| B2 | RLS'in atlanamaması için uygulama rolünün tablo sahibi olmaması ve `FORCE ROW LEVEL SECURITY` gerektiği belirtilmemiş (tablo sahibi RLS'i varsayılan olarak atlar). | K | `flexa_owner` / `flexa_app` (NOBYPASSRLS) ayrımı, tüm tenant tablolarında FORCE RLS, bağlam yoksa 0 satır. | 0003 |
+| B3 | Outbox relay'in tüm tenant'ları tarayabilmesi RLS ile çelişir. | Y | Yalnızca `outbox_events` üzerinde yetkili `flexa_relay` rolü; iş işleme her olayda `SET LOCAL` ile tenant bağlamında. | 0003, 0006 |
 | B4 | JWT tabanlı oturum ile "yetki değişikliği en geç bir sonraki istekte geçerli" (G2) ve "eski token/oturum" penetrasyon senaryosu (G10) çelişir. | K | JWT yalnızca kimlik + `authz_version` taşır; izinler istek başına sürümlü önbellekten yüklenir; sürüm uyuşmazlığı bağlamı yeniler; kritik değişiklikte refresh ailesi iptal edilir. | 0004, 0009 |
 | B5 | `calls.customer_ref JSONB` örneği, 5.1'deki `related_type + related_id` polimorfik modeliyle tutarsız ve bütünlük kontrolü yapılamaz. | Y | Tüm polimorfik referanslar `related_type` + `related_id` sütunu ve `record_registry` üzerinden **gerçek bileşik FK** ile korunur. | 0005 |
 | B6 | Webhook URL'leri ve AI BYO uç noktası SSRF riski taşır; çözümleme sonrası IP kontrolü (DNS rebinding) belirtilmemiş. | Y | Giden HTTP tek istemciden: şema/port izin listesi, DNS çözümleme sonrası özel/link-local/metadata IP reddi, yönlendirme takibi kapalı. | 0013 |
@@ -40,6 +40,8 @@
 | C7 | Teklif versiyonlarının "değiştirilemez" olması (G4) için DB düzeyinde garanti tanımlı değil. | O | `quote_versions` ve `quote_lines` gönderildikten sonra trigger ile UPDATE/DELETE reddi (audit log ile aynı desen). | 0021 |
 
 ## D. Arayüz ve marka (hesaplanarak doğrulandı)
+
+> **2026-11-20 güncellemesi:** Marka Runvara → **Flexa** olarak değişti; bu bölümdeki palet bulguları tarihsel kayıttır. Güncel palet, token'lar ve erişilebilirlik ayarları: `docs/brand.md`.
 
 Tüm kontrast oranları WCAG 2.x göreli parlaklık formülüyle yeniden hesaplandı (`scripts/contrast-report.mjs`, çıktı `docs/contrast-report.md`). Kaynakta yazılan oranların **tamamı doğru**; aşağıdakiler eksik veya hatalı **kullanım** kurallarıdır.
 

@@ -15,10 +15,10 @@ const pw = () => randomBytes(24).toString('base64url');
 const pem = generateKeyPairSync('ed25519').privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
 const env = {
   POSTGRES_PASSWORD: pw(),
-  RUNVARA_OWNER_PASSWORD: pw(),
-  RUNVARA_APP_PASSWORD: pw(),
-  RUNVARA_RELAY_PASSWORD: pw(),
-  RUNVARA_MASTER_KEY: randomBytes(32).toString('base64'),
+  FLEXA_OWNER_PASSWORD: pw(),
+  FLEXA_APP_PASSWORD: pw(),
+  FLEXA_RELAY_PASSWORD: pw(),
+  FLEXA_MASTER_KEY: randomBytes(32).toString('base64'),
   JWT_PRIVATE_KEY_B64: Buffer.from(pem).toString('base64'),
   CSRF_SECRET: randomBytes(32).toString('hex'),
 };

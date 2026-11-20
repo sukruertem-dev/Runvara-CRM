@@ -19,7 +19,7 @@ export default function LoginPage() {
     void run(async () => {
       const res = await request<LoginResult>('/v1/auth/login', { method: 'POST', auth: false, body: { email, password } });
       if (res.next === 'mfa') {
-        sessionStorage.setItem('rv_mfa', JSON.stringify({ mfaToken: res.mfaToken }));
+        sessionStorage.setItem('fx_mfa', JSON.stringify({ mfaToken: res.mfaToken }));
         router.push('/login/mfa');
         return;
       }

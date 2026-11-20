@@ -11,8 +11,8 @@
 
 ### Oturum modeli
 - **Erişim token'ı:** JWT, EdDSA (Ed25519), 10 dk; claim'ler `sub, tid, sid, av (authz_version), amr`; bellekte tutulur (localStorage yok).
-- **Refresh token:** opak 256-bit, `refresh_tokens` içinde hash, **rotasyon** her kullanımda; aile kimliği (`family_id`) ile **yeniden kullanım tespiti** → tüm aile iptal + güvenlik bildirimi. Çerez: `__Host-rv_rt`, `HttpOnly; Secure; SameSite=Strict; Path=/`.
-- **CSRF:** refresh ve çıkış uç noktaları çerezle çalıştığı için `SameSite=Strict` + çift gönderim token'ı (`X-CSRF-Token` = imzalı `__Host-rv_csrf`). Diğer tüm API çağrıları Bearer başlığıyla → CSRF yüzeyi yok.
+- **Refresh token:** opak 256-bit, `refresh_tokens` içinde hash, **rotasyon** her kullanımda; aile kimliği (`family_id`) ile **yeniden kullanım tespiti** → tüm aile iptal + güvenlik bildirimi. Çerez: `__Host-fx_rt`, `HttpOnly; Secure; SameSite=Strict; Path=/`.
+- **CSRF:** refresh ve çıkış uç noktaları çerezle çalıştığı için `SameSite=Strict` + çift gönderim token'ı (`X-CSRF-Token` = imzalı `__Host-fx_csrf`). Diğer tüm API çağrıları Bearer başlığıyla → CSRF yüzeyi yok.
 - **Tenant seçimi:** giriş sonrası kullanıcı birden çok tenant'a üyeyse seçim; seçilen tenant `tid` olarak yeni erişim token'ına girer. Tenant değiştirmek yeni token ister.
 - Yetki/rol değişikliği veya kullanıcı askıya alma: `authz_version` artışı (ADR-0004); askıya alma/parola değişikliği ayrıca tüm refresh ailelerini iptal eder.
 
@@ -24,7 +24,7 @@
 - SAML 2.0 (G1, S önceliği): `@node-saml/node-saml`, imzalı assertion zorunlu, `InResponseTo` ve tekrar oynatma koruması.
 
 ### API anahtarları (Faz 5) ve servis istemcileri (G7)
-- Biçim: `rv_live_<prefix8>_<secret32>`; yalnızca SHA-256 hash saklanır; `resolve_api_key()` definer fonksiyonu tenant'ı çözer. Kapsamlar (scope) izin anahtarlarının alt kümesi; anahtar bir "servis kullanıcısı" bağlamında yetkilendirilir (insan kullanıcının yetkisinden bağımsız, en az yetki).
+- Biçim: `fx_live_<prefix8>_<secret32>`; yalnızca SHA-256 hash saklanır; `resolve_api_key()` definer fonksiyonu tenant'ı çözer. Kapsamlar (scope) izin anahtarlarının alt kümesi; anahtar bir "servis kullanıcısı" bağlamında yetkilendirilir (insan kullanıcının yetkisinden bağımsız, en az yetki).
 - Data Servisi istemcileri ayrıca mTLS (istemci sertifika parmak izi kaydı) seçeneği.
 
 ### Platform Operatörü

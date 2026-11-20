@@ -4,9 +4,9 @@ import { migrate, rolesSql } from './migrate';
 
 export interface TestDatabase {
   container: StartedPostgreSqlContainer;
-  /** runvara_app — the role the application uses (RLS enforced). */
+  /** flexa_app — the role the application uses (RLS enforced). */
   appUrl: string;
-  /** runvara_owner — migrations and SECURITY DEFINER owner. */
+  /** flexa_owner — migrations and SECURITY DEFINER owner. */
   ownerUrl: string;
   /** Superuser, for assertions that must see everything. */
   superUrl: string;
@@ -15,25 +15,25 @@ export interface TestDatabase {
 
 const PASSWORDS = { owner_password: 'owner_test_pw', app_password: 'app_test_pw', relay_password: 'relay_test_pw' };
 
-/** Starts PostgreSQL 18 in a container, creates the Runvara roles exactly as production does and migrates. */
+/** Starts PostgreSQL 18 in a container, creates the Flexa roles exactly as production does and migrates. */
 export async function startTestDatabase(): Promise<TestDatabase> {
   const container = await new PostgreSqlContainer('postgres:18-alpine')
-    .withDatabase('runvara')
+    .withDatabase('flexa')
     .withUsername('postgres')
     .withPassword('postgres')
     .start();
   const host = container.getHost();
   const port = container.getPort();
-  const superUrl = `postgres://postgres:postgres@${host}:${port}/runvara`;
+  const superUrl = `postgres://postgres:postgres@${host}:${port}/flexa`;
   const su = new pg.Client({ connectionString: superUrl });
   await su.connect();
   try {
-    await su.query(rolesSql({ ...PASSWORDS, db_name: 'runvara' }));
+    await su.query(rolesSql({ ...PASSWORDS, db_name: 'flexa' }));
   } finally {
     await su.end();
   }
-  const ownerUrl = `postgres://runvara_owner:${PASSWORDS.owner_password}@${host}:${port}/runvara`;
-  const appUrl = `postgres://runvara_app:${PASSWORDS.app_password}@${host}:${port}/runvara`;
+  const ownerUrl = `postgres://flexa_owner:${PASSWORDS.owner_password}@${host}:${port}/flexa`;
+  const appUrl = `postgres://flexa_app:${PASSWORDS.app_password}@${host}:${port}/flexa`;
   await migrate(ownerUrl);
   return {
     container,
@@ -61,7 +61,7 @@ export async function superQuery<R extends pg.QueryResultRow = pg.QueryResultRow
   }
 }
 
-/** Opens a raw runvara_app connection (for proving RLS cannot be bypassed without the helpers). */
+/** Opens a raw flexa_app connection (for proving RLS cannot be bypassed without the helpers). */
 export async function rawAppClient(appUrl: string): Promise<pg.Client> {
   const c = new pg.Client({ connectionString: appUrl });
   await c.connect();

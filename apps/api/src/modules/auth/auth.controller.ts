@@ -9,7 +9,7 @@ import {
   SignupRequest,
   TokenRequest,
   type z,
-} from '@runvara/contracts';
+} from '@flexa/contracts';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AccessGuard } from '../../common/guards';
 import { Client, CurrentPrincipal, type ClientInfo, type Principal } from '../../common/request-context';

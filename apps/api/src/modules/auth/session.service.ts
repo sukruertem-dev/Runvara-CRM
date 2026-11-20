@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { ApiEnv } from '@runvara/config';
-import { and, eq, isNull, one, schema, sql, type DbHandle } from '@runvara/db';
-import { createCsrfToken, randomToken, sha256, verifyCsrfToken, type TokenSigner } from '@runvara/security';
+import type { ApiEnv } from '@flexa/config';
+import { and, eq, isNull, one, schema, sql, type DbHandle } from '@flexa/db';
+import { createCsrfToken, randomToken, sha256, verifyCsrfToken, type TokenSigner } from '@flexa/security';
 import { randomUUID } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { authEvent } from '../../common/audit';
@@ -33,7 +33,7 @@ export interface IssuedSession {
   tenant: TenantSummaryRow | null;
 }
 
-const CSRF_COOKIE = 'rv_csrf';
+const CSRF_COOKIE = 'fx_csrf';
 
 @Injectable()
 export class SessionService {
@@ -45,7 +45,7 @@ export class SessionService {
     @Inject(SIGNER) private readonly signer: TokenSigner,
   ) {
     // __Host- prefix requires Secure; plain name is used only when COOKIE_SECURE=false (local http tests).
-    this.refreshCookie = env.COOKIE_SECURE ? '__Host-rv_rt' : 'rv_rt';
+    this.refreshCookie = env.COOKIE_SECURE ? '__Host-fx_rt' : 'fx_rt';
   }
 
   listTenants(userId: string): Promise<TenantSummaryRow[]> {

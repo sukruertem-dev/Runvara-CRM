@@ -17,13 +17,13 @@ const Problem = z
 const STATUS_TEXT: Record<number, string> = {
   200: 'OK', 201: 'Created', 202: 'Accepted', 204: 'No Content', 302: 'Redirect',
   400: 'Validation failed', 401: 'Unauthenticated', 403: 'Forbidden', 404: 'Not found (or not visible)',
-  409: 'Conflict', 410: 'Gone (token invalid or expired)', 422: 'Business rule violated', 429: 'Rate limited',
+  409: 'Conflict', 412: 'Precondition failed (stale If-Match)', 428: 'If-Match required', 410: 'Gone (token invalid or expired)', 422: 'Business rule violated', 429: 'Rate limited',
 };
 
 export function buildOpenApiDocument(info: { version: string; serverUrl: string }): ReturnType<OpenApiGeneratorV31['generateDocument']> {
   const registry = new OpenAPIRegistry();
   registry.registerComponent('securitySchemes', 'bearer', { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' });
-  registry.registerComponent('securitySchemes', 'refreshCookie', { type: 'apiKey', in: 'cookie', name: 'rv_rt' });
+  registry.registerComponent('securitySchemes', 'refreshCookie', { type: 'apiKey', in: 'cookie', name: 'fx_rt' });
   for (const e of ENDPOINTS) {
     const params = [...e.path.matchAll(/\{(\w+)\}/g)].map((m) => m[1] ?? '');
     const responses: Record<string, { description: string; content?: Record<string, { schema: z.ZodType }> }> = {};
@@ -48,7 +48,7 @@ export function buildOpenApiDocument(info: { version: string; serverUrl: string 
   }
   return new OpenApiGeneratorV31(registry.definitions).generateDocument({
     openapi: '3.1.0',
-    info: { title: 'Runvara API', version: info.version, description: 'Errors use RFC 9457 problem+json (ADR-0012).' },
+    info: { title: 'Flexa API', version: info.version, description: 'Errors use RFC 9457 problem+json (ADR-0012).' },
     servers: [{ url: info.serverUrl }],
   });
 }

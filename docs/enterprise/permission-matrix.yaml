@@ -1,4 +1,4 @@
-# Runvara permission matrix — single source for seed data and generated authorization tests.
+# Flexa permission matrix — single source for seed data and generated authorization tests.
 # Source: CRM_TASK_PLATFORM_PROMPT.md §10.4.3 (Matrix A), §10.4.4 (Matrix B + scenarios),
 #         §10.4.5 (Matrix C), §11.4 (AI matrix + scenarios). Semantics: docs/adr/0004-yetki-motoru.md
 # Consistency with the source tables is verified by scripts/check-permission-matrix.mjs

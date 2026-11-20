@@ -1,4 +1,4 @@
-import { can, type Decision, type GrantMode } from '@runvara/authz';
+import { can, type Decision, type GrantMode } from '@flexa/authz';
 import { ProblemError } from './problem';
 import type { TenantRequestContext } from './request-context';
 

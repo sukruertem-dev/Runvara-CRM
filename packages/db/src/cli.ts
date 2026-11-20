@@ -1,4 +1,4 @@
-import { loadEnv, migrateEnvSchema } from '@runvara/config';
+import { loadEnv, migrateEnvSchema } from '@flexa/config';
 import { migrate } from './migrate';
 
 async function main(): Promise<void> {

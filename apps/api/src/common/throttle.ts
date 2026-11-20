@@ -1,5 +1,5 @@
 import type { Redis } from 'ioredis';
-import { sha256 } from '@runvara/security';
+import { sha256 } from '@flexa/security';
 import { ProblemError } from './problem';
 
 /** Sliding counter with lockout (ADR-0009: 10 failures → 15 min lock). Unknown accounts are counted the

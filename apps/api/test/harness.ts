@@ -1,8 +1,8 @@
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { apiEnvSchema, loadEnv } from '@runvara/config';
-import type { MailJob } from '@runvara/contracts';
-import { createDb, type DbHandle } from '@runvara/db';
-import { generateTotpCode, TokenSigner } from '@runvara/security';
+import { apiEnvSchema, loadEnv } from '@flexa/config';
+import type { MailJob } from '@flexa/contracts';
+import { createDb, type DbHandle } from '@flexa/db';
+import { generateTotpCode, TokenSigner } from '@flexa/security';
 import { randomBytes } from 'node:crypto';
 import { Redis } from 'ioredis';
 import { createApp } from '../src/app';
@@ -40,13 +40,13 @@ export interface Harness {
 export async function startHarness(overrides: Record<string, string> = {}): Promise<Harness> {
   const env = loadEnv(apiEnvSchema, {
     NODE_ENV: 'test',
-    LOG_LEVEL: 'silent',
+    LOG_LEVEL: process.env.TEST_LOG_LEVEL ?? 'silent',
     DATABASE_URL: process.env.TEST_DATABASE_URL,
     REDIS_URL: process.env.TEST_REDIS_URL,
-    RUNVARA_MASTER_KEY: randomBytes(32).toString('base64'),
-    API_PUBLIC_URL: 'http://api.runvara.test',
-    WEB_BASE_URL: 'http://app.runvara.test',
-    CORS_ORIGINS: 'http://app.runvara.test',
+    FLEXA_MASTER_KEY: randomBytes(32).toString('base64'),
+    API_PUBLIC_URL: 'http://api.flexa.test',
+    WEB_BASE_URL: 'http://app.flexa.test',
+    CORS_ORIGINS: 'http://app.flexa.test',
     JWT_PRIVATE_KEY_B64: Buffer.from(TokenSigner.generatePem()).toString('base64'),
     CSRF_SECRET: randomBytes(32).toString('hex'),
     COOKIE_SECURE: 'false',
@@ -84,7 +84,7 @@ export class Client {
 
   constructor(private readonly app: NestFastifyApplication) {}
 
-  async req(method: 'GET' | 'POST' | 'DELETE', url: string, body?: unknown, extra: Record<string, string> = {}): Promise<Res> {
+  async req(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', url: string, body?: unknown, extra: Record<string, string> = {}): Promise<Res> {
     const headers: Record<string, string> = { ...extra };
     if (this.accessToken && !('authorization' in extra)) headers.authorization = `Bearer ${this.accessToken}`;
     if (this.cookies.size) headers.cookie = [...this.cookies].map(([k, v]) => `${k}=${v}`).join('; ');
@@ -103,6 +103,8 @@ export class Client {
   post = (url: string, body?: unknown, extra?: Record<string, string>) => this.req('POST', url, body, extra);
   del = (url: string, body?: unknown) => this.req('DELETE', url, body);
   withCsrf = (): Record<string, string> => ({ 'x-csrf-token': this.csrf ?? '' });
+  patchJson = (url: string, body: unknown, ifMatch?: string) => this.req('PATCH', url, body, ifMatch ? { 'if-match': ifMatch } : {});
+  deleteWithIfMatch = (url: string, ifMatch: string) => this.req('DELETE', url, undefined, { 'if-match': ifMatch });
 }
 
 let seq = 0;

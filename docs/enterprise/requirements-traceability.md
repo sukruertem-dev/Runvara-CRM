@@ -73,7 +73,7 @@ Yetki senaryoları ve `SCN-*` testleri `docs/enterprise/permission-matrix.yaml`'
 | F5 | Otomasyon, SLA, webhook | G6 | Mention ve anlık bildirim |
 | F6 | Arayüz ve tasarım sistemi | G7 | Çağrı merkezi, santral, Data Servisi |
 | F7 | Raporlama, arama, import/export, i18n | G8 | Satış takip, Yönetici paneli, dialer, QA, raporlama |
-| F8 | Test, performans, güvenlik, teslim | G9 / G10 | Arayüz (Runvara) / Sertleştirme ve teslim |
+| F8 | Test, performans, güvenlik, teslim | G9 / G10 | Arayüz (Flexa) / Sertleştirme ve teslim |
 | | | G11 / G12 / G13 | AI altyapısı / Özet-rapor-sorgu / AI arayüz-kalite |
 
 ---

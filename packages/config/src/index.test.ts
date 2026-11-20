@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { apiEnvSchema, EnvValidationError, loadEnv } from './index';
 
 const valid = {
-  DATABASE_URL: 'postgres://runvara_app:x@localhost:5432/runvara',
+  DATABASE_URL: 'postgres://flexa_app:x@localhost:5432/flexa',
   REDIS_URL: 'redis://localhost:6379',
-  RUNVARA_MASTER_KEY: Buffer.alloc(32, 7).toString('base64'),
+  FLEXA_MASTER_KEY: Buffer.alloc(32, 7).toString('base64'),
   API_PUBLIC_URL: 'http://localhost:4000',
   WEB_BASE_URL: 'http://localhost:3000',
   CORS_ORIGINS: 'http://localhost:3000, http://localhost:3001',
@@ -25,12 +25,12 @@ describe('loadEnv', () => {
   it('lists every invalid key without leaking values', () => {
     const secret = 'super-secret-value';
     try {
-      loadEnv(apiEnvSchema, { ...valid, RUNVARA_MASTER_KEY: secret, DATABASE_URL: 'mysql://x' });
+      loadEnv(apiEnvSchema, { ...valid, FLEXA_MASTER_KEY: secret, DATABASE_URL: 'mysql://x' });
       expect.unreachable();
     } catch (e) {
       expect(e).toBeInstanceOf(EnvValidationError);
       const msg = (e as Error).message;
-      expect(msg).toContain('RUNVARA_MASTER_KEY');
+      expect(msg).toContain('FLEXA_MASTER_KEY');
       expect(msg).toContain('DATABASE_URL');
       expect(msg).not.toContain(secret);
     }

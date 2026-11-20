@@ -42,8 +42,8 @@ jobs:
       - run: node scripts/dev-env.mjs
       - name: Start the stack from scratch
         run: docker compose up --build --wait --wait-timeout 600
-      - run: pnpm install --frozen-lockfile --filter @runvara/web...
-      - run: pnpm --filter @runvara/web exec playwright install --with-deps chromium
+      - run: pnpm install --frozen-lockfile --filter @flexa/web...
+      - run: pnpm --filter @flexa/web exec playwright install --with-deps chromium
       - run: pnpm e2e
         env: { CI: 'true' }
       - if: failure()

@@ -5,8 +5,8 @@ import { sha256 } from './tokens';
 // ADR-0009: RFC 6238, SHA-1, 6 digits, 30 s period, ±1 step window, replay protection by last used step.
 const PERIOD = 30;
 
-function totp(secretBase32: string, label = 'runvara'): TOTP {
-  return new TOTP({ issuer: 'Runvara', label, algorithm: 'SHA1', digits: 6, period: PERIOD, secret: Secret.fromBase32(secretBase32) });
+function totp(secretBase32: string, label = 'flexa'): TOTP {
+  return new TOTP({ issuer: 'Flexa', label, algorithm: 'SHA1', digits: 6, period: PERIOD, secret: Secret.fromBase32(secretBase32) });
 }
 
 export function generateTotpSecret(): string {

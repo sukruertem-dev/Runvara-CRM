@@ -236,3 +236,5 @@ export const GLOBAL_TABLES = [
   'auth_events',
   'schema_migrations',
 ] as const;
+
+export * from './schema-tasks';

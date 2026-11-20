@@ -2,6 +2,8 @@
 
 - Durum: Önerildi · Tarih: 2026-11-20 · Kapsam: Faz 5 (iskelet Faz 2'de) · Gereksinimler: AU-*, 5.3, MEN-05, CC-21
 
+> **Not (P2, 2026-11-20):** Outbox yazıcısı P2'ye değil P5'e bırakıldı; görevler henüz olay üretmiyor (olay tüketicisi olmadan yazılan outbox satırları birikirdi). Görev servisinin yazma noktaları P5'te outbox'a bağlanacak.
+
 ## Bağlam
 İş değişikliği ile olay yayını arasında "yazıldı ama yayınlanmadı" veya "yayınlandı ama geri alındı" durumu olmamalı. Otomasyonlar idempotent, döngü korumalı, DLQ'lu olmalı.
 
@@ -22,7 +24,7 @@ CREATE TABLE outbox_events (
 CREATE INDEX outbox_unpublished ON outbox_events (occurred_at) WHERE published_at IS NULL;
 ```
 - Servisler olayı iş yazımıyla **aynı transaction'da** `packages/events` yazıcısıyla ekler; trigger `pg_notify('outbox', '')` gönderir.
-- Relay (`runvara_relay`): NOTIFY ile uyanır + 1 sn yedek yoklama; `SELECT … FOR UPDATE SKIP LOCKED LIMIT 500`; BullMQ'ya `jobId = event.id` ile ekler (iş kuyrukta durdukça BullMQ aynı jobId'yi tekrar eklemez; iş tamamlanıp silinmişse tekrar eden yayını tüketici idempotency'si (§2) etkisiz kılar); sonra `published_at` set eder. Birden çok relay örneği güvenle çalışır.
+- Relay (`flexa_relay`): NOTIFY ile uyanır + 1 sn yedek yoklama; `SELECT … FOR UPDATE SKIP LOCKED LIMIT 500`; BullMQ'ya `jobId = event.id` ile ekler (iş kuyrukta durdukça BullMQ aynı jobId'yi tekrar eklemez; iş tamamlanıp silinmişse tekrar eden yayını tüketici idempotency'si (§2) etkisiz kılar); sonra `published_at` set eder. Birden çok relay örneği güvenle çalışır.
 - Saklama: yayınlanmış olaylar 7 gün sonra `outbox_archive` (bölümlenmiş, aylık) tablosuna taşınır/silinir.
 
 ### 2. Teslim ve tüketiciler

@@ -1,5 +1,5 @@
 {
-  "name": "@runvara/db",
+  "name": "@flexa/db",
   "version": "0.1.0",
   "private": true,
   "type": "commonjs",
@@ -18,7 +18,7 @@
     "test:int": "vitest run --config vitest.int.config.ts"
   },
   "dependencies": {
-    "@runvara/config": "workspace:*",
+    "@flexa/config": "workspace:*",
     "drizzle-orm": "0.44.7",
     "pg": "8.23.1"
   },

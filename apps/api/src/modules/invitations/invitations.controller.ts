@@ -1,8 +1,8 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
-import type { ApiEnv } from '@runvara/config';
-import { AcceptInvitationRequest, CreateInvitationRequest, TokenRequest, type z } from '@runvara/contracts';
-import { and, desc, eq, isNull, one, schema, sql, type DbHandle } from '@runvara/db';
-import { hashPassword, randomToken, sha256, type TokenSigner } from '@runvara/security';
+import type { ApiEnv } from '@flexa/config';
+import { AcceptInvitationRequest, CreateInvitationRequest, TokenRequest, type z } from '@flexa/contracts';
+import { and, desc, eq, isNull, one, schema, sql, type DbHandle } from '@flexa/db';
+import { hashPassword, randomToken, sha256, type TokenSigner } from '@flexa/security';
 import type { FastifyRequest } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { audit } from '../../common/audit';

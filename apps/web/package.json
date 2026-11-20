@@ -1,5 +1,5 @@
 {
-  "name": "@runvara/web",
+  "name": "@flexa/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -11,8 +11,8 @@
     "e2e": "playwright test"
   },
   "dependencies": {
-    "@runvara/contracts": "workspace:*",
-    "@runvara/ui": "workspace:*",
+    "@flexa/contracts": "workspace:*",
+    "@flexa/ui": "workspace:*",
     "next": "15.5.29",
     "react": "19.1.10",
     "react-dom": "19.1.10"

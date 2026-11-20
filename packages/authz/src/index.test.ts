@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { can, defaultEnabledPolicies, grantsFor, PROTECTED_PERMISSIONS, SYSTEM_ROLES, type AuthzContext } from './index';
+import { can, defaultEnabledPolicies, grantsFor, PROTECTED_PERMISSIONS, recordScope, SYSTEM_ROLES, type AuthzContext } from './index';
 
 const ctx = (roleKeys: string[], modules: string[] = ['core'], policies: string[] = []): AuthzContext => ({
   tenantId: '00000000-0000-0000-0000-000000000001',
@@ -59,5 +59,21 @@ describe('can() — tenant-level actions from permission-matrix.yaml', () => {
     expect(can(ctx([]), 'users.invite').allow).toBe(false);
     expect(can(ctx(['root']), 'users.invite').allow).toBe(false);
     expect(can(ctx(['admin']), 'everything.do')).toEqual({ allow: false, status: 403, reason: 'unknown_permission' });
+  });
+});
+
+describe('recordScope (P2 slice of ADR-0004)', () => {
+  it('maps Matrix A A08/A10 to scopes, fail-closed for team/queue until P4', () => {
+    expect(recordScope(ctx(['admin']), 'read')).toEqual({ kind: 'all' });
+    expect(recordScope(ctx(['analyst']), 'read')).toEqual({ kind: 'all' });
+    expect(recordScope(ctx(['analyst']), 'update')).toEqual({ kind: 'none' });
+    expect(recordScope(ctx(['manager']), 'read')).toEqual({ kind: 'own' });
+    expect(recordScope(ctx(['sales_rep']), 'update')).toEqual({ kind: 'own' });
+    expect(recordScope(ctx(['call_agent']), 'read')).toEqual({ kind: 'own' });
+    expect(recordScope(ctx(['sales_rep']), 'archive')).toEqual({ kind: 'none' });
+    expect(recordScope(ctx(['manager']), 'archive')).toEqual({ kind: 'own' });
+    expect(recordScope(ctx(['admin']), 'purge')).toEqual({ kind: 'all' });
+    expect(recordScope(ctx([]), 'read')).toEqual({ kind: 'none' });
+    expect(recordScope(ctx(['sales_rep', 'admin']), 'read')).toEqual({ kind: 'all' });
   });
 });

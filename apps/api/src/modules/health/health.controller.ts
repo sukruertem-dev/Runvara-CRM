@@ -1,5 +1,5 @@
 import { Controller, Get, Inject, Res } from '@nestjs/common';
-import type { DbHandle } from '@runvara/db';
+import type { DbHandle } from '@flexa/db';
 import type { FastifyReply } from 'fastify';
 import { DB, REDIS, type Redis } from '../../infra/tokens';
 

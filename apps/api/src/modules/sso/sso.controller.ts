@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Inject, Param, ParseUUIDPipe, Post, Req, Res, UseGuards } from '@nestjs/common';
-import type { ApiEnv } from '@runvara/config';
-import { CreateSsoProviderRequest, type z } from '@runvara/contracts';
-import { schema, type DbHandle } from '@runvara/db';
+import type { ApiEnv } from '@flexa/config';
+import { CreateSsoProviderRequest, type z } from '@flexa/contracts';
+import { schema, type DbHandle } from '@flexa/db';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { authorize } from '../../common/authorize';
 import { TenantGuard } from '../../common/guards';

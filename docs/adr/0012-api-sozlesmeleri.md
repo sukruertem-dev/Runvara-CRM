@@ -6,7 +6,7 @@
 - **Sürüm:** URL önekiyle `/v1`; Data Servisi bağımsız sürümlenir (`/dataservice/v1`). Geriye uyumsuz değişiklik yeni ana sürüm; eski sürüm en az 6 ay `Deprecation` + `Sunset` başlıklarıyla.
 - **Hata biçimi:** RFC 9457 `application/problem+json`:
   ```json
-  { "type": "https://docs.runvara.app/errors/WORKFLOW_TRANSITION_NOT_ALLOWED",
+  { "type": "https://docs.flexa.app/errors/WORKFLOW_TRANSITION_NOT_ALLOWED",
     "title": "Transition not allowed", "status": 422, "code": "WORKFLOW_TRANSITION_NOT_ALLOWED",
     "detail": "...", "instance": "/v1/tasks/…", "requestId": "…",
     "errors": [{ "path": "status_id", "code": "…", "message": "…" }] }

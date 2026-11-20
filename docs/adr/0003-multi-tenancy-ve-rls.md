@@ -12,7 +12,7 @@ Her firma ayrı tenant'tır. Kaynak, paylaşımlı şema + RLS'i standart, ayrı
 
 ### 2. Veritabanı rolleri
 `docs/architecture.md` §5 tablosu bağlayıcıdır. Kurallar:
-- Uygulama `runvara_app` ile bağlanır: `NOSUPERUSER NOBYPASSRLS`, hiçbir tablonun sahibi değildir.
+- Uygulama `flexa_app` ile bağlanır: `NOSUPERUSER NOBYPASSRLS`, hiçbir tablonun sahibi değildir.
 - Tüm tenant tablolarında `ALTER TABLE … ENABLE ROW LEVEL SECURITY; ALTER TABLE … FORCE ROW LEVEL SECURITY;`
 - Standart politika (her tenant tablosu için migration şablonu):
 
@@ -61,7 +61,7 @@ SELECT set_config('app.tenant_id', $1, true), set_config('app.user_id', $2, true
 Zarf şifreleme: tenant başına veri anahtarı (DEK), platform ana anahtarıyla (KEK; KMS veya dev'de yerel anahtar dosyası) sarılır, `tenant_keys` tablosunda. Telefoni kimlik bilgileri, webhook sırları, OIDC client secret'ları, çağrı kaydı nesneleri bu DEK ile şifrelenir. Anahtar döndürme: yeni DEK sürümü, tembel yeniden şifreleme işi.
 
 ## Kanıt (testler)
-- DB düzeyi: `runvara_app` ile bağlamsız `SELECT` → 0 satır; tenant A bağlamında tenant B `id`'si ile `SELECT/UPDATE/DELETE` → 0 satır; `INSERT` tenant B → `WITH CHECK` ihlali.
+- DB düzeyi: `flexa_app` ile bağlamsız `SELECT` → 0 satır; tenant A bağlamında tenant B `id`'si ile `SELECT/UPDATE/DELETE` → 0 satır; `INSERT` tenant B → `WITH CHECK` ihlali.
 - API düzeyi: tenant B kaydının id'si tenant A token'ıyla → 404.
 - Telefoni: DID A, gövde tenant B → olay A'ya işlenir (SCN-14).
 
