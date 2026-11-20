@@ -1,6 +1,6 @@
 # İlerleme
 
-## P1 — Faz 1 + G1 çekirdeği: İskelet, kimlik doğrulama, multi-tenancy · 2026-11-20 · ✅ (CI uzak depo bekliyor)
+## P1 — Faz 1 + G1 çekirdeği: İskelet, kimlik doğrulama, multi-tenancy · 2026-11-20 · ✅
 
 ### Yapılanlar
 - **Monorepo:** pnpm 10 + Turborepo, TypeScript 5.9 strict, ESLint (strict-type-checked + sabit renk yasağı + `pg` import yasağı), Prettier, lint-staged + husky, commitlint. Sürüm sabitleme gerekçesi: ADR-0001 eki.
@@ -31,7 +31,7 @@
 | `docker compose up` ile tüm servisler sağlıklı ayağa kalkıyor | ✅ |
 | Kayıt → giriş → 2FA → tenant seçimi E2E | ✅ |
 | Tenant izolasyon testleri (API ve DB) | ✅ |
-| CI yeşil | ⏳ iş akışı yazıldı; depoda uzak sunucu yok (Q3), bu yüzden GitHub'da çalıştırılamadı. Aynı adımlar yerelde geçti |
+| CI yeşil | ✅ GitHub Actions, PR #1 (sukruertem-dev/Runvara-CRM): `checks` ve `e2e` işleri yeşil |
 
 ### Test sırasında bulunup düzeltilen hatalar
 - `withTenant` geçersiz kimlikte Promise reddi yerine senkron hata fırlatıyordu.

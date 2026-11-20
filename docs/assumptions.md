@@ -61,7 +61,7 @@
 >
 > **Q2 – İlk santral:** Kullandığınız veya hedeflediğiniz santral/çağrı merkezi sağlayıcısı hangisi? (Varsayılan: Asterisk + genel webhook; Netgsm/Verimor/3CX/Twilio/Genesys'ten biri öncelikliyse G7'de ilk adaptör o olur.)
 >
-> **Q3 – Kod deposu ve CI:** GitHub'da bir depo açıp bu yerel depoyu oraya bağlayalım mı? (CI kabul kriterleri GitHub Actions gerektiriyor.)
+> **Q3 – Kod deposu ve CI:** ✅ Yanıtlandı (2026-11-20): https://github.com/sukruertem-dev/Runvara-CRM (private), CI PR #1'de yeşil. Önceki soru: GitHub'da bir depo açıp bu yerel depoyu oraya bağlayalım mı? (CI kabul kriterleri GitHub Actions gerektiriyor.)
 >
 > **Q4 – Palet düzeltmesi:** Koyu temadaki marka kırmızısını erişilebilirlik için `#FF5A5F` → `#FF6B70` yapmayı ve yeni `--border-strong` token'ını eklemeyi onaylıyor musunuz?
 >
