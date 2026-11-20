@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 160">
+  <defs>
+    <linearGradient id="flexaPurple" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#D39BFF"/>
+      <stop offset="55%" stop-color="#974DFF"/>
+      <stop offset="100%" stop-color="#6E19EB"/>
+    </linearGradient>
+  </defs>
+  <path
+    d="M25 133 L53 45 Q61 20 90 20 H166
+       L156 46 Q151 59 132 59 H79
+       L72 79 H145 L136 101
+       Q132 113 113 113 H61
+       L56 124 Q52 133 39 133 Z"
+    fill="url(#flexaPurple)"
+  />
+  <path
+    d="M72 79 H145 L136 101
+       Q132 113 113 113 H61 Z"
+    fill="#7624EF"
+  />
+  <path
+    d="M72 79 L61 113 H79 L96 79 Z"
+    fill="#4E17AE"
+    opacity="0.75"
+  />
+  <text
+    x="190"
+    y="107"
+    font-family="Inter, Arial, sans-serif"
+    font-size="88"
+    font-weight="750"
+    letter-spacing="-4"
+    fill="#F8F9FC"
+  >Flexa</text>
+</svg>

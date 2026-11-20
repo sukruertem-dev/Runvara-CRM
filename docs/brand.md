@@ -14,8 +14,16 @@
 
 ## 2. Logo
 - Konsept: katmanlı kurdele biçiminde **F** sembolü; birincil düzen sembol + "Flexa" yazısı; ikon düzeni yalnızca sembol.
-- Yazı rengi: açık zeminde `#1A1B1F`, koyu zeminde `#F8F9FC`.
-- **Resmi logo çizimi depoya henüz eklenmedi.** Kural gereği ("Do not invent or modify the official logo artwork") sembol çizilmedi; arayüz şimdilik yalnızca **yazı markası** (Inter 700) kullanır ve eski Runvara işareti kaldırıldı. Resmi SVG'ler gelince `packages/brand/` altına konur: `flexa-symbol.svg`, `flexa-logo-light.svg`, `flexa-logo-dark.svg`, favicon/PWA ikonları.
+- **Resmi çizim** (kullanıcı tarafından 2026-11-20'de verildi) — tek kaynak `packages/brand/`:
+
+| Dosya | İçerik | Kullanım |
+|---|---|---|
+| `flexa-logo-on-dark.svg` | Verilen SVG, **birebir** (yazı `#F8F9FC`) | Koyu antrasit panel/yan menü, koyu tema |
+| `flexa-logo-on-light.svg` | Aynı çizim; yalnızca yazı rengi `brand.json` `lightBackgroundWordmark` = `#1A1B1F` | Açık yüzeyler |
+| `flexa-symbol.svg` | Aynı yollar, yalnızca `viewBox` sembole kırpıldı (`iconLayout: F symbol only`) | Favicon, küçük alanlar |
+
+- Çizime başka değişiklik yapılmaz (renk, oran, gradyan, yazı). Web uygulaması dosyaları `predev`/`prebuild` ile `apps/web/public`'e kopyalar (`packages/brand/copy.mjs`); kopyalar depoya girmez.
+- Logo içindeki yazı SVG `<text>` öğesidir (Inter); Inter yüklü olmayan ortamlarda Arial'a düşer. Kesin görünüm gerekiyorsa (e-posta, baskı) yazının vektöre çevrilmiş sürümü tasarım ekibinden istenmelidir.
 
 ## 3. Renkler → token'lar (erişilebilirlik ayarlarıyla)
 Token'ların tek kaynağı [`packages/ui/tokens.json`](../packages/ui/tokens.json); kontrol raporu [`docs/contrast-report.md`](contrast-report.md) (90/90 kontrol geçer).

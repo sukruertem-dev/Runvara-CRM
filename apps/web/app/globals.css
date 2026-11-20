@@ -21,10 +21,15 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 
 /* brand */
 .brand { display: inline-flex; align-items: center; gap: 0.75rem; }
-.wordmark { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.02em; font-size: var(--text-5); }
-.ctx-surface .wordmark { color: var(--text-primary); }
-.ctx-panel .wordmark { color: var(--sidebar-text); }
-.brand-lg .wordmark { font-size: var(--text-7); }
+.logo { display: none; height: 36px; width: auto; }
+.brand-lg .logo { height: 72px; }
+.ctx-surface .logo-on-light, .ctx-panel .logo-on-dark { display: block; }
+:root[data-theme="dark"] .ctx-surface .logo-on-light { display: none; }
+:root[data-theme="dark"] .ctx-surface .logo-on-dark { display: block; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .ctx-surface .logo-on-light { display: none; }
+  :root:not([data-theme="light"]) .ctx-surface .logo-on-dark { display: block; }
+}
 
 /* auth layout */
 .auth { min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr; }
@@ -47,7 +52,7 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
   .auth { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
   .auth-panel { flex-direction: row; justify-content: flex-start; padding: 0.75rem 1rem; text-align: left; }
   .auth-panel .tagline { display: none; }
-  .auth-panel .brand-lg .wordmark { font-size: var(--text-5); }
+  .auth-panel .brand-lg .logo { height: 36px; }
   .auth-main { padding: 1.5rem 1rem; align-items: flex-start; }
 }
 

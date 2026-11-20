@@ -56,7 +56,7 @@
 | B18 | Depo konumu | Depo OneDrive dışına, yerel `C:\Users\Casper\Projects\runvara` klasörüne taşındı (2026-11-20). OneDrive kopyası artık kullanılmıyor | R-25 |
 | B19 | Ürün adı | Runvara → **Flexa** (2026-11-20, kullanıcı kararı); marka kaynağı `packages/ui/brand.json`, `docs/brand.md` | docs/brand.md |
 | B20 | Flexa ikincil metin rengi | JSON'daki `#8B93A7` metin kontrastını sağlamadığından metinde `#646B7E`; `#8B93A7` metin dışı öğelerde | docs/brand.md §3 |
-| B21 | Flexa logosu | Resmi çizim verilene kadar yalnızca yazı markası; sembol uydurulmadı | docs/brand.md §2 |
+| B21 | Flexa logosu | Resmi SVG verildi (2026-11-20); açık zemin sürümü yalnızca yazı rengiyle, sembol yalnızca viewBox kırpmasıyla türetildi | docs/brand.md §2 |
 | B22 | RQL ayrıntıları | Tırnaksız kelime metin değeri sayılır; `today()`/tarih değeri datetime alanında tüm yerel gün; boş `myTeams()` hiçbir şeyle eşleşmez; liste uç noktasında `ORDER BY` yerine `sort` parametresi | packages/query-lang |
 | B23 | Görev yetki kapsamı (P2) | `own` = sahip, atanan veya oluşturan; ekip/kuyruk kapsamı P4'e kadar `own`'a daraltılır (fail-closed); başkasına görev vermek `reassign` (yalnızca Admin) | ADR-0004, docs/p2-plan.md §6 |
 

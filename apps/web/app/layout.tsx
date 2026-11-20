@@ -5,7 +5,8 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: { default: 'Flexa', template: '%s · Flexa' },
-  description: 'Flexa',
+  description: 'İşini Tek Platformda Yönet',
+  icons: { icon: { url: '/flexa-symbol.svg', type: 'image/svg+xml' } },
 };
 
 export const viewport: Viewport = { width: 'device-width', initialScale: 1 };

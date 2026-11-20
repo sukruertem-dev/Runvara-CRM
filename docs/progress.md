@@ -5,7 +5,7 @@
 ### Marka değişikliği (aynı dalda)
 - Ürün adı **Runvara → Flexa** (kullanıcı kararı). Tek kaynak `packages/ui/brand.json`, kurallar `docs/brand.md` (kaynak prompt §12'nin yerini alır).
 - Teknik ön ekler: `@flexa/*`, `flexa_owner/app/relay`, `FLEXA_*`, çerezler `fx_rt`/`fx_csrf`. Yeni palet (mor `#7B3CFF`, antrasit yan menü) token'lara döküldü: kontrast **90/90**. JSON'daki ikincil metin `#8B93A7` normal metin için yetersiz (2.92–3.07:1) olduğundan metinde `#646B7E` kullanılır; gerekçe `docs/brand.md` §3.
-- Resmi logo çizimi verilmediği için **logo çizilmedi** ("Do not invent" kuralı); eski Runvara işareti kaldırıldı, arayüz yalnızca "Flexa" yazı markasını kullanır.
+- Resmi Flexa logosu `packages/brand/`'e eklendi (verilen SVG birebir + açık zemin ve yalnız sembol türevleri); giriş ekranı ve favicon bu dosyaları kullanır.
 - **Yerel geliştirme:** 0001 migration'ındaki rol adları değiştiği için mevcut yerel Compose veritabanı eski şemayla uyumsuzdur: `docker compose down -v` ve `node scripts/dev-env.mjs --force` gerekir.
 
 ### Yapılanlar

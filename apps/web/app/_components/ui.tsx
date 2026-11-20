@@ -7,8 +7,10 @@ import { t } from '../../lib/i18n';
 export function Brand({ context, large = false }: { context: 'surface' | 'panel'; large?: boolean }) {
   return (
     <span className={`brand ctx-${context}${large ? ' brand-lg' : ''}`}>
-      {/* Official symbol artwork has not been supplied yet (docs/brand.md); the wordmark stands alone. */}
-      <span className="wordmark">{t('brand.name')}</span>
+      {/* Official artwork (packages/brand). The light-ground file is shown on light surfaces, the dark-ground
+          file on the charcoal panel and in dark theme; CSS picks one (docs/brand.md §2). */}
+      <img className="logo logo-on-light" src="/flexa-logo-on-light.svg" alt={t('brand.name')} />
+      <img className="logo logo-on-dark" src="/flexa-logo-on-dark.svg" alt={t('brand.name')} />
     </span>
   );
 }
