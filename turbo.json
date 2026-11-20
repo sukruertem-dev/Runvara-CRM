@@ -1,0 +1,26 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "ui": "stream",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "tsconfig*.json", "package.json", "migrations/**", "next.config.*", "app/**", "scripts/**"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "generated/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "lint": {
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "test:int": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "outputs": []
+    }
+  }
+}

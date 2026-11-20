@@ -3,7 +3,7 @@
 - Durum: Önerildi · Tarih: 2026-11-20 · Kapsam: Faz 1 (iskelet), G1 · Gereksinimler: MOD-01…04, AUTH-11, TEN-01/02/08/09/10
 
 ## 1. Modül manifesti
-Her modül `packages/modules/manifests/<id>.ts` içinde, `docs/enterprise/module-manifest.schema.json` şemasına uyan bir manifest dışa aktarır: `id, version, displayNameKey, dependsOn (anyOf grupları dahil), permissions[], routes{apiPrefix}, menu[], jobs[], events{publishes, consumes}, configKeys[], planEntitlement, defaultConfig`. Katalog: `docs/enterprise/module-catalog.json`.
+Her modül `packages/modules/manifests/<id>.ts` içinde, `docs/enterprise/module-manifest.schema.json` şemasına uyan bir manifest dışa aktarır: `id, version, displayNameKey, dependsOn (anyOf grupları dahil), permissions[], routes{apiPrefix}, menu[], jobs[], events{publishes, consumes}, configKeys[], planEntitlement, defaultConfig`. Katalog: `packages/modules/src/catalog.json`.
 - Açılışta kayıt defteri tüm manifestleri yükler, şemayla doğrular ve bağımlılık grafiğinde **döngü** ve **bilinmeyen modül** kontrolü yapar (hata = süreç başlamaz).
 - Bağımlılık semantiği: `dependsOn: [["crm"]]` = crm gerekli; `dependsOn: [["call_center"], ["sales_b2b", "sales_b2c"]]` = call_center **ve** (b2b **veya** b2c).
 

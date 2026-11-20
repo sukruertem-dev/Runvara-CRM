@@ -1,0 +1,22 @@
+{
+  "name": "@runvara/authz",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "gen": "node scripts/gen-matrix.mjs",
+    "build": "pnpm gen && tsc -p tsconfig.build.json",
+    "typecheck": "pnpm gen && tsc -p tsconfig.json --noEmit",
+    "lint": "pnpm gen && eslint src",
+    "test": "pnpm gen && vitest run"
+  },
+  "dependencies": {
+    "@runvara/modules": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "3.2.7",
+    "yaml": "2.8.1"
+  }
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Validates docs/enterprise/module-catalog.json: JSON Schema, dependency graph (unknown ids, cycles),
+// Validates packages/modules/src/catalog.json: JSON Schema, dependency graph (unknown ids, cycles),
 // §10.3.1 dependency table, and that every permission key used in permission-matrix.yaml belongs to its module.
 // Usage: node scripts/check-module-catalog.mjs [--root <repo root>]   (requires ajv, ajv-formats, yaml)
 import { readFileSync } from 'node:fs';
@@ -12,7 +12,7 @@ const rootArg = process.argv.indexOf('--root');
 const root = rootArg > -1 ? resolve(process.argv[rootArg + 1]) : resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFileSync(resolve(root, p), 'utf8');
 const schema = JSON.parse(read('docs/enterprise/module-manifest.schema.json'));
-const { modules } = JSON.parse(read('docs/enterprise/module-catalog.json'));
+const { modules } = JSON.parse(read('packages/modules/src/catalog.json'));
 const matrix = parse(read('docs/enterprise/permission-matrix.yaml'));
 const errors = [];
 

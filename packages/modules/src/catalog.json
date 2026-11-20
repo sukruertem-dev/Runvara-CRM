@@ -1,5 +1,5 @@
 {
-  "$comment": "Module catalog (CRM_TASK_PLATFORM_PROMPT.md §10.3.1). Generated in Faz 0 from permission-matrix.yaml; becomes packages/modules/manifests/*.ts in Faz 1. Validate: node scripts/check-module-catalog.mjs",
+  "$comment": "Module catalog (CRM_TASK_PLATFORM_PROMPT.md §10.3.1). Single source of the module registry (packages/modules). Validate: node scripts/check-module-catalog.mjs",
   "modules": [
     {
       "id": "core",

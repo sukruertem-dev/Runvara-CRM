@@ -1,0 +1,7 @@
+pnpm-lock.yaml
+CRM_TASK_PLATFORM_PROMPT.md
+docs/
+dist/
+.next/
+generated/
+coverage/
