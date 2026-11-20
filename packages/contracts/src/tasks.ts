@@ -173,14 +173,14 @@ export const WorkflowCreate = z
 export const CustomFieldType = z.enum(['text', 'number', 'date', 'select', 'multi_select', 'user', 'relation', 'formula']);
 export const CustomFieldCreate = z
   .object({
-    resourceType: z.enum(['task']),
+    resourceType: z.enum(['task', 'account', 'contact', 'lead', 'opportunity', 'case']),
     key: z.string().regex(/^cf_[a-z0-9_]{1,45}$/),
     type: CustomFieldType,
     label: LabelI18n,
     required: z.boolean().default(false),
     defaultValue: z.unknown().optional(),
     options: z.array(z.object({ id: z.string().regex(/^[a-z0-9_]{1,40}$/), label: LabelI18n })).max(200).default([]),
-    relationTarget: z.enum(['task']).optional(),
+    relationTarget: z.enum(['task', 'account', 'contact', 'lead', 'opportunity', 'case']).optional(),
     formula: z.string().min(1).max(2000).optional(),
     indexed: z.boolean().default(false),
   })
@@ -207,7 +207,7 @@ export const TaskSeriesView = z
   .openapi('TaskSeriesView');
 
 // ------------------------------------------------------------------ RQL
-export const RqlValidateRequest = z.object({ resource: z.enum(['task']), q: z.string().max(4096) }).strict().openapi('RqlValidateRequest');
+export const RqlValidateRequest = z.object({ resource: z.enum(['task', 'account', 'contact', 'lead', 'opportunity', 'case']), q: z.string().max(4096) }).strict().openapi('RqlValidateRequest');
 export const RqlValidateResponse = z
   .object({ ok: z.boolean(), error: z.object({ code: z.string(), message: z.string(), position: z.number().int() }).optional() })
   .openapi('RqlValidateResponse');

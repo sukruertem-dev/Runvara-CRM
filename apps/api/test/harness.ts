@@ -84,7 +84,7 @@ export class Client {
 
   constructor(private readonly app: NestFastifyApplication) {}
 
-  async req(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', url: string, body?: unknown, extra: Record<string, string> = {}): Promise<Res> {
+  async req(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', url: string, body?: unknown, extra: Record<string, string> = {}): Promise<Res> {
     const headers: Record<string, string> = { ...extra };
     if (this.accessToken && !('authorization' in extra)) headers.authorization = `Bearer ${this.accessToken}`;
     if (this.cookies.size) headers.cookie = [...this.cookies].map(([k, v]) => `${k}=${v}`).join('; ');
@@ -101,6 +101,7 @@ export class Client {
 
   get = (url: string, extra?: Record<string, string>) => this.req('GET', url, undefined, extra);
   post = (url: string, body?: unknown, extra?: Record<string, string>) => this.req('POST', url, body, extra);
+  put = (url: string, body?: unknown) => this.req('PUT', url, body);
   del = (url: string, body?: unknown) => this.req('DELETE', url, body);
   withCsrf = (): Record<string, string> => ({ 'x-csrf-token': this.csrf ?? '' });
   patchJson = (url: string, body: unknown, ifMatch?: string) => this.req('PATCH', url, body, ifMatch ? { 'if-match': ifMatch } : {});

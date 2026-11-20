@@ -6,7 +6,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { authorize } from '../../common/authorize';
 import { TenantGuard } from '../../common/guards';
 import { ProblemError } from '../../common/problem';
-import { Client, CurrentTenant, type ClientInfo, type TenantRequestContext } from '../../common/request-context';
+import { Client, CurrentTenant, dbCtx, type ClientInfo, type TenantRequestContext } from '../../common/request-context';
 import { ZodPipe } from '../../common/zod.pipe';
 import { DB, ENV } from '../../infra/tokens';
 import { SessionService } from '../auth/session.service';
@@ -28,7 +28,7 @@ export class SsoController {
   @UseGuards(TenantGuard)
   async list(@CurrentTenant() t: TenantRequestContext) {
     authorize(t, 'tenant.config.manage');
-    const rows = await this.db.withTenant({ tenantId: t.tenant.id, userId: t.principal.userId }, (tx) => tx.select().from(schema.tenantSsoProviders));
+    const rows = await this.db.withTenant(dbCtx(t), (tx) => tx.select().from(schema.tenantSsoProviders));
     return rows.map(view);
   }
 

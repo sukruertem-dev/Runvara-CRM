@@ -68,6 +68,7 @@ export class ProvisioningService {
     await tx.insert(schema.tenantKeys).values({ tenantId, version: 1, wrappedDek: wrapped });
     // Same SQL function the 0002 migration used for pre-existing tenants: one definition of the default.
     await tx.execute(sql`SELECT app.seed_task_workflow(${tenantId})`);
+    await tx.execute(sql`SELECT app.seed_crm_workflows(${tenantId})`);
   }
 
   async slugAvailable(slug: string): Promise<boolean> {

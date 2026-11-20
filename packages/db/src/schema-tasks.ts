@@ -15,6 +15,7 @@ export const recordRegistry = pgTable(
     recordType: text('record_type').notNull(),
     recordId: uuid('record_id').notNull(),
     segment: segmentEnum('segment'),
+    segments: segmentEnum('segments').array(),
     deletedAt: ts('deleted_at'),
   },
   (t) => [primaryKey({ columns: [t.tenantId, t.recordType, t.recordId] })],

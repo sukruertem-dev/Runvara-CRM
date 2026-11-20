@@ -17,8 +17,9 @@ import {
 } from '@flexa/workflow';
 import { mapDbError } from '../../common/http-helpers';
 import { ProblemError } from '../../common/problem';
-import type { TenantRequestContext } from '../../common/request-context';
+import { dbCtx, type TenantRequestContext } from '../../common/request-context';
 import { DB } from '../../infra/tokens';
+import { attachedSegment, CRM, isCrmType, readCrmRow } from '../crm/crm-objects';
 import { compileFormulas, loadFieldDefs, validateCustom, withFormulas, type FieldDefRow } from './task-fields';
 
 type Create = z.infer<typeof TaskCreate>;
@@ -131,7 +132,7 @@ export function toView(r: TaskRow, vc: ViewContext): Record<string, unknown> {
 }
 
 function scopeOf(t: TenantRequestContext, action: RecordAction): RecordScope {
-  return recordScope(t.authz, action);
+  return recordScope(t.authz, action, 'core.task');
 }
 
 function isOwn(r: Pick<TaskRow, 'owner_user_id' | 'assignee_user_id' | 'created_by'>, userId: string): boolean {
@@ -150,7 +151,7 @@ export class TasksService {
   constructor(@Inject(DB) private readonly db: DbHandle) {}
 
   ctx(t: TenantRequestContext) {
-    return { tenantId: t.tenant.id, userId: t.principal.userId };
+    return dbCtx(t);
   }
 
   async viewContext(tx: Db): Promise<ViewContext> {
@@ -196,7 +197,7 @@ export class TasksService {
     const initial = wf.statuses.find((s) => s.isInitial);
     if (!initial) throw new ProblemError('WORKFLOW_INVALID', 'workflow has no initial status');
     if (body.parentId) await this.readRow(tx, t, body.parentId);
-    if (body.related) await this.assertRelated(tx, t, body.related);
+    const segment = body.related ? await this.assertRelated(tx, t, body.related) : null;
     const defs = await loadFieldDefs(tx, 'task');
     const custom = Object.fromEntries(Object.entries(await validateCustom(tx, defs, body.custom ?? {}, 'create')).filter(([, v]) => v !== null));
     const position = keyBetween(await this.lastPosition(tx, initial.id), null);
@@ -225,6 +226,7 @@ export class TasksService {
         position,
         relatedType: body.related?.type ?? null,
         relatedId: body.related?.id ?? null,
+        segment,
         seriesId: extra.seriesId ?? null,
         occurrenceIndex: extra.occurrenceIndex ?? null,
         custom,
@@ -262,7 +264,7 @@ export class TasksService {
       throw new ProblemError('FORBIDDEN', 'reassigning requires the reassign permission');
     }
     if (body.parentId) await this.readRow(tx, t, body.parentId);
-    if (body.related) await this.assertRelated(tx, t, body.related);
+    const relatedSegment = body.related ? await this.assertRelated(tx, t, body.related) : null;
     let custom: Record<string, unknown> | undefined;
     if (body.custom) {
       const defs = await loadFieldDefs(tx, 'task');
@@ -293,6 +295,8 @@ export class TasksService {
     if (body.related !== undefined) {
       set.relatedType = body.related?.type ?? null;
       set.relatedId = body.related?.id ?? null;
+      // A task linked to a segment-bound record inherits its segment (ADR-0010), so it is hidden with it.
+      set.segment = relatedSegment;
     }
     if (custom) set.custom = custom;
     if (statusChange) {
@@ -618,11 +622,15 @@ export class TasksService {
     };
   }
 
-  private async assertRelated(tx: Db, t: TenantRequestContext, ref: { type: string; id: string }): Promise<void> {
+  /** The related record must exist and be readable by the caller (ADR-0005 §1); returns the segment the task inherits. */
+  private async assertRelated(tx: Db, t: TenantRequestContext, ref: { type: string; id: string }): Promise<'b2b' | 'b2c' | null> {
     const r = await tx.select({ d: schema.recordRegistry.deletedAt }).from(schema.recordRegistry)
       .where(and(eq(schema.recordRegistry.recordType, ref.type), eq(schema.recordRegistry.recordId, ref.id), isNull(schema.recordRegistry.deletedAt)));
     if (r.length === 0) throw new ProblemError('RELATED_NOT_FOUND');
-    // Linking needs read access to the target as well (ADR-0005 §1); tasks are the only linkable type in P2.
-    if (ref.type === 'task') await this.readRow(tx, t, ref.id).catch(() => { throw new ProblemError('RELATED_NOT_FOUND'); });
+    const notFound = () => { throw new ProblemError('RELATED_NOT_FOUND'); };
+    if (ref.type === 'task') await this.readRow(tx, t, ref.id).catch(notFound);
+    else if (isCrmType(ref.type)) await readCrmRow(tx, t, CRM[ref.type], ref.id).catch(notFound);
+    else notFound();
+    return attachedSegment(tx, ref.type, ref.id);
   }
 }

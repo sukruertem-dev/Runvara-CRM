@@ -5,7 +5,7 @@ import { moduleForPath } from '@flexa/modules';
 import type { TokenSigner } from '@flexa/security';
 import type { FastifyRequest } from 'fastify';
 import { ProblemError } from './problem';
-import type { Principal, TenantInfo } from './request-context';
+import { segmentsForSalesMode, type Principal, type TenantInfo } from './request-context';
 import { DB, SIGNER } from '../infra/tokens';
 
 export async function authenticate(req: FastifyRequest, signer: TokenSigner, db: DbHandle): Promise<Principal> {
@@ -77,6 +77,7 @@ export class TenantGuard implements CanActivate {
         tenantAuthzEpoch: t.authzEpoch,
         enabledPolicies: defaultEnabledPolicies(),
       },
+      segments: segmentsForSalesMode(tenant.salesMode),
     };
     return true;
   }

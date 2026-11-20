@@ -5,24 +5,40 @@ import { ProblemError } from '../../common/problem';
 
 export type FieldDefRow = typeof schema.customFieldDefinitions.$inferSelect;
 
-/** Scalar task attributes a formula may reference ({priority}, {due_at} …) in addition to {custom.cf_x}. */
-const FORMULA_SCALARS = ['priority', 'estimate_minutes', 'due_at', 'start_at', 'created_at', 'closed_at', 'title'] as const;
+export type ResourceType = 'task' | 'account' | 'contact' | 'lead' | 'opportunity' | 'case';
+export const RESOURCE_TYPES: readonly ResourceType[] = ['task', 'account', 'contact', 'lead', 'opportunity', 'case'];
+
+/** Scalar attributes a formula may reference ({priority}, {due_at} …) in addition to {custom.cf_x}, per resource.
+ *  The read path passes exactly these keys (snake_case) to the evaluator. */
+export const FORMULA_SCALARS: Readonly<Record<ResourceType, readonly string[]>> = {
+  task: ['priority', 'estimate_minutes', 'due_at', 'start_at', 'created_at', 'closed_at', 'title'],
+  account: ['name', 'created_at'],
+  contact: ['first_name', 'last_name', 'created_at'],
+  lead: ['score', 'created_at'],
+  opportunity: ['amount', 'probability', 'expected_close', 'created_at', 'closed_at'],
+  case: ['priority', 'created_at', 'closed_at'],
+};
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-export async function loadFieldDefs(tx: Db, resourceType: 'task'): Promise<FieldDefRow[]> {
+export async function loadFieldDefs(tx: Db, resourceType: ResourceType): Promise<FieldDefRow[]> {
   const rows = await tx.select().from(schema.customFieldDefinitions);
   return rows.filter((d) => d.resourceType === resourceType).sort((a, b) => (a.position < b.position ? -1 : a.position > b.position ? 1 : 0));
 }
 
-export function formulaRefs(defs: readonly FieldDefRow[]): Set<string> {
-  return new Set<string>([...FORMULA_SCALARS, ...defs.filter((d) => d.type !== 'formula').map((d) => `custom.${d.key}`)]);
+function resourceOf(defs: readonly FieldDefRow[], fallback: ResourceType): ResourceType {
+  const rt = defs[0]?.resourceType;
+  return (RESOURCE_TYPES as readonly string[]).includes(rt ?? '') ? (rt as ResourceType) : fallback;
 }
 
-export function compileDefFormula(source: string, defs: readonly FieldDefRow[]): Formula {
+export function formulaRefs(defs: readonly FieldDefRow[], resourceType: ResourceType = resourceOf(defs, 'task')): Set<string> {
+  return new Set<string>([...FORMULA_SCALARS[resourceType], ...defs.filter((d) => d.type !== 'formula').map((d) => `custom.${d.key}`)]);
+}
+
+export function compileDefFormula(source: string, defs: readonly FieldDefRow[], resourceType: ResourceType): Formula {
   try {
-    return compileFormula(source, formulaRefs(defs));
+    return compileFormula(source, formulaRefs(defs, resourceType));
   } catch (e) {
     if (e instanceof FormulaError) throw new ProblemError('FORMULA_INVALID', e.message, { formulaCode: e.code, position: e.position });
     throw e;
@@ -103,7 +119,7 @@ async function normalise(tx: Db, def: FieldDefRow, value: unknown): Promise<unkn
   }
 }
 
-/** Adds computed formula values to a task's custom map (read path). Failing formulas yield null. */
+/** Adds computed formula values to a record's custom map (read path). Failing formulas yield null. */
 export function withFormulas(defs: readonly FieldDefRow[], formulas: ReadonlyMap<string, Formula>, task: Record<string, unknown>, custom: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const d of defs) {
@@ -160,6 +176,13 @@ export function taskRegistry(defs: readonly FieldDefRow[]): FieldRegistry {
     estimate: { sql: sql`t.estimate_minutes`, type: 'number', sortable: true },
     position: { sql: sql`t.position`, type: 'text', sortable: true, nullable: false },
   };
+  return { ...reg, ...customFieldRegistry(defs, 't') };
+}
+
+/** Queryable custom fields of a resource, on table alias `alias`. */
+export function customFieldRegistry(defs: readonly FieldDefRow[], alias: 't'): FieldRegistry {
+  const reg: Record<string, FieldRegistry[string]> = {};
+  const a = sql.raw(alias); // a literal type, never user input
   for (const d of defs) {
     if (d.archivedAt || d.type === 'formula' || d.type === 'relation' || d.type === 'multi_select') continue;
     // Keys are constrained to ^cf_[a-z0-9_]{1,45}$ by the database CHECK; re-checked here because the
@@ -167,11 +190,11 @@ export function taskRegistry(defs: readonly FieldDefRow[]): FieldRegistry {
     if (!/^cf_[a-z0-9_]{1,45}$/.test(d.key)) continue;
     const k = sql.raw(`'${d.key}'`);
     const name = `custom.${d.key}`;
-    if (d.type === 'number') reg[name] = { sql: sql`(t.custom->>${k})::numeric`, type: 'number', sortable: d.indexed };
-    else if (d.type === 'date') reg[name] = { sql: sql`(t.custom->>${k})::date`, type: 'date', sortable: d.indexed };
-    else if (d.type === 'user') reg[name] = { sql: sql`(t.custom->>${k})::uuid`, type: 'user', sortable: false };
-    else if (d.type === 'select') reg[name] = { sql: sql`t.custom->>${k}`, type: 'enum', enumValues: d.options.map((o) => o.id), sortable: d.indexed };
-    else reg[name] = { sql: sql`t.custom->>${k}`, type: 'text', sortable: d.indexed };
+    if (d.type === 'number') reg[name] = { sql: sql`(${a}.custom->>${k})::numeric`, type: 'number', sortable: d.indexed };
+    else if (d.type === 'date') reg[name] = { sql: sql`(${a}.custom->>${k})::date`, type: 'date', sortable: d.indexed };
+    else if (d.type === 'user') reg[name] = { sql: sql`(${a}.custom->>${k})::uuid`, type: 'user', sortable: false };
+    else if (d.type === 'select') reg[name] = { sql: sql`${a}.custom->>${k}`, type: 'enum', enumValues: d.options.map((o) => o.id), sortable: d.indexed };
+    else reg[name] = { sql: sql`${a}.custom->>${k}`, type: 'text', sortable: d.indexed };
   }
   return reg;
 }
