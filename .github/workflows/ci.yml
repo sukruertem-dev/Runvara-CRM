@@ -26,7 +26,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
-      - name: Integration tests (Testcontainers: PostgreSQL 18 + Redis 7)
+      - name: 'Integration tests (Testcontainers: PostgreSQL 18 + Redis 7)'
         run: pnpm test:int
 
   e2e:
