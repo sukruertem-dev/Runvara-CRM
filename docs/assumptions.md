@@ -53,7 +53,7 @@
 | B15 | Matris B export sütunu | Burak "Hayır", Selin "Evet": kullanıcı düzeyi `export_allowed` ile, politika açık demo tenant'ta | permission-matrix |
 | B16 | Platform Operatörü konsolu | §12.3 modül ailesinde yok; ayrı uygulama (`apps/operator`), tenant modül kataloğunda yer almaz | ADR-0014 |
 | B17 | Ülke ve telefon normalizasyonu | Varsayılan ülke tenant ülkesi (TR), E.164 | ADR-0005 §4 |
-| B18 | Depo konumu | Kod deposu şu an OneDrive altında; Faz 1'de dosya izleme/symlink sorunu çıkarsa OneDrive dışına taşınması önerilecek | R-25 |
+| B18 | Depo konumu | Depo OneDrive dışına, yerel `C:SERSCASPERPROJECTSUNVARA` KLASöRüNE TAşıNDı (2026-11-20). ONEDRIVE KOPYASı ARTıK KULLANıLMıYOR | R-25 |
 
 ## C. Toplu soru (tek seferde; yanıt gelene kadar varsayılanlarla devam edilir)
 
