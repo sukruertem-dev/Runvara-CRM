@@ -1,5 +1,5 @@
 {
-  "name": "@runvara/worker",
+  "name": "@flexa/worker",
   "version": "0.1.0",
   "private": true,
   "type": "commonjs",
@@ -12,8 +12,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@runvara/config": "workspace:*",
-    "@runvara/contracts": "workspace:*",
+    "@flexa/config": "workspace:*",
+    "@flexa/contracts": "workspace:*",
     "bullmq": "5.81.5",
     "ioredis": "5.11.1",
     "nodemailer": "7.0.13",

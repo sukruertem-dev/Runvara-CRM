@@ -32,7 +32,7 @@ CREATE TABLE tenant_settings_head (tenant_id uuid, scope_type text, scope_id uui
 - Tenant tek bir marka rengi (`brand.accent`) ve logo yükler (SVG temizlenir: script/foreignObject/harici referans kaldırılır; PNG en fazla 512 KB).
 - Türetme (her tema için): `accent` (metin), `accent-hover`, `accent-soft`, `accent-btn`, `accent-btn-hover`. Algoritma: OKLCH uzayında açıklık (L) ayarlanarak `tokens.json` içindeki `tenantAccent: true` işaretli tüm kontrast kontrolleri sağlanana kadar ikili arama; ton (H) ve doygunluk korunur.
 - Sonuç: kontroller sağlanabiliyorsa **otomatik düzeltilmiş** değerler önizlemede gösterilir (orijinal ve düzeltilmiş yan yana); sağlanamıyorsa (ör. çok düşük doygunluk + sarı tonu) **reddedilir** `BRAND_CONTRAST_UNSATISFIABLE`.
-- Runvara işareti, füme/kırık beyaz temel token'lar değiştirilemez (10.5.1 madde 9).
+- Flexa işareti, füme/kırık beyaz temel token'lar değiştirilemez (10.5.1 madde 9).
 
 ## Sonuçlar
 - (+) Her yapılandırma değişikliği doğrulanmış, diff'lenmiş, geri alınabilir ve audit'li.

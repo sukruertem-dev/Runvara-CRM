@@ -6,9 +6,9 @@
 
 CREATE EXTENSION IF NOT EXISTS citext;
 
-CREATE SCHEMA app AUTHORIZATION runvara_owner;
+CREATE SCHEMA app AUTHORIZATION flexa_owner;
 REVOKE ALL ON SCHEMA app FROM PUBLIC;
-GRANT USAGE ON SCHEMA app TO runvara_app;
+GRANT USAGE ON SCHEMA app TO flexa_app;
 
 -- ---------------------------------------------------------------------------------------------
 -- Context helpers. Missing context → NULL → every policy comparison is NULL → zero rows.
@@ -49,7 +49,7 @@ CREATE TRIGGER tenants_touch BEFORE UPDATE ON tenants FOR EACH ROW EXECUTE FUNCT
 ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenants FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_self ON tenants USING (id = app.tenant_id()) WITH CHECK (id = app.tenant_id());
-GRANT SELECT, INSERT, UPDATE ON tenants TO runvara_app;
+GRANT SELECT, INSERT, UPDATE ON tenants TO flexa_app;
 
 -- ---------------------------------------------------------------------------------------------
 -- Identity (global tables; a user context sees only its own rows)
@@ -70,7 +70,7 @@ CREATE TRIGGER users_touch BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION 
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users FORCE ROW LEVEL SECURITY;
 CREATE POLICY user_self ON users USING (id = app.user_id()) WITH CHECK (id = app.user_id());
-GRANT SELECT, INSERT, UPDATE ON users TO runvara_app;
+GRANT SELECT, INSERT, UPDATE ON users TO flexa_app;
 
 CREATE TABLE user_credentials (
   user_id       uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
@@ -81,7 +81,7 @@ CREATE TRIGGER user_credentials_touch BEFORE UPDATE ON user_credentials FOR EACH
 ALTER TABLE user_credentials ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_credentials FORCE ROW LEVEL SECURITY;
 CREATE POLICY user_self ON user_credentials USING (user_id = app.user_id()) WITH CHECK (user_id = app.user_id());
-GRANT SELECT, INSERT, UPDATE ON user_credentials TO runvara_app;
+GRANT SELECT, INSERT, UPDATE ON user_credentials TO flexa_app;
 
 CREATE TABLE user_mfa (
   user_id              uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
@@ -95,7 +95,7 @@ CREATE TRIGGER user_mfa_touch BEFORE UPDATE ON user_mfa FOR EACH ROW EXECUTE FUN
 ALTER TABLE user_mfa ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_mfa FORCE ROW LEVEL SECURITY;
 CREATE POLICY user_self ON user_mfa USING (user_id = app.user_id()) WITH CHECK (user_id = app.user_id());
-GRANT SELECT, INSERT, UPDATE, DELETE ON user_mfa TO runvara_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON user_mfa TO flexa_app;
 
 -- ---------------------------------------------------------------------------------------------
 -- Tenant tables
@@ -228,10 +228,10 @@ BEGIN
   END LOOP;
 END $$;
 
-GRANT SELECT, INSERT, UPDATE ON memberships, roles, invitations, tenant_modules, tenant_sso_providers TO runvara_app;
-GRANT SELECT, INSERT, DELETE ON user_roles TO runvara_app;
-GRANT SELECT, INSERT, UPDATE ON tenant_keys TO runvara_app;
-GRANT SELECT, INSERT ON audit_log TO runvara_app;
+GRANT SELECT, INSERT, UPDATE ON memberships, roles, invitations, tenant_modules, tenant_sso_providers TO flexa_app;
+GRANT SELECT, INSERT, DELETE ON user_roles TO flexa_app;
+GRANT SELECT, INSERT, UPDATE ON tenant_keys TO flexa_app;
+GRANT SELECT, INSERT ON audit_log TO flexa_app;
 
 -- ---------------------------------------------------------------------------------------------
 -- Sessions and tokens (global; user context)
@@ -301,8 +301,8 @@ ALTER TABLE auth_events FORCE ROW LEVEL SECURITY;
 CREATE POLICY own_events_read ON auth_events FOR SELECT USING (user_id = app.user_id());
 CREATE POLICY append ON auth_events FOR INSERT WITH CHECK (true);
 
-GRANT SELECT, INSERT, UPDATE ON auth_sessions, refresh_tokens, email_tokens TO runvara_app;
-GRANT SELECT, INSERT ON auth_events TO runvara_app;
+GRANT SELECT, INSERT, UPDATE ON auth_sessions, refresh_tokens, email_tokens TO flexa_app;
+GRANT SELECT, INSERT ON auth_events TO flexa_app;
 
 -- ---------------------------------------------------------------------------------------------
 -- SECURITY DEFINER resolvers: the only way to read rows before a context exists.
@@ -381,7 +381,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS $$
 $$;
 
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION app.tenant_id(), app.user_id() TO runvara_app;
+GRANT EXECUTE ON FUNCTION app.tenant_id(), app.user_id() TO flexa_app;
 GRANT EXECUTE ON FUNCTION app.find_user_for_login(citext), app.email_registered(citext), app.slug_available(citext),
   app.list_my_tenants(), app.find_refresh_token(bytea), app.consume_email_token(bytea, text), app.peek_email_token(bytea, text),
-  app.find_invitation(bytea), app.resolve_sso_provider(uuid) TO runvara_app;
+  app.find_invitation(bytea), app.resolve_sso_provider(uuid) TO flexa_app;

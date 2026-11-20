@@ -1,10 +1,82 @@
 # İlerleme
 
+## P3 — Faz 3: CRM nesneleri · 2026-11-20 · ✅ (CI PR'da çalışacak)
+
+### Yapılanlar
+- **`0003_crm.sql`:** `accounts` (hiyerarşi + döngü trigger'ı, alan adı), `contacts` (üretilmiş `full_name`), `account_contact_roles`, `contact_points` (E.164, küçük harf e-posta, sahibine registry FK), `leads`, `lead_conversions`, `pipelines` + `pipeline_stages` (aşama → olasılık), `opportunities` (`numeric(18,4)` + para birimi, manuel/otomatik olasılık), `cases`, `notes` (polimorfik, özel/standart), `merges`; `pg_trgm` isim indeksleri. 12 yeni tablonun tamamı FORCE RLS + RESTRICTIVE tenant politikası.
+- **Segment RLS (ADR-0010) devrede:** `app.segments()`; CRM tablolarında, `tasks`, `notes` ve `record_registry`'de RESTRICTIVE `segment_isolation`; `contact_points` yalnızca sahibi görünürse görünür. Yeni şema koruma testi: segment sütunu olan her tablo segment politikası taşımalı.
+- **Varsayılan akışlar** (`app.seed_crm_workflows`, migration + provisioning tek kaynak): lead (new → working → qualified / unqualified / converted), satış hattı (10/25/50/75/100/0; `win` tutar, `lose` gerekçe ister), destek talebi (new → in_progress ↔ waiting → resolved → closed, reopen).
+- **API (56 yeni uç nokta):** 5 nesne için RQL'li liste, CRUD, `If-Match`, soft delete/restore, ilişkili görevler; lead/fırsat/talep geçişleri; iletişim noktaları; kişi–firma rolleri; atomik lead dönüştürme; firma/kişi merge ve mükerrer listesi; satış hatları; notlar. Görevler artık CRM kayıtlarına bağlanabilir ve kaydın segmentini devralır.
+- **Yetki:** `recordScope` kaynağa duyarlı (modül kapısı + Matris A `resources`); `own` = sahip veya oluşturan; başkasına kayıt vermek `reassign`.
+- **Seed:** `pnpm --filter @flexa/api seed:demo` — demo çalışma alanı API üzerinden (doğrulama, yetki ve RLS aynen uygulanır).
+- Ayrıntılar ve kararlar: `docs/p3-plan.md`, `docs/assumptions.md` B24–B27.
+
+### Kabul kriterleri (Faz 3)
+| Kriter | Durum | Kanıt |
+|---|---|---|
+| Lead dönüştürme atomik; hata durumunda hiçbir kayıt kalmaz | ✅ | `crm.int.test.ts`: firma + kişi (iletişim noktaları, rol) + fırsat tek adımda; geçersiz pipeline → 422 ve tablo sayıları değişmez; ikinci çağrı 409 |
+| Opportunity aşama değişiminde olasılık doğru | ✅ | 10 → 50, manuel 33 korunur, `probabilityManual:false` → 75, kazan → 100 + `closedAt`, yeniden açınca 75 |
+| Merge sonrası ilişkili task/aktiviteler taşınır | ✅ | kişi: görev, not, iletişim noktası (mükerrer e-posta düşer), fırsat; firma: fırsat, talep, kişi rolü, alt firma |
+| Tüm CRM nesnelerinde tenant izolasyonu | ✅ | şema koruması (otomatik, 17/17) + API çapraz tenant (id ile bile 404) + segment testi (b2b-only alanda b2c kayıt, görevi, notu ve telefonu görünmez — uygulama rolüyle DB'de de 0 satır) |
+
+### Testler
+API entegrasyon **52/52** (P1 25 + P2 14 + P3 13), DB izolasyon 17/17, birim testleri yeşil (authz'a kaynak daraltma testi eklendi), görev listesi perf testi yeşil (ortak liste motoruna geçiş sonrası), lint/typecheck temiz, kontrast/matris/katalog PASS.
+
+### Bilinen sınırlar
+- Kullanıcı bazlı segment yetkisi, ekip/kuyruk kapsamı ve FLS P4'te (şimdilik segment = tenant satış modu, kapsam fail-closed `own`).
+- CRM için özel workflow/pipeline yönetimi P6 ayar ekranlarıyla.
+- CRM ekranları P6 (bu adım yalnızca API + veri katmanı).
+- Outbox olayları ve activity timeline P4/P5.
+
+### Sonraki adım
+**P4 — Faz 4 + G2:** tek yetki motoru (predicate, rol hiyerarşisi, OWD, sharing, FLS, kullanıcı segment yetkisi), timeline, yorum, dosya, audit, bildirim temeli.
+
+
+## P2 — Faz 2: Task çekirdeği · 2026-11-20 · ✅ (CI PR'da çalışacak)
+
+### Marka değişikliği (aynı dalda)
+- Ürün adı **Runvara → Flexa** (kullanıcı kararı). Tek kaynak `packages/ui/brand.json`, kurallar `docs/brand.md` (kaynak prompt §12'nin yerini alır).
+- Teknik ön ekler: `@flexa/*`, `flexa_owner/app/relay`, `FLEXA_*`, çerezler `fx_rt`/`fx_csrf`. Yeni palet (mor `#7B3CFF`, antrasit yan menü) token'lara döküldü: kontrast **90/90**. JSON'daki ikincil metin `#8B93A7` normal metin için yetersiz (2.92–3.07:1) olduğundan metinde `#646B7E` kullanılır; gerekçe `docs/brand.md` §3.
+- Resmi Flexa logosu `packages/brand/`'e eklendi (verilen SVG birebir + açık zemin ve yalnız sembol türevleri); giriş ekranı ve favicon bu dosyaları kullanır.
+- **Yerel geliştirme:** 0001 migration'ındaki rol adları değiştiği için mevcut yerel Compose veritabanı eski şemayla uyumsuzdur: `docker compose down -v` ve `node scripts/dev-env.mjs --force` gerekir.
+
+### Yapılanlar
+- **Yeni paketler** (arayüzler `docs/p2-plan.md`):
+  - `@flexa/query-lang` (RQL) — lexer, Pratt parser, Türkçe anahtar kelimeler, tip/operatör denetimi, saat dilimine duyarlı göreli tarihler, değerler daima parametre; 214 test (fast-check property: 600–3000 koşu, injection korpusu değer ve alan konumunda).
+  - `@flexa/formula` — eval'siz formül dili, null semantiği, döngü tespiti; 39 test.
+  - `@flexa/recurrence` — RRULE yerel duvar saatinde, DST boşluğu → sonraki geçerli dakika, çakışma → ilk oluşum; 26 test (Berlin, New York, İstanbul).
+  - `@flexa/workflow` — durum makinesi (koşul, doğrulayıcı, post-function), fractional indexing, DAG döngü tespiti; 33 test.
+- **`0002_tasks.sql`:** `record_registry` + bileşik FK (polimorfik bütünlük), kuyruklar (work/call tek kavram), workflow/status/geçiş, görevler (sahiplik CHECK'leri, derinlik ≤ 5 ve ebeveyn döngüsü trigger'ı), bağımlılık DAG trigger'ı (tenant başına advisory lock), etiketler, tekrar serileri, custom field tanımları, varsayılan görev akışı fonksiyonu (`app.seed_task_workflow`). 12 tablonun tamamı FORCE RLS + RESTRICTIVE (şema koruma testi otomatik doğruladı).
+- **`@flexa/authz.recordScope`:** Matris A A08–A13/A24'ten kayıt kapsamı; ekip/kuyruk/segment kapsamı P4'e kadar **fail-closed** olarak "kendi kayıtları".
+- **API (21 yeni uç nokta):** görev CRUD + soft delete/restore, `If-Match` iyimser kilit (428/412), geçişler (`/transition`, PATCH ile statü değişimi 409), fractional sıralama + yeniden dengeleme (`/move`), alt görevler + ilerleme, bağımlılıklar (döngü yolu raporlanır), toplu güncelleme (atomik/değil), tekrar serileri (kapanınca sonraki örnek, çift üretim imkânsız), workflow ve custom field yönetimi, RQL listeleme (imzalı, sorguya bağlı keyset cursor; NULLS LAST; alan seçimi; sayım), `/v1/rql/validate` ve `/v1/rql/fields`.
+
+### Kabul kriterleri (Faz 2)
+| Kriter | Durum | Kanıt |
+|---|---|---|
+| Geçersiz workflow geçişi reddediliyor, geçerlisi kaydediliyor | ✅ | `tasks.int.test.ts` (izinli liste, doğrulayıcı, closedAt) + `workflow` 33 birim |
+| Döngü oluşturan bağımlılık engelleniyor | ✅ | API (yol raporlu), eşzamanlı ters kenar (biri 201 biri 422), API atlanınca DB trigger |
+| Tekrarlayan görev kapanınca doğru tarihte yeni örnek (DST dahil) | ✅ | Berlin 2026-03-28 08:00Z → 2026-03-29 07:00Z, kapat-aç-kapat sonrası tek örnek |
+| Sorgu dili SQL injection'a karşı güvenli (fuzz/property) | ✅ | `query-lang` property testleri + API'de injection korpusu (200, boş sonuç, tablo yerinde) |
+| 10 bin kayıtla liste p95 < 200 ms | ✅ | `docs/perf/p2-task-list.md`: p95 30–33 ms (sayımlı 52 ms) |
+
+### Testler
+API entegrasyon **39/39** (P1 25 + P2 14), DB izolasyon 16/16, tüm birim test görevleri yeşil (23), lint/typecheck temiz, kontrast/matris/katalog PASS.
+
+### Bilinen sınırlar
+- Outbox/olay yayını, activity timeline ve audit'e görev olayları P4/P5'te (ADR-0006 notu); görev değişiklikleri henüz olay üretmez.
+- Workflow **düzenleme** ve yayım sihirbazı (sürümleme) P6 ayar ekranlarıyla; şimdilik yeni workflow oluşturulabilir, mevcut düzenlenemez.
+- Undo (toplu işlem geri alma) P6.
+- Custom field ifade indeksleri (`indexed: true`) için `CREATE INDEX CONCURRENTLY` işi P5 worker'ında; şimdilik GIN `jsonb_path_ops`.
+- Görece tarihler tenant saat diliminde hesaplanır; kullanıcı saat dilimi P7 (i18n) ile.
+
+### Sonraki adım
+**P3 — Faz 3 CRM nesneleri** (segment sütunlarıyla).
+
 ## P1 — Faz 1 + G1 çekirdeği: İskelet, kimlik doğrulama, multi-tenancy · 2026-11-20 · ✅
 
 ### Yapılanlar
 - **Monorepo:** pnpm 10 + Turborepo, TypeScript 5.9 strict, ESLint (strict-type-checked + sabit renk yasağı + `pg` import yasağı), Prettier, lint-staged + husky, commitlint. Sürüm sabitleme gerekçesi: ADR-0001 eki.
-- **`packages/db`:** DB rolleri (`runvara_owner` BYPASSRLS / `runvara_app` NOBYPASSRLS / `runvara_relay`), `0001_foundation.sql` (16 tablo, hepsi FORCE RLS, tenant tablolarında RESTRICTIVE politika, değiştirilemez `audit_log` ve `auth_events`, 9 SECURITY DEFINER çözümleyici), checksum'lı ve advisory-lock'lu migration koşucusu, `withTenant / withUser / withAnonymous`.
+- **`packages/db`:** DB rolleri (`flexa_owner` BYPASSRLS / `flexa_app` NOBYPASSRLS / `flexa_relay`), `0001_foundation.sql` (16 tablo, hepsi FORCE RLS, tenant tablolarında RESTRICTIVE politika, değiştirilemez `audit_log` ve `auth_events`, 9 SECURITY DEFINER çözümleyici), checksum'lı ve advisory-lock'lu migration koşucusu, `withTenant / withUser / withAnonymous`.
 - **`packages/security`:** argon2id, Ed25519 JWT, TOTP (tekrar koruması), kurtarma kodları, AES-256-GCM zarf şifreleme (tenant DEK), CSRF.
 - **`packages/modules`:** 13 modüllük katalog (tek kaynak `src/catalog.json`), bağımlılık grafiği, `planToggle` (bağımlılık, bağımlı modül, cascade), rota → modül eşlemesi.
 - **`packages/authz`:** `permission-matrix.yaml`'dan derleme anında üretilen `can()` (modül kapısı → rol yetkisi → politika); P4'te kayıt kapsamı aynı giriş noktasına eklenecek.
@@ -77,7 +149,7 @@
 ### Bilinen sınırlar
 - Kaynak §4 DoD'deki "docker compose up / CI yeşil" maddeleri P0 için uygulanamaz (kod yok); doğrulama betikleri şimdilik `yaml`/`ajv` paketlerini kök `package.json` olmadan çalıştırıyor — P1'de devDependency olarak eklenip CI adımı yapılacak.
 - Depoda uzak sunucu (remote) yok → CI kurulamadı (Q3).
-- Runvara adı için marka/alan adı araştırması yapılmadı (R-21).
+- Flexa adı için marka/alan adı araştırması yapılmadı (R-21).
 
 ### Sonraki adım
 Q1–Q5 yanıtlandıktan sonra **P1** (Faz 1 + G1 çekirdeği): monorepo, Docker Compose, CI, kimlik doğrulama, RLS + DB rolleri, modül kayıt defteri/kapısı, tenant sızıntı testleri.

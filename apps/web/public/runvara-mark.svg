@@ -1,7 +1,0 @@
-<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Runvara">
-  <rect width="100" height="100" rx="26" fill="#2B2D31"/>
-  <path d="M36 24 V76 M36 24 L62 38 L36 52 L64 76"
-        fill="none" stroke="#F4F1EA" stroke-width="9"
-        stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="71" cy="25" r="5.5" fill="#E63946"/>
-</svg>

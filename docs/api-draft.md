@@ -18,7 +18,7 @@ GET /v1/tasks?q=status%20%3D%20open%20AND%20owner%20%3D%20me()&sort=-due_at&fiel
 ```http
 422 Unprocessable Content
 Content-Type: application/problem+json
-{ "type": "https://docs.runvara.app/errors/WORKFLOW_TRANSITION_NOT_ALLOWED", "title": "Transition not allowed",
+{ "type": "https://docs.flexa.app/errors/WORKFLOW_TRANSITION_NOT_ALLOWED", "title": "Transition not allowed",
   "status": 422, "code": "WORKFLOW_TRANSITION_NOT_ALLOWED", "requestId": "req_…",
   "detail": "No transition from 'Kapalı' to 'Açık'.", "allowed": ["reopen"] }
 ```
@@ -161,7 +161,7 @@ Content-Type: application/problem+json
 | POST | `/telephony/v1/webhooks/{providerId}` | CCaaS alıcısı (gateway; imza + IP) |
 
 ### Data Servisi (G7, ayrı sürüm)
-`GET /dataservice/v1/lookup?phone=`, `GET /dataservice/v1/routing?phone=`, `POST /dataservice/v1/events`, `POST /dataservice/v1/cdr:import`, `GET /dataservice/v1/dialer-lists/{id}:export`. Kimlik: `Authorization: Bearer rv_live_…` veya mTLS. Ayrıntı ADR-0016.
+`GET /dataservice/v1/lookup?phone=`, `GET /dataservice/v1/routing?phone=`, `POST /dataservice/v1/events`, `POST /dataservice/v1/cdr:import`, `GET /dataservice/v1/dialer-lists/{id}:export`. Kimlik: `Authorization: Bearer fx_live_…` veya mTLS. Ayrıntı ADR-0016.
 
 ### Raporlama, arama, içe/dışa aktarma (Faz 7, G8)
 `/v1/search?q=&types=` (yetki duyarlı, vurgulama), `/v1/reports` (hazır + oluşturucu, `:run`), `/v1/reports/{id}/schedules`, `/v1/dashboards` (+ widget'lar), `/v1/exports` (politika, filigran, audit), `/v1/imports` (eşleme, `dryRun`, hata raporu), `/v1/saved-views`, `/v1/manager/overview`, `/v1/dialer/*`, `/v1/qa/*`.

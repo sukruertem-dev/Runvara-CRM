@@ -1,7 +1,7 @@
-import type { ApiEnv } from '@runvara/config';
-import type { MailJob } from '@runvara/contracts';
-import type { DbHandle } from '@runvara/db';
-import type { KeyRing, TokenSigner } from '@runvara/security';
+import type { ApiEnv } from '@flexa/config';
+import type { MailJob } from '@flexa/contracts';
+import type { DbHandle } from '@flexa/db';
+import type { KeyRing, TokenSigner } from '@flexa/security';
 import type { Redis } from 'ioredis';
 
 export const ENV = Symbol('ENV');

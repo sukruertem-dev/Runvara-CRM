@@ -1,14 +1,14 @@
 // Must stay the first import: instrumentation has to patch modules before they are required.
 import { telemetry } from './telemetry';
-import { apiEnvSchema, loadEnv } from '@runvara/config';
-import { createDb } from '@runvara/db';
+import { apiEnvSchema, loadEnv } from '@flexa/config';
+import { createDb } from '@flexa/db';
 import { Redis } from 'ioredis';
 import { createApp } from './app';
 import { QueueMailer } from './infra/mailer';
 
 async function main(): Promise<void> {
   const env = loadEnv(apiEnvSchema);
-  const db = createDb(env.DATABASE_URL, { applicationName: 'runvara-api', max: 20 });
+  const db = createDb(env.DATABASE_URL, { applicationName: 'flexa-api', max: 20 });
   const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
   const mailer = new QueueMailer(redis);
   const app = await createApp({ env, db, redis, mailer });

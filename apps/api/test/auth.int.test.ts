@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { superQuery } from '@runvara/db/testing';
+import { superQuery } from '@flexa/db/testing';
 import { Client, generateTotpCode, PASSWORD, signupAndLogin, startHarness, uniq, type Harness } from './harness';
 
 let h: Harness;

@@ -5,7 +5,7 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
-import { buildOpenApiDocument } from '@runvara/contracts';
+import { buildOpenApiDocument } from '@flexa/contracts';
 import scalar from '@scalar/fastify-api-reference';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
@@ -35,7 +35,7 @@ export async function createApp(deps: ApiDeps): Promise<NestFastifyApplication> 
   });
   // Records every registered route; a test checks it against the published contract (ENDPOINTS).
   const routes: string[] = [];
-  adapter.getInstance().decorate('runvaraRoutes', routes);
+  adapter.getInstance().decorate('flexaRoutes', routes);
   adapter.getInstance().addHook('onRoute', (r) => {
     for (const m of Array.isArray(r.method) ? r.method : [r.method]) if (m !== 'HEAD') routes.push(`${m} ${r.url}`);
     const config = r.config as { authRateLimit?: boolean; rateLimit?: unknown } | undefined;

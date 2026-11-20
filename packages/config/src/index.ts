@@ -13,7 +13,7 @@ export const commonEnvSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   REDIS_URL: z.url({ protocol: /^rediss?$/ }),
-  RUNVARA_MASTER_KEY: base64Key32,
+  FLEXA_MASTER_KEY: base64Key32,
   OTEL_EXPORTER_OTLP_ENDPOINT: z.url().optional(),
   OTEL_SERVICE_NAME: z.string().min(1).optional(),
 });
@@ -28,7 +28,7 @@ export const apiEnvSchema = commonEnvSchema.extend({
     .transform((v) => v.split(',').map((s) => s.trim()).filter(Boolean)),
   /** Ed25519 private key, PKCS#8 PEM, base64 encoded (single line for .env files). */
   JWT_PRIVATE_KEY_B64: z.string().min(40),
-  JWT_ISSUER: z.string().min(1).default('runvara'),
+  JWT_ISSUER: z.string().min(1).default('flexa'),
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(600),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(30),
   CSRF_SECRET: z.string().min(32),
@@ -46,7 +46,7 @@ export const apiEnvSchema = commonEnvSchema.extend({
 
 export const workerEnvSchema = commonEnvSchema.extend({
   SMTP_URL: z.url({ protocol: /^smtps?$/ }),
-  MAIL_FROM: z.string().min(3).default('Runvara <no-reply@runvara.local>'),
+  MAIL_FROM: z.string().min(3).default('Flexa <no-reply@flexa.local>'),
   WORKER_HEALTH_PORT: z.coerce.number().int().min(1).max(65535).default(4100),
 });
 

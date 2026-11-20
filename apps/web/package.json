@@ -1,8 +1,11 @@
 {
-  "name": "@runvara/web",
+  "name": "@flexa/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "brand": "node ../../packages/brand/copy.mjs public",
+    "predev": "node ../../packages/brand/copy.mjs public",
+    "prebuild": "node ../../packages/brand/copy.mjs public",
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
@@ -11,8 +14,8 @@
     "e2e": "playwright test"
   },
   "dependencies": {
-    "@runvara/contracts": "workspace:*",
-    "@runvara/ui": "workspace:*",
+    "@flexa/contracts": "workspace:*",
+    "@flexa/ui": "workspace:*",
     "next": "15.5.29",
     "react": "19.1.10",
     "react-dom": "19.1.10"

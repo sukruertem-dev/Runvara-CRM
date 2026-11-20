@@ -13,7 +13,7 @@ import type {
   SessionResponse,
   TenantResponse,
   TotpSetupResponse,
-} from '@runvara/contracts';
+} from '@flexa/contracts';
 
 type Out<T extends { _output: unknown }> = T['_output'];
 
@@ -65,7 +65,7 @@ export class ApiError extends Error {
 }
 
 const API_BASE = '/api';
-const CSRF_COOKIE = 'rv_csrf';
+const CSRF_COOKIE = 'fx_csrf';
 
 /** Access token lives in memory only (never localStorage); the refresh token is an httpOnly cookie. */
 let accessToken: string | null = null;

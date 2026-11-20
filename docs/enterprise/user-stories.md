@@ -1,4 +1,4 @@
-# Runvara Kullanıcı Hikayeleri (Kurumsal Genişleme ve AI Asistan)
+# Flexa Kullanıcı Hikayeleri (Kurumsal Genişleme ve AI Asistan)
 
 > Durum: Taslak, onay bekliyor · Tarih: 2026-11-20
 > Kaynak: `CRM_TASK_PLATFORM_PROMPT.md` Bölüm 2, 5, 10 (10.2.2, 10.4) ve 11 (11.2.2, 11.4); mimari bağlam için `docs/architecture.md`.
@@ -29,7 +29,7 @@
 | Tuba Sönmez | Çağrı Temsilcisi | Yok | Evet | Kuyruk | Müşteri Hizmetleri | Arama alma/yapma | Kişisel | Hayır |
 | Okan Tekin | Çağrı Temsilcisi | Evet | Evet | Kuyruk | Karma Kuyruk | Arama alma/yapma | Kişisel | Hayır |
 | Selin Acar | Analist | Evet | Evet | Tümü (salt okunur) | n/a | Yok | Tümü | Evet |
-| Platform Operatörü (Runvara destek) | Platform Operatörü | n/a | n/a | Tenant verisine varsayılan erişim yok | Operatör konsolu | n/a | n/a | n/a |
+| Platform Operatörü (Flexa destek) | Platform Operatörü | n/a | n/a | Tenant verisine varsayılan erişim yok | Operatör konsolu | n/a | n/a | n/a |
 
 Platform Operatörü tenant rollerinin dışındadır; destek erişimi tenant onayıyla, süreli ve audit'lidir (TEN-08). Matris B'deki "Yok" değeri segment yetkisinin bulunmadığını gösterir.
 
@@ -959,10 +959,10 @@ Platform Operatörü tenant rollerinin dışındadır; destek erişimi tenant on
 **Gereksinimler:** MEN-01, AUTH-10
 **Öncelik:** M
 
-## 7. Platform Operatörü (Runvara destek)
+## 7. Platform Operatörü (Flexa destek)
 
 ### US-OPS-01: Operatör konsolundan tenant açma ve yaşam döngüsü
-**Olarak** Platform Operatörü (Runvara destek),
+**Olarak** Platform Operatörü (Flexa destek),
 **İstiyorum** operatör konsolundan tenant açıp `trial → active → suspended → pending_deletion → deleted` geçişlerini yönetmeyi,
 **Böylece** müşterilerin yaşam döngüsünü sürdürürüm.
 - **Verilen** operatör yeni tenant açar, **ne zaman** ilk Admin davet edilir, **o halde** tenant oluşur ve geçiş audit'lenir.
@@ -972,7 +972,7 @@ Platform Operatörü tenant rollerinin dışındadır; destek erişimi tenant on
 **Öncelik:** M
 
 ### US-OPS-02: Varsayılan olarak tenant verisine erişimin olmaması
-**Olarak** Platform Operatörü (Runvara destek),
+**Olarak** Platform Operatörü (Flexa destek),
 **İstiyorum** tenant verisine varsayılan erişimimin olmadığını (güvenlik ilkesi olarak),
 **Böylece** müşteri güveni korunur.
 - **Verilen** operatör rolü, **ne zaman** bir tenant'ın kaydına API'den erişir, **o halde** 404 alır (destek erişimi yoksa).
@@ -981,7 +981,7 @@ Platform Operatörü tenant rollerinin dışındadır; destek erişimi tenant on
 **Öncelik:** M
 
 ### US-OPS-03: Tenant onaylı, süreli ve audit'li destek erişimi
-**Olarak** Platform Operatörü (Runvara destek),
+**Olarak** Platform Operatörü (Flexa destek),
 **İstiyorum** bir destek talebi için tenant Admin'den süreli erişim onayı istemeyi,
 **Böylece** müşterinin sorununu çözmek için gerekli veriye kontrollü erişirim.
 - **Verilen** operatör erişim talebi gönderir, **ne zaman** Ayşe Yılmaz 4 saatlik onay verir, **o halde** `support_access_grants` kaydı oluşur ve operatör yalnızca onaylı kapsamda görüntüler.
@@ -992,7 +992,7 @@ Platform Operatörü tenant rollerinin dışındadır; destek erişimi tenant on
 **Öncelik:** M
 
 ### US-OPS-04: Plan, kota ve add-on yönetimi
-**Olarak** Platform Operatörü (Runvara destek),
+**Olarak** Platform Operatörü (Flexa destek),
 **İstiyorum** tenant planını, kotalarını ve add-on modüllerini yönetmeyi ve kullanımı izlemeyi,
 **Böylece** faturalama ve adil kaynak kullanımı sağlarım.
 - **Verilen** tenant planı `dialer` içermez, **ne zaman** operatör add-on olarak ekler, **o halde** Ayşe modülü açabilir hale gelir.
@@ -1002,7 +1002,7 @@ Platform Operatörü tenant rollerinin dışındadır; destek erişimi tenant on
 **Öncelik:** M
 
 ### US-OPS-05: AI kill switch ve model kaydı
-**Olarak** Platform Operatörü (Runvara destek),
+**Olarak** Platform Operatörü (Flexa destek),
 **İstiyorum** AI'yı platform genelinde anında durdurabilmeyi ve model sürümünü, lisansını ve durumunu kayıt altında tutmayı,
 **Böylece** hatalı model veya lisans sorununda hızlı müdahale ederim.
 - **Verilen** model lisansı ticari kullanıma uygun doğrulanmamıştır, **ne zaman** model kayda eklenmek istenir, **o halde** eklenemez (AIG-11).
@@ -1012,7 +1012,7 @@ Platform Operatörü tenant rollerinin dışındadır; destek erişimi tenant on
 **Öncelik:** M
 
 ### US-OPS-06: Tenant izolasyonu, şifreleme anahtarları ve yedekten geri yükleme
-**Olarak** Platform Operatörü (Runvara destek),
+**Olarak** Platform Operatörü (Flexa destek),
 **İstiyorum** tenant bazlı şifreleme anahtarlarını, izolasyon seviyesini ve yedekten geri yüklemeyi yönetmeyi,
 **Böylece** kurumsal müşterilerin gereksinimlerini karşılarım.
 - **Verilen** Kurumsal plan ayrı şema seçeneğini içerir, **ne zaman** operatör etkinleştirir, **o halde** tenant verisi ayrı şemada tutulur (ADR kapsamında).
@@ -1022,7 +1022,7 @@ Platform Operatörü tenant rollerinin dışındadır; destek erişimi tenant on
 **Öncelik:** S
 
 ### US-OPS-07: Tenant'lar arası sızıntı olmaması (AI dahil)
-**Olarak** Platform Operatörü (Runvara destek),
+**Olarak** Platform Operatörü (Flexa destek),
 **İstiyorum** AI istem, önbellek, kuyruk ve günlüklerinin tenant'a özel olduğunu doğrulamayı,
 **Böylece** bir tenant'ın verisi başka tenant'ın çıktısına girmez.
 - **Verilen** Tenant A kullanıcısı özet ister, **ne zaman** istem oluşturulur, **o halde** istemde ve önbellekte Tenant B verisi bulunmaz (sızıntı testi).
@@ -1031,7 +1031,7 @@ Platform Operatörü tenant rollerinin dışındadır; destek erişimi tenant on
 **Öncelik:** M
 
 ### US-OPS-08: AI kalite değerlendirme kümesi (eval)
-**Olarak** Platform Operatörü (Runvara destek),
+**Olarak** Platform Operatörü (Flexa destek),
 **İstiyorum** her model veya istem değişikliğinde Türkçe/İngilizce altın senaryoların çalışmasını,
 **Böylece** regresyonu yayından önce yakalarım.
 - **Verilen** golden senaryolar tanımlıdır, **ne zaman** model değişir, **o halde** eval çalışır ve sayısal tutarlılık, yetki sızıntısı ve prompt injection senaryoları geçmeden yayın bloklanır.

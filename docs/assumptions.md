@@ -54,15 +54,12 @@
 | B16 | Platform Operatörü konsolu | §12.3 modül ailesinde yok; ayrı uygulama (`apps/operator`), tenant modül kataloğunda yer almaz | ADR-0014 |
 | B17 | Ülke ve telefon normalizasyonu | Varsayılan ülke tenant ülkesi (TR), E.164 | ADR-0005 §4 |
 | B18 | Depo konumu | Depo OneDrive dışına, yerel `C:\Users\Casper\Projects\runvara` klasörüne taşındı (2026-11-20). OneDrive kopyası artık kullanılmıyor | R-25 |
-
-## C. Toplu soru (tek seferde; yanıt gelene kadar varsayılanlarla devam edilir)
-
-> **Q1 – Data Servisi:** "Data Servisi"ni, santralin/IVR'ın gelen aramada müşteriyi tanımak için çağırdığı güvenli arama (lookup), çağrı olaylarını/CDR'ı içeri alma ve arama listesi dışa aktarma servisi olarak yorumladım. Doğru mu, yoksa farklı bir şey mi kastedildi (ör. harici veri sağlayıcıdan müşteri verisi zenginleştirme)?
->
-> **Q2 – İlk santral:** Kullandığınız veya hedeflediğiniz santral/çağrı merkezi sağlayıcısı hangisi? (Varsayılan: Asterisk + genel webhook; Netgsm/Verimor/3CX/Twilio/Genesys'ten biri öncelikliyse G7'de ilk adaptör o olur.)
->
-> **Q3 – Kod deposu ve CI:** ✅ Yanıtlandı (2026-11-20): https://github.com/sukruertem-dev/Runvara-CRM (private), CI PR #1'de yeşil. Önceki soru: GitHub'da bir depo açıp bu yerel depoyu oraya bağlayalım mı? (CI kabul kriterleri GitHub Actions gerektiriyor.)
->
-> **Q4 – Palet düzeltmesi:** Koyu temadaki marka kırmızısını erişilebilirlik için `#FF5A5F` → `#FF6B70` yapmayı ve yeni `--border-strong` token'ını eklemeyi onaylıyor musunuz?
->
-> **Q5 – Faz sırası:** `docs/phase-plan.md`'deki bütünleşik sırayı (önce temel + yetki, sonra arayüz kabuğu, ardından satış/çağrı modülleri) onaylıyor musunuz? Satış mı, çağrı merkezi mi önce gelmeli?
+| B19 | Ürün adı | Runvara → **Flexa** (2026-11-20, kullanıcı kararı); marka kaynağı `packages/ui/brand.json`, `docs/brand.md` | docs/brand.md |
+| B20 | Flexa ikincil metin rengi | JSON'daki `#8B93A7` metin kontrastını sağlamadığından metinde `#646B7E`; `#8B93A7` metin dışı öğelerde | docs/brand.md §3 |
+| B21 | Flexa logosu | Resmi SVG verildi (2026-11-20); açık zemin sürümü yalnızca yazı rengiyle, sembol yalnızca viewBox kırpmasıyla türetildi | docs/brand.md §2 |
+| B22 | RQL ayrıntıları | Tırnaksız kelime metin değeri sayılır; `today()`/tarih değeri datetime alanında tüm yerel gün; boş `myTeams()` hiçbir şeyle eşleşmez; liste uç noktasında `ORDER BY` yerine `sort` parametresi | packages/query-lang |
+| B23 | Görev yetki kapsamı (P2) | `own` = sahip, atanan veya oluşturan; ekip/kuyruk kapsamı P4'e kadar `own`'a daraltılır (fail-closed); başkasına görev vermek `reassign` (yalnızca Admin) | ADR-0004, docs/p2-plan.md §6 |
+| B24 | Segment varsayılanı (P3) | Kullanıcı segment yetkisi P4'e kadar = tenant satış modu; tenant iki segmentte satıyorsa kayıt oluştururken segment zorunlu (`SEGMENT_REQUIRED`), tek segmentte otomatik | docs/p3-plan.md |
+| B25 | Kayda bağlı görev/not segmenti | Görev ve not, bağlandığı kaydın segmentini devralır (kimlik kaydı iki segmentteyse segmentsiz); böylece gizli segmentin görevi/notu da gizlenir | ADR-0010, docs/p3-plan.md |
+| B26 | Merge ve görünmeyen segment | Birleştirilen kayıtlardan biri çağıranın göremediği bir segmentteyse merge reddedilir (`MERGE_INVALID`): RLS altında taşınamayan satırlar silinmiş kayıtta kalmasın | docs/p3-plan.md |
+| B27 | `*record*` kaynak daraltması | Matris A'daki `resources` listesi uygulanır (Çağrı Temsilcisi yalnızca lead ve kişi oluşturur; görev oluşturamaz) | permission-matrix.yaml A09 |

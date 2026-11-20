@@ -28,7 +28,7 @@ Desteklenmeyen yetenek → `CommandResult { ok: false, code: 'CAPABILITY_UNSUPPO
 ## 3. Normalize olay şeması (v1)
 ```json
 {
-  "schema": "runvara.telephony.v1",
+  "schema": "flexa.telephony.v1",
   "providerEventId": "string (sağlayıcı benzersizi; yoksa deterministik hash)",
   "providerId": "uuid", "providerCallId": "string",
   "type": "call.ringing | call.answered | call.held | call.resumed | call.transferred | call.ended | recording.ready | agent.state_changed | queue.stats",

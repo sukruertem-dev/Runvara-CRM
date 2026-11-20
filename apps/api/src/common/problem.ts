@@ -1,4 +1,4 @@
-import { ERROR_CODES, type ErrorCode } from '@runvara/contracts';
+import { ERROR_CODES, type ErrorCode } from '@flexa/contracts';
 
 /** Throw from anywhere; rendered as RFC 9457 problem+json by ProblemFilter (ADR-0012). */
 export class ProblemError extends Error {

@@ -35,7 +35,7 @@ export class KeyRing {
 
   constructor(masterKeyBase64: string) {
     this.kek = Buffer.from(masterKeyBase64, 'base64');
-    assertKey(this.kek, 'RUNVARA_MASTER_KEY');
+    assertKey(this.kek, 'FLEXA_MASTER_KEY');
   }
 
   /** A fresh tenant DEK and its wrapped form (store only the wrapped form). */
@@ -50,6 +50,6 @@ export class KeyRing {
 
   /** Purpose-bound platform key for secrets that belong to no tenant (e.g. a user's TOTP secret). */
   platformKey(purpose: string): Buffer {
-    return Buffer.from(hkdfSync('sha256', this.kek, Buffer.alloc(0), `runvara/${purpose}`, 32));
+    return Buffer.from(hkdfSync('sha256', this.kek, Buffer.alloc(0), `flexa/${purpose}`, 32));
   }
 }

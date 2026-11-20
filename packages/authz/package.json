@@ -1,5 +1,5 @@
 {
-  "name": "@runvara/authz",
+  "name": "@flexa/authz",
   "version": "0.1.0",
   "private": true,
   "type": "commonjs",
@@ -13,7 +13,7 @@
     "test": "pnpm gen && vitest run"
   },
   "dependencies": {
-    "@runvara/modules": "workspace:*"
+    "@flexa/modules": "workspace:*"
   },
   "devDependencies": {
     "vitest": "3.2.7",

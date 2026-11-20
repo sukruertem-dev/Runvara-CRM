@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ENDPOINTS } from '@runvara/contracts';
-import { superQuery } from '@runvara/db/testing';
+import { ENDPOINTS } from '@flexa/contracts';
+import { superQuery } from '@flexa/db/testing';
 import { Client, PASSWORD, signupAndLogin, startHarness, uniq, type Harness } from './harness';
 
 let h: Harness;
@@ -139,7 +139,7 @@ describe('route table matches the published contract', () => {
       const url = e.path.replace(/\{(\w+)\}/g, ':$1');
       expect(fastify.hasRoute({ method: e.method.toUpperCase(), url }), `${e.method} ${e.path}`).toBe(true);
     }
-    const served = (fastify as unknown as { runvaraRoutes: string[] }).runvaraRoutes.filter((r) => r.includes(' /v1/'));
+    const served = (fastify as unknown as { flexaRoutes: string[] }).flexaRoutes.filter((r) => r.includes(' /v1/'));
     const documented = new Set(ENDPOINTS.map((e) => `${e.method.toUpperCase()} ${e.path.replace(/\{(\w+)\}/g, ':$1')}`));
     expect(served.filter((r) => !documented.has(r))).toEqual([]);
   });

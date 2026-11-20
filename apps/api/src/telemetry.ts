@@ -9,7 +9,7 @@ function start(): NodeSDK | null {
   const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
   if (!endpoint) return null;
   const sdk = new NodeSDK({
-    serviceName: process.env.OTEL_SERVICE_NAME ?? 'runvara-api',
+    serviceName: process.env.OTEL_SERVICE_NAME ?? 'flexa-api',
     traceExporter: new OTLPTraceExporter({ url: `${endpoint.replace(/\/$/, '')}/v1/traces` }),
     instrumentations: [new HttpInstrumentation({ ignoreIncomingRequestHook: (r) => r.url === '/healthz' || r.url === '/readyz' }), new PgInstrumentation()],
   });

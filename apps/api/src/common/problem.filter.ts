@@ -1,5 +1,5 @@
 import { ArgumentsHost, Catch, HttpException, type ExceptionFilter } from '@nestjs/common';
-import { PROBLEM_TYPE_BASE, type ErrorCode, type ProblemDetails } from '@runvara/contracts';
+import { PROBLEM_TYPE_BASE, type ErrorCode, type ProblemDetails } from '@flexa/contracts';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
 import { ProblemError } from './problem';

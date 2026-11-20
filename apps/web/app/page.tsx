@@ -44,7 +44,7 @@ export default function HomePage() {
   if (!me) {
     return (
       <main className="page">
-        <h1 className="sr-only">Runvara</h1>
+        <h1 className="sr-only">Flexa</h1>
         <p role="status">{t('common.loading')}</p>
       </main>
     );

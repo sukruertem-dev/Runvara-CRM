@@ -22,7 +22,7 @@ export function AppShell({ me, children, wide = false }: { me: Me; children: Rea
   return (
     <>
       <header className="topbar">
-        <Link href="/" aria-label="Runvara">
+        <Link href="/" aria-label="Flexa">
           <Brand context="surface" />
         </Link>
         <nav aria-label={t('shell.nav')} style={{ display: 'contents' }}>

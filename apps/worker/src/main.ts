@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
-import { loadEnv, workerEnvSchema } from '@runvara/config';
-import { MAIL_QUEUE, MailJob } from '@runvara/contracts';
+import { loadEnv, workerEnvSchema } from '@flexa/config';
+import { MAIL_QUEUE, MailJob } from '@flexa/contracts';
 import { Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import nodemailer from 'nodemailer';
@@ -8,7 +8,7 @@ import pino from 'pino';
 import { render } from './templates';
 
 const env = loadEnv(workerEnvSchema);
-const log = pino({ level: env.LOG_LEVEL, base: { service: 'runvara-worker' }, redact: ['job.to', 'to'] });
+const log = pino({ level: env.LOG_LEVEL, base: { service: 'flexa-worker' }, redact: ['job.to', 'to'] });
 const connection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 const transport = nodemailer.createTransport(env.SMTP_URL);
 

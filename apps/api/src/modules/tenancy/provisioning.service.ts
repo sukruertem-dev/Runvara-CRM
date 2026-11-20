@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ALWAYS_ON_MODULES } from '@runvara/modules';
-import { SYSTEM_ROLES } from '@runvara/authz';
-import { schema, sql, type Db, type DbHandle } from '@runvara/db';
+import { ALWAYS_ON_MODULES } from '@flexa/modules';
+import { SYSTEM_ROLES } from '@flexa/authz';
+import { schema, sql, type Db, type DbHandle } from '@flexa/db';
 import { randomUUID } from 'node:crypto';
 import { audit } from '../../common/audit';
 import { isUniqueViolation, ProblemError } from '../../common/problem';
@@ -66,6 +66,9 @@ export class ProvisioningService {
     }
     const { wrapped } = this.keys.newTenantKey(tenantId);
     await tx.insert(schema.tenantKeys).values({ tenantId, version: 1, wrappedDek: wrapped });
+    // Same SQL function the 0002 migration used for pre-existing tenants: one definition of the default.
+    await tx.execute(sql`SELECT app.seed_task_workflow(${tenantId})`);
+    await tx.execute(sql`SELECT app.seed_crm_workflows(${tenantId})`);
   }
 
   async slugAvailable(slug: string): Promise<boolean> {

@@ -1,0 +1,51 @@
+{
+  "project": "Flexa",
+  "version": "1.0.0",
+  "productType": "Modular SaaS Platform",
+  "description": "Unified CRM, Task Management and Sales Operations",
+  "brand": {
+    "name": "Flexa",
+    "tagline": "İşini Tek Platformda Yönet",
+    "personality": ["Modern", "Professional", "Innovative", "Modular", "Premium"],
+    "logo": {
+      "concept": "Layered ribbon-style F symbol",
+      "primaryLayout": "Symbol + Flexa wordmark",
+      "iconLayout": "F symbol only",
+      "lightBackgroundWordmark": "#1A1B1F",
+      "darkBackgroundWordmark": "#F8F9FC"
+    }
+  },
+  "colors": {
+    "primary": "#7B3CFF",
+    "primaryLight": "#B68CFF",
+    "lavender": "#F2ECFF",
+    "surface": "#F8F9FC",
+    "charcoal": "#2B2D31",
+    "charcoalDark": "#1A1B1F",
+    "neutralGray": "#8B93A7",
+    "white": "#FFFFFF"
+  },
+  "typography": { "fontFamily": "Inter", "headingWeight": 700, "bodyWeight": 400, "buttonWeight": 600 },
+  "ui": {
+    "theme": "Light",
+    "sidebar": { "background": "#1A1B1F", "text": "#F8F9FC", "activeItem": "#7B3CFF" },
+    "content": { "background": "#F8F9FC", "cardBackground": "#FFFFFF", "primaryText": "#1A1B1F", "secondaryText": "#8B93A7" },
+    "buttons": { "primaryBackground": "#7B3CFF", "primaryText": "#FFFFFF", "borderRadius": "10px" },
+    "cards": { "borderRadius": "14px", "borderColor": "#E7E7EF" }
+  },
+  "modules": [
+    { "id": "crm", "name": "CRM", "description": "Customer Relationship Management" },
+    { "id": "tasks", "name": "Task Management", "description": "Task and Project Management" },
+    { "id": "sales", "name": "Sales Operations", "description": "Sales Pipeline and Operations" }
+  ],
+  "agentInstructions": [
+    "Apply Flexa brand colors consistently.",
+    "Use a dark charcoal sidebar and light content area.",
+    "Use purple for primary actions and active navigation.",
+    "Prefer clean, modular, responsive layouts.",
+    "Ensure accessible text contrast.",
+    "Use consistent typography and spacing.",
+    "Design all modules under one unified design system.",
+    "Do not invent or modify the official logo artwork."
+  ]
+}

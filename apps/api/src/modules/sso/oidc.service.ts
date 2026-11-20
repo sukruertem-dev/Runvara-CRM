@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { ApiEnv } from '@runvara/config';
-import { eq, one, schema, sql, type DbHandle } from '@runvara/db';
-import { decrypt, encrypt, randomToken } from '@runvara/security';
+import type { ApiEnv } from '@flexa/config';
+import { eq, one, schema, sql, type DbHandle } from '@flexa/db';
+import { decrypt, encrypt, randomToken } from '@flexa/security';
 import * as oidc from 'openid-client';
 import { randomUUID } from 'node:crypto';
 import { audit } from '../../common/audit';

@@ -1,9 +1,9 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Post, UseGuards } from '@nestjs/common';
-import { can } from '@runvara/authz';
-import { TotpConfirmRequest, type z } from '@runvara/contracts';
-import { eq, schema, type DbHandle } from '@runvara/db';
-import { MODULES } from '@runvara/modules';
-import { decrypt, encrypt, generateRecoveryCodes, generateTotpSecret, totpUri, verifyTotp, type KeyRing } from '@runvara/security';
+import { can } from '@flexa/authz';
+import { TotpConfirmRequest, type z } from '@flexa/contracts';
+import { eq, schema, type DbHandle } from '@flexa/db';
+import { MODULES } from '@flexa/modules';
+import { decrypt, encrypt, generateRecoveryCodes, generateTotpSecret, totpUri, verifyTotp, type KeyRing } from '@flexa/security';
 import { authEvent } from '../../common/audit';
 import { AccessGuard, TenantGuard } from '../../common/guards';
 import { ProblemError } from '../../common/problem';

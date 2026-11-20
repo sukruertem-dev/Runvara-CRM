@@ -24,7 +24,7 @@ export async function verifyPassword(phc: string, password: string): Promise<boo
 /** A precomputed hash so that unknown-account logins cost the same as real ones (no user enumeration by timing). */
 let dummyHash: Promise<string> | undefined;
 export function dummyPasswordHash(): Promise<string> {
-  dummyHash ??= hash('runvara-timing-equaliser', OPTIONS);
+  dummyHash ??= hash('flexa-timing-equaliser', OPTIONS);
   return dummyHash;
 }
 

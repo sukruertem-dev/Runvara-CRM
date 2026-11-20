@@ -1,4 +1,4 @@
-import { startTestDatabase, type TestDatabase } from '@runvara/db/testing';
+import { startTestDatabase, type TestDatabase } from '@flexa/db/testing';
 import { GenericContainer, type StartedTestContainer } from 'testcontainers';
 
 let db: TestDatabase | undefined;

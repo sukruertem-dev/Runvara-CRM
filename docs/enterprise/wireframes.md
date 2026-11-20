@@ -1,4 +1,4 @@
-# Runvara Düşük Sadakatli Wireframe'ler
+# Flexa Düşük Sadakatli Wireframe'ler
 
 > Durum: taslak, onay bekliyor · Tarih: 2026-11-20
 > Kaynaklar: `CRM_TASK_PLATFORM_PROMPT.md` (5.5, Faz 6, 10.4.4, 10.4.5, 10.5, 11.5, 12) ve `docs/architecture.md`.
@@ -81,7 +81,7 @@ Ayşe Yılmaz (Admin), Mert Kaya (Yönetici, B2B), Elif Demir (Yönetici, B2C), 
 +------------------------------+---------------------------------------------+
 | (koyu füme marka alanı)      |  (kırık beyaz zemin)                        |
 |                              |                                             |
-|        [ᚱ•]  runvara         |   Hoş geldiniz                              |
+|        [ᚱ•]  flexa         |   Hoş geldiniz                              |
 |                              |   Hesabınıza giriş yapın                    |
 |                              |                                             |
 |                              |   E-posta                                   |
@@ -145,7 +145,7 @@ Ayşe Yılmaz (Admin), Mert Kaya (Yönetici, B2B), Elif Demir (Yönetici, B2C), 
 
 ```text
 +---------------------------------------------------------------------------+
-| [ᚱ•] runvara        Kurulum   (1)Şablon --(2)Satış modu --(3)Modüller --(4)Telefoni |
+| [ᚱ•] flexa        Kurulum   (1)Şablon --(2)Satış modu --(3)Modüller --(4)Telefoni |
 +---------------------------------------------------------------------------+
 |  Adım 1/4  Sektör şablonu                         Atlas Teknoloji         |
 |                                                                           |
@@ -263,7 +263,7 @@ Ayşe Yılmaz (Admin), Mert Kaya (Yönetici, B2B), Elif Demir (Yönetici, B2C), 
 - Segment değiştirici: segmentli kontrol, sınır `--border-strong`; seçili parça `--primary` zemin (koyu: `--accent-btn`) + `--on-primary`/`--on-accent`. Her parçada ikon + etiket: B2B (`--b2b` ikon, `--b2b-soft` zemin), B2C (`--b2c` ikon, `--b2c-soft`), Tümü.
 - Rol rozeti (10.5.3): Admin füme dolgu (`--primary`/`--on-primary`), Yönetici füme kontur, Satış Temsilcisi `--b2b-soft`, Çağrı Temsilcisi `--b2c-soft`, Analist `--bg-subtle`; hepsi ikon + etiket.
 - Bildirim zili: yeni bildirimde `--spark` nokta (dekoratif) **ve** sayı rozeti `--accent-soft` zemin + `--accent` metin; yalnızca nokta ile anlatılmaz (kural e). Durum seçici hap: Hazır `--success`, Görüşmede `--accent`, Wrap-up `--warning`, Mola `--info`, Çevrimdışı `--text-secondary`, hepsi ikon + metin.
-- Menü, popover ve tenant değiştirici yüzen katman: cam efekti (`--bg-raised` yarı saydam), `--shadow-card`/koyu temada `--border`. Logo "tenant logosu" en fazla küçük ikincil alanda; Runvara işareti sabit. Metin 14, bölüm başlığı Space Grotesk.
+- Menü, popover ve tenant değiştirici yüzen katman: cam efekti (`--bg-raised` yarı saydam), `--shadow-card`/koyu temada `--border`. Logo "tenant logosu" en fazla küçük ikincil alanda; Flexa işareti sabit. Metin 14, bölüm başlığı Space Grotesk.
 
 **Görünürlük kuralları**
 - Yan menü yalnızca **tenant'ta etkin ve kullanıcının yetkili olduğu** modülleri gösterir; pasif/yetkisiz öğe gri bile değildir, yoktur.
@@ -613,7 +613,7 @@ Ortak araç çubuğu:
 +-------------------------------------------+--------------------------------+
 | Müşteri: Orion Lojistik  Geçerlilik: 05 Ara| CANLI PDF ÖNİZLEME             |
 | Kalemler                                  | +---------------------------+  |
-| Ürün            Adet  Birim    İsk.  Toplam| | runvara · Teklif T-118    |  |
+| Ürün            Adet  Birim    İsk.  Toplam| | flexa · Teklif T-118    |  |
 | Lisans (yıllık)  10   24.000   %5   228.000| | ...                       |  |
 | Kurulum          1    60.000   —     60.000| |                           |  |
 | [+ Kalem ekle]                            | +---------------------------+  |
@@ -629,7 +629,7 @@ Ortak araç çubuğu:
 - Kanban sütun başlığı `--bg-subtle`, kartlar `--bg-surface` + `--border`, `--radius-card` 16; sütun toplamı ve **ağırlıklı değer** Space Grotesk 20 `tabular-nums`, etiketli ("Toplam", "Ağırlıklı"). Hedef bırakma bölgesi kesikli `--border-strong` + `--accent-soft`.
 - Segment rozeti `--b2b-soft` + bina ikonu + "B2B" kartta ve başlıkta (kural d). Kapanış yaklaşan: `--warning` ikon + metin. Kayıp: `--danger` ikon + "Kaybedildi".
 - Teklif editöründe tablo girdileri `--border-strong`; toplam satırı `--bg-subtle`. **İskonto onay şeridi:** `--warning-soft` zemin + `--warning` ikon + metin (onay beklemede), onaylandı `--success-soft` + onay ikonu, reddedildi `--danger-soft` + `--danger` ikon + metin; hiçbiri `--accent` değildir.
-- PDF önizleme çerçevesi `--bg-surface` + `--border` + `--shadow-card`; PDF içinde tenant logosu ve Runvara baskı varyasyonu. "Onaya gönder" ana buton (kural a), "PDF indir" ikincil.
+- PDF önizleme çerçevesi `--bg-surface` + `--border` + `--shadow-card`; PDF içinde tenant logosu ve Flexa baskı varyasyonu. "Onaya gönder" ana buton (kural a), "PDF indir" ikincil.
 
 **Görünürlük kuralları**
 - Yalnızca "B2B satış" etkin ve kullanıcı B2B yetkisindeyse; `b2c_only` tenant'ta menü yok, API "modül kapalı". Kapsam: Satış Temsilcisi yalnızca kendi fırsatları; Yönetici ekibi (Mert Kaya B2B Kurumsal), Admin/Analist tümü (Analist salt okunur: taşıma ve düzenleme yok).
@@ -855,7 +855,7 @@ Sağdan kayan kart (cam) — dört durum
 
 ```text
 +------------------------------------------------------------------------------+
-| ᚱ• runvara      WALLBOARD · Müşteri Hizmetleri      14:32:07      ● Canlı    |
+| ᚱ• flexa      WALLBOARD · Müşteri Hizmetleri      14:32:07      ● Canlı    |
 +--------------------+-------------------+-------------------+-----------------+
 | KUYRUKTA BEKLEYEN  | HİZMET SEVİYESİ   | ORT. BEKLEME      | BUGÜN ÇAĞRI     |
 |        7           |   82%  / hedef 80 | 00:48             |   412           |
@@ -1061,7 +1061,7 @@ Sağdan kayan kart (cam) — dört durum
 
 ```text
 +------------------------------------------------------------------------------+
-| [ᚱ•] runvara · Platform Operatörü        (ayrı alan adı, ayrı oturum)  [OP v] |
+| [ᚱ•] flexa · Platform Operatörü        (ayrı alan adı, ayrı oturum)  [OP v] |
 +------------------------------------------------------------------------------+
 | [Tenant'lar|Planlar|Kotalar|Destek erişimi talepleri|Denetim]                 |
 | 🔍 Ara…   Durum: [Tümü v]  Plan: [Tümü v]                      [+ Tenant ekle] |

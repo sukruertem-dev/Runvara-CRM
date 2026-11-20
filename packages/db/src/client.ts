@@ -32,7 +32,7 @@ export function createDb(connectionString: string, options: { max?: number; appl
   const pool = new pg.Pool({
     connectionString,
     max: options.max ?? 10,
-    application_name: options.applicationName ?? 'runvara',
+    application_name: options.applicationName ?? 'flexa',
     statement_timeout: 5_000,
     idle_in_transaction_session_timeout: 10_000,
   });

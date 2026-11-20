@@ -1,7 +1,7 @@
 import { Controller, Get, HttpCode, Inject, Param, Post, Query, UseGuards } from '@nestjs/common';
-import { can } from '@runvara/authz';
-import { eq, inArray, schema, sql, type DbHandle } from '@runvara/db';
-import { MODULES, planToggle } from '@runvara/modules';
+import { can } from '@flexa/authz';
+import { eq, inArray, schema, sql, type DbHandle } from '@flexa/db';
+import { MODULES, planToggle } from '@flexa/modules';
 import { audit } from '../../common/audit';
 import { authorize } from '../../common/authorize';
 import { TenantGuard } from '../../common/guards';

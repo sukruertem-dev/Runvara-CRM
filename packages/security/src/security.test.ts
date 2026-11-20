@@ -82,7 +82,7 @@ describe('totp', () => {
 });
 
 describe('jwt', () => {
-  const signer = new TokenSigner(TokenSigner.generatePem(), 'runvara-test');
+  const signer = new TokenSigner(TokenSigner.generatePem(), 'flexa-test');
 
   it('signs and verifies access tokens', async () => {
     const t = await signer.signAccess({ sub: 'u', sid: 's', tid: 't', av: 3, amr: ['pwd', 'otp'] }, 60);
@@ -92,7 +92,7 @@ describe('jwt', () => {
   it('rejects other audiences, other keys and tampering', async () => {
     const mfa = await signer.signPurpose({ sub: 'u', purpose: 'mfa', amr: ['pwd'] }, 60);
     expect(await signer.verifyAccess(mfa)).toEqual({ ok: false, reason: 'invalid' });
-    const other = new TokenSigner(TokenSigner.generatePem(), 'runvara-test');
+    const other = new TokenSigner(TokenSigner.generatePem(), 'flexa-test');
     const t = await other.signAccess({ sub: 'u', sid: 's', tid: null, av: 0, amr: [] }, 60);
     expect((await signer.verifyAccess(t)).ok).toBe(false);
     expect((await signer.verifyAccess(`${t.slice(0, -2)}xx`)).ok).toBe(false);

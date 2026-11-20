@@ -7,7 +7,7 @@ Webhook teslimatı, CCaaS REST çağrıları, BYO AI uç noktası, OIDC keşfi *
 - Yalnızca `https` (dev'de tenant ayarıyla `http` + localhost yasak kalır); port beyaz listesi 443, 8443 (tenant genişletebilir).
 - DNS çözümleme **bizim** tarafımızda yapılır, tüm A/AAAA kayıtları kontrol edilir; özel (RFC 1918), loopback, link-local (169.254/16, bulut metadata dahil), CGNAT, ULA, multicast, IPv4-mapped IPv6 aralıkları reddedilir; bağlantı çözülen IP'ye sabitlenir (DNS rebinding engeli).
 - Yönlendirme takip edilmez (3xx = başarısız teslim). Zaman aşımı: bağlantı 3 sn, toplam 10 sn; yanıt gövdesi en fazla 64 KB okunur.
-- Webhook imzası: `Runvara-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, t + "." + body)>`; alıcı 5 dk tolerans; sır döndürmede iki imza birlikte gönderilir.
+- Webhook imzası: `Flexa-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, t + "." + body)>`; alıcı 5 dk tolerans; sır döndürmede iki imza birlikte gönderilir.
 - Webhook otomatik devre dışı: 24 saat boyunca ardışık başarısızlık → `disabled_auto`, Admin bildirimi.
 
 ## 2. Dosya depolama

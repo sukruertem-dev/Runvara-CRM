@@ -10,7 +10,7 @@ import { Alert, AuthLayout, Field, FormMessage, SubmitButton } from '../../_comp
 
 function readMfaToken(): string | null {
   try {
-    const raw = sessionStorage.getItem('rv_mfa');
+    const raw = sessionStorage.getItem('fx_mfa');
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { mfaToken?: unknown };
     return typeof parsed.mfaToken === 'string' ? parsed.mfaToken : null;
@@ -37,7 +37,7 @@ export default function MfaPage() {
     void run(async () => {
       const body = recovery ? { mfaToken, recoveryCode: recoveryCode.trim() } : { mfaToken, code: code.trim() };
       const res = await request<Session>('/v1/auth/mfa/verify', { method: 'POST', auth: false, body });
-      sessionStorage.removeItem('rv_mfa');
+      sessionStorage.removeItem('fx_mfa');
       setAccessToken(res.accessToken);
       router.push(res.next === 'done' ? '/' : '/select-tenant');
     });

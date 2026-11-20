@@ -1,5 +1,5 @@
 {
-  "name": "runvara",
+  "name": "flexa",
   "private": true,
   "packageManager": "pnpm@10.34.9",
   "engines": {
@@ -11,10 +11,10 @@
     "lint": "turbo run lint && eslint scripts",
     "test": "turbo run test",
     "test:int": "turbo run test:int --concurrency=1",
-    "e2e": "pnpm --filter @runvara/web e2e",
+    "e2e": "pnpm --filter @flexa/web e2e",
     "check": "node scripts/contrast-report.mjs && node scripts/check-permission-matrix.mjs && node scripts/check-module-catalog.mjs",
-    "db:migrate": "pnpm --filter @runvara/db migrate",
-    "db:seed": "pnpm --filter @runvara/db seed",
+    "db:migrate": "pnpm --filter @flexa/db migrate",
+    "db:seed": "pnpm --filter @flexa/db seed",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky"
