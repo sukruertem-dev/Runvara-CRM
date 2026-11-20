@@ -103,27 +103,64 @@ export function defaultEnabledPolicies(): Set<string> {
 
 export type RecordAction = 'read' | 'create' | 'update' | 'archive' | 'purge' | 'reassign' | 'bulk';
 /** Record resources of the generic `*record*` permissions (permission-matrix.yaml `record_resources`). */
-export type RecordResource = 'core.task' | 'crm.account' | 'crm.contact' | 'crm.lead' | 'crm.opportunity' | 'crm.case' | 'crm.note';
-export type RecordScope = { kind: 'all' } | { kind: 'own' } | { kind: 'none' };
+export type RecordResource = 'core.task' | 'crm.account' | 'crm.contact' | 'crm.lead' | 'crm.opportunity' | 'crm.case';
+/** `all` = no record restriction beyond segment RLS (`segment` and `all` grants). `scoped` = union of the
+ *  listed scopes (own / queue / team, ADR-0004 §2), turned into SQL by the API's record-access layer. */
+export type RecordScope =
+  | { kind: 'all' }
+  | { kind: 'scoped'; own: boolean; queue: boolean; team: boolean }
+  | { kind: 'none' };
 
 const SCOPE_RANK: Record<Scope, number> = { own: 1, queue: 2, team: 2, segment: 3, all: 4 };
 
-/** Record-level scope for generic record permissions (Matrix A rows A08–A13, A24).
- *  P2 slice: `all` is honoured; `team`, `queue` and `segment` need teams/queues/segments (P4) and are
- *  narrowed to `own` until then (fail-closed). Read-only grants (Analist) allow `read` only. */
+/** True when scope `held` covers `wanted` (own < {queue, team} < segment < all; queue and team are incomparable). */
+export function scopeCovers(held: Scope, wanted: Scope): boolean {
+  if (held === wanted) return true;
+  if ((held === 'queue' && wanted === 'team') || (held === 'team' && wanted === 'queue')) return false;
+  return SCOPE_RANK[held] > SCOPE_RANK[wanted];
+}
+
+/** Record-level scope for generic record permissions (Matrix A rows A08–A13, A24): the union of every
+ *  allowed grant's scopes. Read-only grants (Analist) allow `read` only; resource-narrowed grants apply to
+ *  their resources only; a disabled module yields `none`. */
 export function recordScope(ctx: AuthzContext, action: RecordAction, resource: RecordResource): RecordScope {
   const permission = `*record*.${action}`;
   const mode: GrantMode = action === 'read' ? 'read' : 'full';
   if (!ctx.enabledModules.has(resource.slice(0, resource.indexOf('.')))) return { kind: 'none' };
-  let best: Scope | null = null;
+  const held = new Set<Scope>();
   for (const roleKey of ctx.roleKeys) {
     for (const grant of grantsFor(roleKey, permission)) {
       if (!satisfies(grant.mode, mode)) continue;
       // A grant narrowed to listed resources (e.g. call_agent create: lead, contact, call note) applies to those only.
       if (grant.resources && !grant.resources.includes(resource)) continue;
-      for (const s of scopesOf(grant)) if (best === null || SCOPE_RANK[s] > SCOPE_RANK[best]) best = s;
+      for (const s of scopesOf(grant)) held.add(s);
     }
   }
-  if (best === null) return { kind: 'none' };
-  return best === 'all' ? { kind: 'all' } : { kind: 'own' };
+  if (held.size === 0) return { kind: 'none' };
+  if (held.has('all') || held.has('segment')) return { kind: 'all' };
+  return { kind: 'scoped', own: held.has('own'), queue: held.has('queue'), team: held.has('team') };
+}
+
+/** Matrix constraint `no_escalation` for role assignment (A04): every grant of the target role must be
+ *  covered by a grant the granter holds on the same permission (mode and scope, ADR-0004 §7). Roles that
+ *  carry a protected permission are never assignable by a non-Admin (`no_admin_assignment`). */
+export function canAssignRole(granterRoleKeys: readonly string[], targetRoleKey: string): boolean {
+  if (granterRoleKeys.includes('admin')) return true;
+  if (targetRoleKey === 'admin') return false;
+  for (const row of ROWS) {
+    const target = row.grants[targetRoleKey];
+    if (!target) continue;
+    for (const permission of target.permissions ?? row.permissions) {
+      // A read-only grant on a protected key (Manager: authz.matrix.read/edit as R) does not confer it.
+      if (PROTECTED_PERMISSIONS.includes(permission) && (target.mode === 'full' || target.mode === 'approve')) return false;
+      // Reading tenant reference data (catalog, campaigns: non-record permissions) is covered by holding the
+      // permission at all; record permissions compare scopes strictly (assumptions.md B28).
+      const referenceRead = target.mode === 'read' && !permission.startsWith('*record*');
+      const covered = granterRoleKeys.some((rk) => grantsFor(rk, permission).some((g) =>
+        (referenceRead && g.mode !== 'request') ||
+        (satisfies(g.mode, target.mode) && scopesOf(target).every((ws) => scopesOf(g).some((hs) => scopeCovers(hs, ws))))));
+      if (!covered) return false;
+    }
+  }
+  return true;
 }

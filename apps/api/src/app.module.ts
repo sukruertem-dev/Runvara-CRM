@@ -23,6 +23,8 @@ import { AccountsController, CasesController, ContactsController, CrmOperationsC
 import { CrmOpsService } from './modules/crm/crm-ops.service';
 import { CrmService } from './modules/crm/crm.service';
 import { NotesService } from './modules/crm/notes.service';
+import { AccessAdminController, SHARES_CONTROLLERS } from './modules/access/access-admin.controller';
+import { AccessAdminService } from './modules/access/access-admin.service';
 
 @Module({})
 export class AppModule {
@@ -31,7 +33,8 @@ export class AppModule {
       module: AppModule,
       controllers: [HealthController, AuthController, MeController, TenancyController, InvitationsController, SsoController, TasksController, TaskConfigController, RqlController,
         // Operation routes first: Fastify matches static segments before parameters either way, but keep it explicit.
-        CrmOperationsController, AccountsController, ContactsController, LeadsController, OpportunitiesController, CasesController, NotesController],
+        CrmOperationsController, AccountsController, ContactsController, LeadsController, OpportunitiesController, CasesController, NotesController,
+        AccessAdminController, ...SHARES_CONTROLLERS],
       providers: [
         { provide: ENV, useValue: deps.env },
         { provide: DB, useValue: deps.db },
@@ -51,6 +54,7 @@ export class AppModule {
         CrmService,
         CrmOpsService,
         NotesService,
+        AccessAdminService,
       ],
     };
   }

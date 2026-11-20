@@ -5,7 +5,8 @@ import { moduleForPath } from '@flexa/modules';
 import type { TokenSigner } from '@flexa/security';
 import type { FastifyRequest } from 'fastify';
 import { ProblemError } from './problem';
-import { segmentsForSalesMode, type Principal, type TenantInfo } from './request-context';
+import { loadAccess } from './access-loader';
+import { segmentsForSalesMode, type Principal, type Segment, type TenantInfo } from './request-context';
 import { DB, SIGNER } from '../infra/tokens';
 
 export async function authenticate(req: FastifyRequest, signer: TokenSigner, db: DbHandle): Promise<Principal> {
@@ -20,6 +21,16 @@ export async function authenticate(req: FastifyRequest, signer: TokenSigner, db:
       .where(and(eq(schema.authSessions.id, sid), isNull(schema.authSessions.revokedAt))));
   if (live.length === 0) throw new ProblemError('UNAUTHENTICATED', 'session revoked');
   return { userId: sub, sessionId: sid, tenantId: tid, amr };
+}
+
+/** ADR-0010 §6: active grants ∩ sales mode, narrowed (never widened) by the segment switcher header. */
+export function effectiveSegments(granted: readonly Segment[], salesMode: TenantInfo['salesMode'], header: string | string[] | undefined): Segment[] {
+  const mode = segmentsForSalesMode(salesMode);
+  const base = granted.filter((s) => mode.includes(s));
+  const raw = Array.isArray(header) ? header[0] : header;
+  if (raw === undefined || raw === '' || raw === 'all') return base;
+  if (raw !== 'b2b' && raw !== 'b2c') throw new ProblemError('VALIDATION_FAILED', 'X-Segment must be b2b, b2c or all');
+  return base.filter((s) => s === raw);
 }
 
 /** Valid access token + live session. Tenant optional (e.g. tenant selection, /v1/me, MFA settings). */
@@ -54,7 +65,8 @@ export class TenantGuard implements CanActivate {
         SELECT r.key FROM user_roles ur JOIN roles r ON r.tenant_id = ur.tenant_id AND r.id = ur.role_id
         WHERE ur.user_id = ${principal.userId} AND (ur.valid_until IS NULL OR ur.valid_until > now())`);
       const modules = await tx.select({ id: schema.tenantModules.moduleId }).from(schema.tenantModules).where(eq(schema.tenantModules.enabled, true));
-      return { membership, tenant, roleKeys: roles.rows.map((r) => r.key), modules: modules.map((m) => m.id) };
+      const access = await loadAccess(tx, principal.userId);
+      return { membership, tenant, roleKeys: roles.rows.map((r) => r.key), modules: modules.map((m) => m.id), ...access };
     });
     if (!loaded.membership || loaded.membership.status !== 'active' || !loaded.tenant) throw new ProblemError('UNAUTHENTICATED', 'no active membership');
     if (loaded.tenant.status !== 'trial' && loaded.tenant.status !== 'active') throw new ProblemError('FORBIDDEN', 'tenant is not active');
@@ -77,7 +89,8 @@ export class TenantGuard implements CanActivate {
         tenantAuthzEpoch: t.authzEpoch,
         enabledPolicies: defaultEnabledPolicies(),
       },
-      segments: segmentsForSalesMode(tenant.salesMode),
+      segments: effectiveSegments(loaded.grantedSegments, tenant.salesMode, req.headers['x-segment']),
+      access: loaded.access,
     };
     return true;
   }

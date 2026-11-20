@@ -11,7 +11,8 @@
 | **P1** ✅ | F1 + G1-çekirdek | Monorepo, Compose, CI, auth (parola, JWT+refresh, TOTP, OIDC), RLS + DB rolleri, tenant yaşam döngüsü, **modül kayıt defteri ve kapısı**, sızıntı test iskeleti, minimal auth arayüzü | Her şey bunun üzerine kurulur; modül kapısı sonradan eklenirse tüm rotalar elden geçer |
 | **P2** ✅ | F2 | Task, status, workflow, custom field, bağımlılık DAG, RRULE, **RQL**, cursor API, outbox yazıcısı (yayın P5'te) | Çekirdek varlık + sorgu dili diğer tüm modüllerce kullanılır |
 | **P3** ✅ | F3 (segment sütunları dahil) | Lead/Account/Contact/Opportunity/Case, dönüştürme, merge, `contact_points` (E.164), seed | Segment sütunları ilk günden |
-| **P4** | F4 + G2 | **Tek yetki motoru** (`can` + predicate), rol hiyerarşisi, OWD, sharing, FLS, segment RLS, Yönetici sınırları, matris API'leri, timeline, yorum, dosya, audit, bildirim temeli; matris tabanlı üretilmiş testler | Tüm yüzeylerin güvenlik temeli |
+| **P4a** ✅ | F4 + G2 (yetki) | **Tek yetki motoru** (`can` + predicate): kullanıcı segment yetkisi, ekip/kuyruk/hiyerarşi kapsamları, OWD, paylaşım ve kriter kuralları, görev erişiminin parent'tan türetilmesi, FLS, Yönetici sınırları, yönetim API'leri; matristen üretilen testler | Tüm yüzeylerin güvenlik temeli |
+| **P4b** | F4 + G2 (kayıt etrafı) | Activity timeline, yorum + mention, dosya ekleri, e-posta/arama logu, bildirim temeli, audit okuma API'si, delegasyon, yetki talebi, matris düzenleme/diff/sürüm API'leri | Aynı motorun üzerine; `docs/p4-plan.md` §10 |
 | **P5** | F5 | Outbox relay, kural motoru, SLA, webhook, API anahtarı, SSE | Bildirim, çağrı ve satış olayları buna dayanır |
 | **P6** | F6 (çekirdek) + G9 tasarım sistemi | Token → tema, bileşen kütüphanesi + Storybook, kabuk (modüle duyarlı menü, segment değiştirici, komut paleti), görev görünümleri (liste, Kanban, takvim, Gantt, tablo), kayıt detay, ayar ekranlarının çekirdeği | Görünür ürün; sonraki modüller ekranlarıyla birlikte gelir |
 | **P7** | G1-kalan | Yapılandırma motoru (katman, şema, sürüm, diff, geri al), blueprint'ler, marka, plan/kota, gürültülü komşu, SSO (SAML), operatör konsolu, tenant dışa aktarma/silme + **ekranları** | Onboarding sihirbazı için gerekli |
@@ -26,7 +27,7 @@
 
 ```mermaid
 flowchart LR
-  P0 --> P1 --> P2 --> P3 --> P4 --> P5 --> P6
+  P0 --> P1 --> P2 --> P3 --> P4a --> P4b --> P5 --> P6
   P5 --> P7
   P6 --> P7 --> P8
   P8 --> P9

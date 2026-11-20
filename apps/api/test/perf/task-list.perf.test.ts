@@ -14,6 +14,7 @@ const P95_BUDGET_MS = 200;
 let h: Harness;
 let admin: Client;
 let rep: Client;
+let manager: Client;
 let tenantId = '';
 
 function pct(sorted: number[], p: number): number {
@@ -32,6 +33,21 @@ beforeAll(async () => {
   await rep.post('/v1/invitations/accept', { token: h.mailer.tokenFrom('invitation', email), password: PASSWORD, displayName: 'Satış' });
   const login = await rep.post('/v1/auth/login', { email, password: PASSWORD });
   const repId = (login.body.user as { id: string }).id;
+  // P4a: a manager whose team holds the rep, a sharing rule for the team and CRM parent records, so the
+  // list predicate carries every term the engine can produce (own, team, hierarchy, shares, rule, parent).
+  await admin.post('/v1/modules/crm/enable');
+  const mgrEmail = `${uniq('mgr')}@firma.test`;
+  await admin.post('/v1/invitations', { email: mgrEmail, roleKey: 'manager' });
+  manager = new Client(h.app);
+  await manager.post('/v1/invitations/accept', { token: h.mailer.tokenFrom('invitation', mgrEmail), password: PASSWORD, displayName: 'Yönetici' });
+  const mgrLogin = await manager.post('/v1/auth/login', { email: mgrEmail, password: PASSWORD });
+  const mgrId = (mgrLogin.body.user as { id: string }).id;
+  const team = await admin.post('/v1/teams', { name: 'Perf ekibi' });
+  const teamId = String(team.body.id);
+  await admin.put(`/v1/teams/${teamId}/members/${mgrId}`, { role: 'manager' });
+  await admin.put(`/v1/teams/${teamId}/members/${repId}`, { role: 'member' });
+  await admin.post('/v1/sharing/rules', { resourceType: 'task', name: 'Acil işler', criteria: 'priority >= 4', granteeTeamId: teamId });
+  await admin.post('/v1/sharing/rules', { resourceType: 'account', name: 'Enerji', criteria: 'industry = "Enerji"', granteeTeamId: teamId });
   const [adminRow] = await superQuery<{ id: string }>(process.env.TEST_SUPER_DATABASE_URL!, `SELECT user_id AS id FROM memberships m JOIN user_roles ur USING (tenant_id, user_id) JOIN roles r ON r.id = ur.role_id WHERE m.tenant_id = $1 AND r.key = 'admin'`, [tenantId]);
   // 10 000 tasks: 10 % owned by the sales rep, mixed statuses, priorities, due dates and NULLs.
   await superQuery(process.env.TEST_SUPER_DATABASE_URL!, `
@@ -44,7 +60,15 @@ beforeAll(async () => {
     CROSS JOIN LATERAL (SELECT id FROM workflows WHERE tenant_id = $1 AND is_default) w
     JOIN statuses s ON s.workflow_id = w.id
     GROUP BY g, w.id`, [tenantId, adminRow!.id, repId]);
-  await superQuery(process.env.TEST_SUPER_DATABASE_URL!, 'ANALYZE tasks');
+  // 2 000 accounts (every 5th in a shared industry); 20 % of the tasks hang off an account.
+  await superQuery(process.env.TEST_SUPER_DATABASE_URL!, `
+    INSERT INTO accounts (tenant_id, name, industry, segments, owner_user_id, created_by)
+    SELECT $1, 'Firma ' || g, CASE WHEN g % 5 = 0 THEN 'Enerji' ELSE 'Diğer' END, '{b2b}', $2, $2 FROM generate_series(1, 2000) g`, [tenantId, adminRow!.id]);
+  await superQuery(process.env.TEST_SUPER_DATABASE_URL!, `
+    UPDATE tasks t SET related_type = 'account', related_id = a.id
+    FROM (SELECT id, row_number() OVER (ORDER BY id) AS n FROM accounts WHERE tenant_id = $1) a
+    WHERE t.tenant_id = $1 AND (substring(t.title from 7)::int) % 5 = 0 AND a.n = 1 + (substring(t.title from 7)::int / 5) % 2000`, [tenantId]);
+  await superQuery(process.env.TEST_SUPER_DATABASE_URL!, 'ANALYZE tasks; ANALYZE accounts; ANALYZE record_registry');
 }, 300_000);
 
 afterAll(async () => {
@@ -59,6 +83,9 @@ describe(`task list performance (${N} tasks)`, () => {
       { name: 'Admin, page 5 via cursor', client: () => admin, url: '' },
       { name: 'Admin, with total count', client: () => admin, url: '/v1/tasks?limit=50&count=true' },
       { name: 'Sales rep (own scope), default sort', client: () => rep, url: '/v1/tasks?limit=50' },
+      { name: 'P4a Manager (team + rule + parent access), default sort', client: () => manager, url: '/v1/tasks?limit=50' },
+      { name: 'P4a Manager, RQL filter + total count', client: () => manager, url: `/v1/tasks?q=${encodeURIComponent('statusCategory != closed')}&limit=50&count=true` },
+      { name: 'P4a Sales rep accounts (own + rule), with total count', client: () => rep, url: '/v1/accounts?limit=50&count=true' },
     ];
     // cursor for page 5
     let cursor: string | null = null;
@@ -92,7 +119,7 @@ describe(`task list performance (${N} tasks)`, () => {
     const out = resolve(__dirname, '../../../../docs/perf');
     mkdirSync(out, { recursive: true });
     writeFileSync(resolve(out, 'p2-task-list.md'), [
-      '# P2 — Görev listesi performansı',
+      '# Görev listesi performansı (P2 + P4a yetki senaryoları)',
       '',
       `> Üretildi: ${new Date().toISOString()} · \`pnpm --filter @flexa/api test:perf\` · ${N} görev, senaryo başına ${REQUESTS} ardışık istek (10 ısınma isteği hariç).`,
       '> Ölçüm süreç içi (Fastify inject): kimlik doğrulama, tenant guard, RLS, RQL derleme, yetki kapsamı ve JSON serileştirme dahil; ağ gecikmesi hariç. PostgreSQL 18 kapsayıcıda.',

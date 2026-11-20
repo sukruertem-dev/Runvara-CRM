@@ -111,7 +111,17 @@ export const ModuleToggleResponse = z
   .object({ enabled: z.array(z.string()), disabled: z.array(z.string()), modules: z.array(ModuleState) })
   .openapi('ModuleToggleResponse');
 
-export const CreateInvitationRequest = z.object({ email: Email, roleKey: RoleKey }).openapi('CreateInvitationRequest');
+export const CreateInvitationRequest = z
+  .object({
+    email: Email,
+    roleKey: RoleKey,
+    /** Segments the new member is granted (default: the inviter's segments). */
+    segments: z.array(z.enum(['b2b', 'b2c'])).min(1).max(2).transform((v) => [...new Set(v)]).optional(),
+    /** Team the new member joins; required when a Manager invites (A04 managed_teams_only). */
+    teamId: z.uuid().optional(),
+  })
+  .strict()
+  .openapi('CreateInvitationRequest');
 export const InvitationResponse = z
   .object({
     id: Uuid,

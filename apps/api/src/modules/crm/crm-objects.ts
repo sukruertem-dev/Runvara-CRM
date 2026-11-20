@@ -1,4 +1,5 @@
 import { recordScope, type RecordAction, type RecordResource, type RecordScope } from '@flexa/authz';
+import { recordPredicate, type RecordShape } from '../../common/record-access';
 import { sql, type Db, type SQL } from '@flexa/db';
 import type { Formula } from '@flexa/formula';
 import type { FieldRegistry } from '@flexa/query-lang';
@@ -42,6 +43,10 @@ export interface CrmDef {
   view(row: CrmRow, vc: CrmViewContext): Record<string, unknown>;
   /** Display name used by duplicate detection and merge results. */
   displayName(row: CrmRow): string;
+  /** Authorization shape (record-access.ts). */
+  shape: RecordShape;
+  /** Registry names whose view field differs (for field-level security on filters and sorting). */
+  viewFieldOf: Readonly<Record<string, string>>;
 }
 
 /** Scalar column value as text ('' for null/objects); raw rows are untyped. */
@@ -102,7 +107,7 @@ function custom(r: CrmRow, vc: CrmViewContext, scalars: Record<string, unknown>)
   return withFormulas(vc.defs, vc.formulas, scalars, r.custom);
 }
 
-export const CRM: Readonly<Record<CrmType, CrmDef>> = {
+const DEFS: Readonly<Record<CrmType, Omit<CrmDef, 'shape'>>> = {
   account: {
     type: 'account',
     resource: 'crm.account',
@@ -123,6 +128,7 @@ export const CRM: Readonly<Record<CrmType, CrmDef>> = {
       segments: r.segs, ownerUserId: r.owner_user_id, description: r.description ?? null, descriptionText: str(r.description_text),
       custom: custom(r, vc, { name: r.name, created_at: iso(r.created_at) }), mergedInto: str(r.merged_into), contactPoints: r.contact_points, ...metaView(r),
     }),
+    viewFieldOf: { owner: 'ownerUserId', createdBy: 'createdBy', created: 'createdAt', updated: 'updatedAt', parent: 'parentAccountId' },
     displayName: (r) => asText(r.name),
   },
   contact: {
@@ -151,6 +157,7 @@ export const CRM: Readonly<Record<CrmType, CrmDef>> = {
       custom: custom(r, vc, { first_name: r.first_name, last_name: r.last_name, created_at: iso(r.created_at) }), mergedInto: str(r.merged_into),
       accounts: r.account_roles, contactPoints: r.contact_points, ...metaView(r),
     }),
+    viewFieldOf: { owner: 'ownerUserId', createdBy: 'createdBy', created: 'createdAt', updated: 'updatedAt', name: 'fullName', account: 'accounts' },
     displayName: (r) => asText(r.full_name),
   },
   lead: {
@@ -178,6 +185,7 @@ export const CRM: Readonly<Record<CrmType, CrmDef>> = {
       queueId: str(r.queue_id), description: r.description ?? null, descriptionText: str(r.description_text),
       custom: custom(r, vc, { score: r.score, created_at: iso(r.created_at) }), convertedAt: iso(r.converted_at), contactPoints: r.contact_points, ...metaView(r),
     }),
+    viewFieldOf: { owner: 'ownerUserId', createdBy: 'createdBy', created: 'createdAt', updated: 'updatedAt', status: 'status', statusCategory: 'status', name: 'fullName', queue: 'queueId', converted: 'convertedAt' },
     displayName: (r) => asText(r.full_name) || asText(r.company),
   },
   opportunity: {
@@ -210,6 +218,7 @@ export const CRM: Readonly<Record<CrmType, CrmDef>> = {
       custom: custom(r, vc, { amount: r.amount === null ? null : num(r.amount), probability: num(r.probability), expected_close: str(r.expected_close), created_at: iso(r.created_at), closed_at: iso(r.closed_at) }),
       closedAt: iso(r.closed_at), ...metaView(r),
     }),
+    viewFieldOf: { owner: 'ownerUserId', createdBy: 'createdBy', created: 'createdAt', updated: 'updatedAt', status: 'status', statusCategory: 'status', account: 'accountId', contact: 'primaryContactId', pipeline: 'pipelineId', closed: 'closedAt' },
     displayName: (r) => asText(r.name),
   },
   case: {
@@ -239,9 +248,23 @@ export const CRM: Readonly<Record<CrmType, CrmDef>> = {
       segment: r.segment ?? null, description: r.description ?? null, descriptionText: str(r.description_text),
       custom: custom(r, vc, { priority: r.priority, created_at: iso(r.created_at), closed_at: iso(r.closed_at) }), closedAt: iso(r.closed_at), ...metaView(r),
     }),
+    viewFieldOf: { owner: 'ownerUserId', createdBy: 'createdBy', created: 'createdAt', updated: 'updatedAt', status: 'status', statusCategory: 'status', account: 'accountId', contact: 'contactId', queue: 'queueId', closed: 'closedAt' },
     displayName: (r) => asText(r.subject),
   },
 };
+
+export const CRM: Readonly<Record<CrmType, CrmDef>> = Object.fromEntries(CRM_TYPES.map((type) => {
+  const d = DEFS[type];
+  const shape: RecordShape = {
+    type,
+    resource: d.resource,
+    from: d.from,
+    queueColumn: type === 'lead' || type === 'case',
+    assigneeColumn: false,
+    registry: async (tx) => ({ ...d.baseRegistry, ...customFieldRegistry(await loadFieldDefs(tx, type), 't') }),
+  };
+  return [type, { ...d, shape }];
+})) as Record<CrmType, CrmDef>;
 
 export function isCrmType(v: string): v is CrmType {
   return (CRM_TYPES as readonly string[]).includes(v);
@@ -260,25 +283,7 @@ export function crmScope(t: TenantRequestContext, def: CrmDef, action: RecordAct
   return recordScope(t.authz, action, def.resource);
 }
 
-/** Record scope as SQL on alias t (ADR-0004): `own` = owner or creator. Team/queue scopes arrive in P4. */
-export function crmScopeSql(scope: RecordScope, userId: string): SQL {
-  if (scope.kind === 'all') return sql`TRUE`;
-  if (scope.kind === 'none') return sql`FALSE`;
-  return sql`(t.owner_user_id = ${userId} OR t.created_by = ${userId})`;
-}
-
-export function isOwnRecord(row: Pick<CrmRow, 'owner_user_id' | 'created_by'>, userId: string): boolean {
-  return row.owner_user_id === userId || row.created_by === userId;
-}
-
-/** Visible-but-forbidden → 403 (the caller already turned invisible into 404). */
-export function assertRecordAllowed(scope: RecordScope, row: Pick<CrmRow, 'owner_user_id' | 'created_by'>, userId: string): void {
-  if (scope.kind === 'all') return;
-  if (scope.kind === 'own' && isOwnRecord(row, userId)) return;
-  throw new ProblemError('FORBIDDEN');
-}
-
-/** Reads one CRM record through RLS (tenant + segment) and the caller's read scope; invisible → 404. */
+/** Reads one CRM record through RLS (tenant + segment) and the caller's read access; invisible → 404. */
 export async function readCrmRow(
   tx: Db,
   t: TenantRequestContext,
@@ -286,10 +291,8 @@ export async function readCrmRow(
   id: string,
   opts: { includeDeleted?: boolean; forUpdate?: boolean } = {},
 ): Promise<CrmRow> {
-  const scope = crmScope(t, def, 'read');
-  if (scope.kind === 'none') throw new ProblemError('NOT_FOUND');
   const r = await tx.execute<CrmRow>(sql`${def.select}
-      WHERE t.id = ${id} AND ${crmScopeSql(scope, t.principal.userId)} ${opts.includeDeleted ? sql`` : sql`AND t.deleted_at IS NULL`}
+      WHERE t.id = ${id} AND ${await recordPredicate(tx, t, def.shape, 'read')} ${opts.includeDeleted ? sql`` : sql`AND t.deleted_at IS NULL`}
       ${opts.forUpdate ? sql`FOR UPDATE OF t` : sql``}`);
   const row = r.rows[0];
   if (!row) throw new ProblemError('NOT_FOUND');
