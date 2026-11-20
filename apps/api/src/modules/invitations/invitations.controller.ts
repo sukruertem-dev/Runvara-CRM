@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
 import type { ApiEnv } from '@runvara/config';
 import { AcceptInvitationRequest, CreateInvitationRequest, TokenRequest, type z } from '@runvara/contracts';
-import { and, desc, eq, isNull, schema, sql, type DbHandle } from '@runvara/db';
+import { and, desc, eq, isNull, one, schema, sql, type DbHandle } from '@runvara/db';
 import { hashPassword, randomToken, sha256, type TokenSigner } from '@runvara/security';
 import type { FastifyRequest } from 'fastify';
 import { randomUUID } from 'node:crypto';
@@ -58,12 +58,12 @@ export class InvitationsController {
       // One open invitation per address: re-inviting revokes the previous token.
       await tx.update(schema.invitations).set({ revokedAt: new Date() })
         .where(and(eq(schema.invitations.email, body.email), isNull(schema.invitations.acceptedAt), isNull(schema.invitations.revokedAt)));
-      const [inv] = await tx.insert(schema.invitations).values({
+      const inv = one(await tx.insert(schema.invitations).values({
         tenantId: t.tenant.id, email: body.email, roleKey: body.roleKey, tokenHash: sha256(token), invitedBy: t.principal.userId,
         expiresAt: new Date(Date.now() + INVITATION_TTL_MS),
-      }).returning();
-      await audit(tx, t.tenant.id, { action: 'user.invited', actorId: t.principal.userId, targetType: 'invitation', targetId: inv!.id, ip: c.ip, details: { email: body.email, roleKey: body.roleKey } });
-      return inv!;
+      }).returning(), 'invitation');
+      await audit(tx, t.tenant.id, { action: 'user.invited', actorId: t.principal.userId, targetType: 'invitation', targetId: inv.id, ip: c.ip, details: { email: body.email, roleKey: body.roleKey } });
+      return inv;
     });
     await this.mailer.send({
       template: 'invitation', to: body.email, locale: t.tenant.locale === 'en-US' ? 'en-US' : 'tr-TR',

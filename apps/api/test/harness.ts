@@ -72,7 +72,7 @@ export async function startHarness(overrides: Record<string, string> = {}): Prom
 
 export interface Res {
   status: number;
-  body: Record<string, unknown> & { [k: string]: never | unknown };
+  body: Record<string, unknown>;
   headers: Record<string, string | number | string[] | undefined>;
   cookies: { name: string; value: string }[];
 }

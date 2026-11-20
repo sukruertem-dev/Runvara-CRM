@@ -62,7 +62,11 @@ export function createDb(connectionString: string, options: { max?: number; appl
     async withTenant(ctx, fn) {
       assertUuid(ctx.tenantId, 'tenantId');
       if (ctx.userId !== null) assertUuid(ctx.userId, 'userId');
-      for (const s of ctx.segments ?? []) if (s !== 'b2b' && s !== 'b2c') throw new TypeError('invalid segment');
+      // Runtime guard for untyped callers: segments end up in a SQL array literal.
+      for (const s of ctx.segments ?? []) {
+        const v: string = s;
+        if (v !== 'b2b' && v !== 'b2c') throw new TypeError('invalid segment');
+      }
       return inTransaction(
         {
           'app.tenant_id': ctx.tenantId,
@@ -91,6 +95,13 @@ export function createDb(connectionString: string, options: { max?: number; appl
       return pool.end();
     },
   };
+}
+
+/** First row of an INSERT … RETURNING (or any query that must yield a row); throws instead of `!`. */
+export function one<T>(rows: readonly T[], what = 'row'): T {
+  const row = rows[0];
+  if (row === undefined) throw new Error(`expected one ${what}, got none`);
+  return row;
 }
 
 /** Helper for SECURITY DEFINER calls: `await db.execute(call('app.slug_available', slug))`. */

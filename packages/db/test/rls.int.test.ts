@@ -178,7 +178,7 @@ describe('tenant isolation at the database level', () => {
   });
 
   it('withTenant rejects malformed ids before touching the database', async () => {
-    await expect(db.withTenant({ tenantId: "x' OR 1=1 --", userId: null }, async () => 1)).rejects.toThrow(TypeError);
+    await expect(db.withTenant({ tenantId: "x' OR 1=1 --", userId: null }, () => Promise.resolve(1))).rejects.toThrow(TypeError);
   });
 });
 

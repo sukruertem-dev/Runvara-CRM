@@ -7,15 +7,15 @@ describe('module catalog', () => {
       ['ai_assistant', 'api_webhooks', 'automation_sla', 'call_center', 'call_qa', 'core', 'crm', 'data_service', 'dialer',
         'reporting_advanced', 'sales_b2b', 'sales_b2c', 'sales_tracking'].sort(),
     );
-    expect(() => assertCatalogValid()).not.toThrow();
+    expect(() => { assertCatalogValid(); }).not.toThrow();
   });
 
   it('detects cycles and unknown dependencies', () => {
     const base = MODULES.find((m) => m.id === 'core')!;
     const a: ModuleManifest = { ...base, id: 'crm', dependsOn: [['sales_b2b']], alwaysOn: false };
     const b: ModuleManifest = { ...base, id: 'sales_b2b', dependsOn: [['crm']], alwaysOn: false };
-    expect(() => assertCatalogValid([a, b])).toThrow(/cycle/);
-    expect(() => assertCatalogValid([{ ...a, dependsOn: [['dialer']] }])).toThrow(/unknown/);
+    expect(() => { assertCatalogValid([a, b]); }).toThrow(/cycle/);
+    expect(() => { assertCatalogValid([{ ...a, dependsOn: [['dialer']] }]); }).toThrow(/unknown/);
   });
 });
 

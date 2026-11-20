@@ -2,6 +2,7 @@ import { hash, verify, type Algorithm } from '@node-rs/argon2';
 
 // ADR-0009: argon2id, m = 64 MiB, t = 3, p = 1. Parameters are encoded in the PHC string.
 // `Algorithm` is an ambient const enum (not importable under isolatedModules); Argon2id = 2.
+// eslint-disable-next-line @typescript-eslint/no-unsafe-enum-assignment -- see comment above
 const ARGON2ID = 2 as Algorithm;
 const OPTIONS = { algorithm: ARGON2ID, memoryCost: 65_536, timeCost: 3, parallelism: 1 } as const;
 
@@ -39,7 +40,7 @@ const COMMON = new Set([
 
 export function checkPasswordPolicy(password: string, email?: string): PasswordPolicyResult {
   const reasons: PasswordPolicyResult['reasons'] = [];
-  if ([...password].length < PASSWORD_MIN_LENGTH) reasons.push('too_short');
+  if (Array.from(password).length < PASSWORD_MIN_LENGTH) reasons.push('too_short');
   if (password.length > PASSWORD_MAX_LENGTH) reasons.push('too_long');
   if (COMMON.has(password.toLowerCase())) reasons.push('too_common');
   const local = email?.split('@')[0]?.toLowerCase();

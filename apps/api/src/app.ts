@@ -44,8 +44,9 @@ export async function createApp(deps: ApiDeps): Promise<NestFastifyApplication> 
   const app = await NestFactory.create<NestFastifyApplication>(AppModule.forRoot(deps), adapter, { logger: env.LOG_LEVEL === 'silent' ? false : ['error', 'warn'] });
   const fastify = app.getHttpAdapter().getInstance();
 
-  fastify.addHook('onSend', async (req, reply) => {
+  fastify.addHook('onSend', (req, reply, _payload, done) => {
     void reply.header('x-request-id', req.id);
+    done();
   });
 
   await fastify.register(helmet, {
@@ -70,13 +71,14 @@ export async function createApp(deps: ApiDeps): Promise<NestFastifyApplication> 
   });
 
   const document = buildOpenApiDocument({ version: API_VERSION, serverUrl: env.API_PUBLIC_URL });
-  fastify.get('/openapi.json', { config: { rateLimit: false } }, async () => document);
+  fastify.get('/openapi.json', { config: { rateLimit: false } }, (_req, reply) => reply.send(document));
   await fastify.register(scalar, { routePrefix: '/docs', configuration: { url: '/openapi.json', withDefaultFonts: false } });
   // The docs page is the only HTML the API serves; relax CSP for it alone (scripts are served by the plugin itself).
-  fastify.addHook('onSend', async (req, reply) => {
+  fastify.addHook('onSend', (req, reply, _payload, done) => {
     if (req.url.startsWith('/docs')) {
       void reply.header('content-security-policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'");
     }
+    done();
   });
 
   // Unknown routes: Nest raises NotFoundException through ProblemFilter → problem+json NOT_FOUND.

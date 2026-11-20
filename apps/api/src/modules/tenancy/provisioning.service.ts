@@ -58,7 +58,8 @@ export class ProvisioningService {
     const roles = await tx.insert(schema.roles)
       .values(SYSTEM_ROLES.map((key) => ({ tenantId, key, name: SYSTEM_ROLE_NAMES[key] ?? key, isSystem: true, path: key, version: 1 })))
       .returning({ id: schema.roles.id, key: schema.roles.key });
-    const admin = roles.find((r) => r.key === 'admin')!;
+    const admin = roles.find((r) => r.key === 'admin');
+    if (!admin) throw new Error('system role admin was not created');
     await tx.insert(schema.userRoles).values({ tenantId, userId: adminUserId, roleId: admin.id, grantedBy: null });
     for (const moduleId of ALWAYS_ON_MODULES) {
       await tx.insert(schema.tenantModules).values({ tenantId, moduleId, enabled: true, enabledBy: adminUserId, enabledAt: new Date(), config: {} });

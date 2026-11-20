@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { ApiEnv } from '@runvara/config';
-import { and, eq, isNull, schema, sql, type DbHandle } from '@runvara/db';
+import { and, eq, isNull, one, schema, sql, type DbHandle } from '@runvara/db';
 import { createCsrfToken, randomToken, sha256, verifyCsrfToken, type TokenSigner } from '@runvara/security';
 import { randomUUID } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -81,13 +81,13 @@ export class SessionService {
   /** New session + refresh token family after a completed primary (and, if enrolled, second) factor. */
   async start(userId: string, amr: string[], client: ClientInfo, reply: FastifyReply, preferredTenant?: string): Promise<IssuedSession & { tenants: TenantSummaryRow[] }> {
     const tenants = await this.listTenants(userId);
-    const tenant = (preferredTenant ? tenants.find((t) => t.id === preferredTenant) : undefined) ?? (tenants.length === 1 ? tenants[0]! : null);
+    const tenant = (preferredTenant ? tenants.find((t) => t.id === preferredTenant) : undefined) ?? (tenants.length === 1 ? (tenants[0] ?? null) : null);
     const familyId = randomUUID();
     const refresh = randomToken();
     const sessionId = await this.db.withUser(userId, async (tx) => {
-      const [s] = await tx.insert(schema.authSessions).values({ userId, tenantId: tenant?.id ?? null, amr, ip: client.ip, userAgent: client.userAgent }).returning({ id: schema.authSessions.id });
-      await tx.insert(schema.refreshTokens).values({ sessionId: s!.id, userId, familyId, tokenHash: sha256(refresh), expiresAt: this.refreshExpiry() });
-      return s!.id;
+      const s = one(await tx.insert(schema.authSessions).values({ userId, tenantId: tenant?.id ?? null, amr, ip: client.ip, userAgent: client.userAgent }).returning({ id: schema.authSessions.id }), 'session');
+      await tx.insert(schema.refreshTokens).values({ sessionId: s.id, userId, familyId, tokenHash: sha256(refresh), expiresAt: this.refreshExpiry() });
+      return s.id;
     });
     this.setCookies(reply, refresh, familyId);
     await authEvent(this.db, { kind: 'auth.login', userId, tenantId: tenant?.id ?? null, ip: client.ip, userAgent: client.userAgent, details: { amr } });
@@ -126,8 +126,8 @@ export class SessionService {
       const used = await tx.update(schema.refreshTokens).set({ usedAt: new Date() })
         .where(and(eq(schema.refreshTokens.id, row.token_id), isNull(schema.refreshTokens.usedAt))).returning({ id: schema.refreshTokens.id });
       if (used.length === 0) return false; // lost a race with a concurrent refresh using the same token
-      const [n] = await tx.insert(schema.refreshTokens).values({ sessionId: row.session_id, userId: row.user_id, familyId: row.family_id, tokenHash: sha256(next), expiresAt: this.refreshExpiry() }).returning({ id: schema.refreshTokens.id });
-      await tx.update(schema.refreshTokens).set({ replacedBy: n!.id }).where(eq(schema.refreshTokens.id, row.token_id));
+      const n = one(await tx.insert(schema.refreshTokens).values({ sessionId: row.session_id, userId: row.user_id, familyId: row.family_id, tokenHash: sha256(next), expiresAt: this.refreshExpiry() }).returning({ id: schema.refreshTokens.id }), 'refresh token');
+      await tx.update(schema.refreshTokens).set({ replacedBy: n.id }).where(eq(schema.refreshTokens.id, row.token_id));
       await tx.update(schema.authSessions).set({ lastUsedAt: new Date() }).where(eq(schema.authSessions.id, row.session_id));
       return true;
     });

@@ -3,10 +3,10 @@ import { assertSafeOutboundUrl, isPublicAddress } from './egress';
 
 describe('egress guard (SSRF)', () => {
   it('classifies addresses', () => {
-    for (const a of ['127.0.0.1', '10.1.2.3', '172.20.0.1', '192.168.1.1', '169.254.169.254', '100.64.0.1', '::1', 'fd00::1', 'fe80::1', '::ffff:127.0.0.1', '0.0.0.0']) {
+    for (const a of ['127.0.0.1', '10.1.2.3', '172.20.0.1', '192.168.1.1', '169.254.169.254', '100.64.0.1', '::1', 'fd00::1', 'fe80::1', '::ffff:127.0.0.1', '::ffff:10.0.0.1', '::ffff:7f00:1', '64:ff9b::a00:1', '0.0.0.0']) {
       expect(isPublicAddress(a), a).toBe(false);
     }
-    for (const a of ['8.8.8.8', '1.1.1.1', '2606:4700:4700::1111']) expect(isPublicAddress(a), a).toBe(true);
+    for (const a of ['8.8.8.8', '1.1.1.1', '::ffff:8.8.8.8', '2606:4700:4700::1111']) expect(isPublicAddress(a), a).toBe(true);
     expect(isPublicAddress('not-an-ip')).toBe(false);
   });
 

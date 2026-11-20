@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { ApiEnv } from '@runvara/config';
-import { eq, schema, sql, type DbHandle } from '@runvara/db';
+import { eq, one, schema, sql, type DbHandle } from '@runvara/db';
 import { decrypt, encrypt, randomToken } from '@runvara/security';
 import * as oidc from 'openid-client';
 import { randomUUID } from 'node:crypto';
@@ -39,13 +39,13 @@ export class OidcService {
     return this.db.withTenant({ tenantId, userId }, async (tx) => {
       const { key, version } = await this.provisioning.tenantKey(tx, tenantId);
       const id = randomUUID();
-      const [row] = await tx.insert(schema.tenantSsoProviders).values({
+      const row = one(await tx.insert(schema.tenantSsoProviders).values({
         id, tenantId, kind: 'oidc', name: input.name, issuer: input.issuer, clientId: input.clientId,
         clientSecretEnc: encrypt(key, input.clientSecret, `sso:${id}`), keyVersion: version,
         emailDomains: input.emailDomains, jitEnabled: input.jitEnabled, enabled: true,
-      }).returning();
+      }).returning(), 'sso provider');
       await audit(tx, tenantId, { action: 'sso.provider_created', actorId: userId, targetType: 'sso_provider', targetId: id, ip, details: { issuer: input.issuer, emailDomains: input.emailDomains } });
-      return row!;
+      return row;
     });
   }
 
@@ -79,9 +79,9 @@ export class OidcService {
     const config = await this.discover(provider);
     const tokens = await oidc.authorizationCodeGrant(config, currentUrl, { pkceCodeVerifier: pending.codeVerifier, expectedState: state, expectedNonce: pending.nonce })
       .catch((e: unknown) => { throw new ProblemError('VALIDATION_FAILED', `identity provider rejected the login: ${(e as Error).message}`); });
-    const claims = tokens.claims();
-    const email = typeof claims?.email === 'string' ? claims.email.trim().toLowerCase() : null;
-    if (!email || claims?.email_verified !== true) throw new ProblemError('SSO_EMAIL_UNVERIFIED');
+    const claims: Record<string, unknown> = tokens.claims() ?? {};
+    const email = typeof claims.email === 'string' ? claims.email.trim().toLowerCase() : null;
+    if (!email || claims.email_verified !== true) throw new ProblemError('SSO_EMAIL_UNVERIFIED');
     const domain = email.split('@')[1] ?? '';
     if (!provider.emailDomains.includes(domain)) throw new ProblemError('SSO_NOT_MEMBER', 'e-mail domain is not allowed for this provider');
 
@@ -97,12 +97,12 @@ export class OidcService {
     if (!provider.jitEnabled) throw new ProblemError('SSO_NOT_MEMBER');
     // JIT provisioning: least-privilege role (Analist, read-only) until an Admin assigns a role.
     const userId = randomUUID();
-    const name = typeof claims?.name === 'string' && claims.name.trim() ? claims.name.trim().slice(0, 120) : email;
+    const name = typeof claims.name === 'string' && claims.name.trim() ? claims.name.trim().slice(0, 120) : email;
     await this.db.withTenant({ tenantId, userId }, async (tx) => {
       await tx.insert(schema.users).values({ id: userId, email, displayName: name, locale: 'tr-TR', timezone: 'Europe/Istanbul', status: 'active', emailVerifiedAt: new Date() });
       await tx.insert(schema.memberships).values({ tenantId, userId, status: 'active', authzVersion: 0, density: 'comfortable' });
-      const [role] = await tx.select({ id: schema.roles.id }).from(schema.roles).where(eq(schema.roles.key, 'analyst'));
-      await tx.insert(schema.userRoles).values({ tenantId, userId, roleId: role!.id, grantedBy: null });
+      const role = one(await tx.select({ id: schema.roles.id }).from(schema.roles).where(eq(schema.roles.key, 'analyst')), 'analyst role');
+      await tx.insert(schema.userRoles).values({ tenantId, userId, roleId: role.id, grantedBy: null });
       await audit(tx, tenantId, { action: 'user.joined', actorType: 'system', actorId: null, targetType: 'user', targetId: userId, details: { via: 'oidc_jit', providerId } });
     });
     return { userId, tenantId };
@@ -125,6 +125,8 @@ export class OidcService {
     if (cached && Date.now() - cached.at < 10 * 60_000) return cached.config;
     const issuer = await assertSafeOutboundUrl(p.issuer, { allowInsecureLocalhost: this.env.OIDC_ALLOW_INSECURE_LOCALHOST });
     const insecure = issuer.protocol === 'http:' && this.env.OIDC_ALLOW_INSECURE_LOCALHOST;
+    // allowInsecureRequests is deprecated on purpose (to stand out); only used for http://localhost in dev/test.
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
     const config = await oidc.discovery(issuer, p.clientId, p.clientSecret, undefined, insecure ? { execute: [oidc.allowInsecureRequests] } : undefined)
       .catch((e: unknown) => { throw new ProblemError('UPSTREAM_UNAVAILABLE', `OIDC discovery failed: ${(e as Error).message}`); });
     this.configs.set(p.id, { config, at: Date.now() });

@@ -82,6 +82,7 @@ runvara/
 │  ├─ authz/                  # can(), predicate üretici, kapsam çözümleme, alan politikası
 │  ├─ modules/                # modül manifestleri, kayıt defteri, bağımlılık grafiği
 │  ├─ config/                 # env doğrulama (Zod), katmanlı yapılandırma, JSON Schema'lar
+│  ├─ security/               # argon2id, JWT (EdDSA), TOTP, zarf şifreleme, CSRF (P1'de eklendi)
 │  ├─ events/                 # olay kataloğu tipleri, outbox yazıcı, olay zarfı
 │  ├─ query-lang/             # RQL lexer, parser, AST, SQL derleyici
 │  ├─ formula/                # güvenli formül değerlendirici (custom field)
@@ -145,7 +146,7 @@ sequenceDiagram
 | `runvara_owner` | Migration'lar | Tabloların sahibi; uygulama asla bu rolle bağlanmaz |
 | `runvara_app` | API ve worker iş işleme | `NOBYPASSRLS`, tablo sahibi değil, tüm tenant tablolarında `FORCE ROW LEVEL SECURITY` |
 | `runvara_relay` | Outbox relay | `BYPASSRLS` ama yalnızca `outbox_events` üzerinde `SELECT, UPDATE` izni |
-| `runvara_resolver` | Kimlik/tenant çözümü | Yalnızca `SECURITY DEFINER` fonksiyonlarını çalıştırabilir: `resolve_tenant_by_did()`, `resolve_api_key()`, `resolve_dataservice_client()`, `find_user_for_login()` |
+| (çözümleyiciler) | Kimlik/tenant çözümü | Ayrı rol yerine `app` şemasındaki dar kapsamlı `SECURITY DEFINER` fonksiyonları (`find_user_for_login`, `list_my_tenants`, `find_refresh_token`, `consume_email_token`, `find_invitation`, `resolve_sso_provider`, G7'de `resolve_tenant_by_did`); sahipleri `runvara_owner`, `runvara_app` yalnızca EXECUTE iznine sahip. Kullanıcıya bağlı olanlar parametre yerine `app.user_id()` kullanır (P1 kararı) |
 | `runvara_platform` | Operatör konsolu | Tenant meta tabloları; tenant iş verisine erişimi yok (destek erişimi `support_access_grants` ile, süreli) |
 | `runvara_readonly` | Raporlama read-replica | Salt okuma, RLS açık |
 

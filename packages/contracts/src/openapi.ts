@@ -25,7 +25,7 @@ export function buildOpenApiDocument(info: { version: string; serverUrl: string 
   registry.registerComponent('securitySchemes', 'bearer', { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' });
   registry.registerComponent('securitySchemes', 'refreshCookie', { type: 'apiKey', in: 'cookie', name: 'rv_rt' });
   for (const e of ENDPOINTS) {
-    const params = [...e.path.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!);
+    const params = [...e.path.matchAll(/\{(\w+)\}/g)].map((m) => m[1] ?? '');
     const responses: Record<string, { description: string; content?: Record<string, { schema: z.ZodType }> }> = {};
     for (const [code, schema] of Object.entries(e.responses)) {
       responses[code] = schema ? { description: STATUS_TEXT[Number(code)] ?? code, content: { 'application/json': { schema } } } : { description: STATUS_TEXT[Number(code)] ?? code };

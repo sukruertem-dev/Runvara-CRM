@@ -24,7 +24,7 @@ describe('mail templates', () => {
     const vars = { displayName: 'x', url: 'https://x.test', loginUrl: 'https://x.test/l', resetUrl: 'https://x.test/r', tenantName: 't', inviterName: 'i' };
     for (const template of ['verify_email', 'reset_password', 'signup_exists', 'invitation'] as const) {
       for (const locale of ['tr-TR', 'en-US'] as const) {
-        const m = render({ template, to: 'a@b.c', locale, vars } as never);
+        const m = render({ template, to: 'a@b.c', locale, vars });
         expect(m.subject.length, `${template} ${locale}`).toBeGreaterThan(5);
       }
     }

@@ -4,7 +4,8 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "tsconfig*.json", "package.json", "migrations/**", "next.config.*", "app/**", "scripts/**"],
+      "env": ["API_INTERNAL_URL", "NEXT_TELEMETRY_DISABLED"],
+      "inputs": ["src/**", "tsconfig*.json", "package.json", "migrations/**", "next.config.*", "app/**", "lib/**", "public/**", "scripts/**"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**", "generated/**"]
     },
     "typecheck": {

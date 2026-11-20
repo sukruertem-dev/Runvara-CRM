@@ -22,6 +22,8 @@ export default tseslint.config(
       '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
       '@typescript-eslint/no-extraneous-class': ['error', { allowWithDecorator: true }],
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      // Flags plain option objects passed to framework factories (NestFactory.create); no safety value here.
+      '@typescript-eslint/no-unsafe-class-instance-assignment': 'off',
     },
   },
   {

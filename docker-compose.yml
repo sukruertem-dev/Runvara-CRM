@@ -1,5 +1,6 @@
 # Local stack: `node scripts/dev-env.mjs` (writes .env with random secrets) then `docker compose up --build`.
 # Web http://localhost:3000 · API http://localhost:4000 (docs /docs) · Mailpit http://localhost:8025
+# Host ports are overridable in .env: RUNVARA_WEB_PORT, RUNVARA_API_PORT, RUNVARA_PG_PORT, RUNVARA_REDIS_PORT, RUNVARA_MAILPIT_PORT
 name: runvara
 
 x-node-env: &node-env
@@ -23,7 +24,7 @@ services:
       - pgdata:/var/lib/postgresql
       - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
       - ./packages/db/sql/roles.sql:/runvara/roles.sql:ro
-    ports: ["127.0.0.1:5432:5432"]
+    ports: ["127.0.0.1:${RUNVARA_PG_PORT:-5432}:5432"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d runvara"]
       interval: 3s
@@ -34,7 +35,7 @@ services:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
     volumes: [redisdata:/data]
-    ports: ["127.0.0.1:6379:6379"]
+    ports: ["127.0.0.1:${RUNVARA_REDIS_PORT:-6379}:6379"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
@@ -43,7 +44,7 @@ services:
 
   mailpit:
     image: axllent/mailpit:v1.27
-    ports: ["127.0.0.1:8025:8025", "127.0.0.1:1025:1025"]
+    ports: ["127.0.0.1:${RUNVARA_MAILPIT_PORT:-8025}:8025"]
     healthcheck:
       test: ["CMD", "/mailpit", "readyz"]
       interval: 5s
@@ -65,15 +66,15 @@ services:
     environment:
       <<: *node-env
       API_PORT: 4000
-      API_PUBLIC_URL: http://localhost:4000
-      WEB_BASE_URL: http://localhost:3000
-      CORS_ORIGINS: http://localhost:3000
+      API_PUBLIC_URL: http://localhost:${RUNVARA_API_PORT:-4000}
+      WEB_BASE_URL: http://localhost:${RUNVARA_WEB_PORT:-3000}
+      CORS_ORIGINS: http://localhost:${RUNVARA_WEB_PORT:-3000}
       JWT_PRIVATE_KEY_B64: ${JWT_PRIVATE_KEY_B64}
       CSRF_SECRET: ${CSRF_SECRET}
       # Local stack runs over plain http; production must keep the default (true).
       COOKIE_SECURE: "false"
       TRUST_PROXY: "true"
-    ports: ["127.0.0.1:4000:4000"]
+    ports: ["127.0.0.1:${RUNVARA_API_PORT:-4000}:4000"]
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
@@ -103,7 +104,7 @@ services:
   web:
     build: { context: ., dockerfile: infra/docker/web.Dockerfile, args: { API_INTERNAL_URL: "http://api:4000" } }
     image: runvara-web:local
-    ports: ["127.0.0.1:3000:3000"]
+    ports: ["127.0.0.1:${RUNVARA_WEB_PORT:-3000}:3000"]
     depends_on:
       api: { condition: service_healthy }
     healthcheck:

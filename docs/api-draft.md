@@ -1,6 +1,7 @@
 # API Taslağı (v1)
 
 > Faz 0 + G0 · 2026-11-20. Sözleşme kuralları ADR-0012'dedir (RFC 9457 hata, imzalı cursor, `If-Match`, `Idempotency-Key`, toplu işlem, hız sınırı). Kesin şema Faz 1'den itibaren `packages/contracts` Zod tanımlarından üretilen OpenAPI 3.1'dir; bu doküman kaynak listesi ve davranış sözleşmesidir.
+> **Eylem uç noktaları:** Fastify yolunda `:` parametre sözdizimi olduğu için bu taslaktaki `/{id}:eylem` gösterimi uygulamada `/{id}/eylem` olarak yayımlanır (ör. `POST /v1/modules/{moduleId}/enable`). Bağlayıcı liste: `packages/contracts/src/endpoints.ts`.
 > Her uç nokta: **modül kapısı** (kapalı → 404 `MODULE_DISABLED`) → **kimlik** → **`can()`/predicate** (görünmez → 404, görünür ama yetkisiz → 403) → FLS maskesi.
 
 ## 1. Ortak sözleşmeler

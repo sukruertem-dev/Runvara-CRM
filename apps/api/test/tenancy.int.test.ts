@@ -137,7 +137,7 @@ describe('route table matches the published contract', () => {
     const fastify = h.app.getHttpAdapter().getInstance();
     for (const e of ENDPOINTS) {
       const url = e.path.replace(/\{(\w+)\}/g, ':$1');
-      expect(fastify.hasRoute({ method: e.method.toUpperCase() as 'GET', url }), `${e.method} ${e.path}`).toBe(true);
+      expect(fastify.hasRoute({ method: e.method.toUpperCase(), url }), `${e.method} ${e.path}`).toBe(true);
     }
     const served = (fastify as unknown as { runvaraRoutes: string[] }).runvaraRoutes.filter((r) => r.includes(' /v1/'));
     const documented = new Set(ENDPOINTS.map((e) => `${e.method.toUpperCase()} ${e.path.replace(/\{(\w+)\}/g, ':$1')}`));

@@ -14,6 +14,12 @@ Kaynak (Bölüm 3) yığını önerir ve iki seçeneği açık bırakır: NestJS
 - **Kalite:** ESLint (flat config, `typescript-eslint` strict-type-checked), Prettier, lint-staged + husky, Conventional Commits (commitlint).
 - **Gözlemlenebilirlik:** Pino (yapılandırılmış log, `tenant_id`, `request_id`, `user_id` alanları; kişisel veri redaksiyonu), OpenTelemetry SDK (HTTP, pg, ioredis, BullMQ enstrümantasyonu).
 
+## Ek (P1, 2026-11-20): sabitlenen sürümler
+Kurulum anında daha yeni ana sürümler yayımlanmıştı (TypeScript 7, NestJS 12, Next 16, ESLint 10, Vitest 5). Davranışı ve geçiş notları henüz doğrulanmadığı için kararlı ve iyi bilinen ana sürümler **tam sürümle** sabitlendi: TypeScript 5.9.3, NestJS 11.2, Fastify 5.12, Next 15.5, React 19.1, Zod 4.6, Drizzle 0.44, Vitest 3.2, ESLint 9.39 + typescript-eslint 8.73, Playwright 1.64, pnpm 10.34, Turborepo 2.11. Yükseltmeler ayrı bir ADR ve tam test koşusuyla yapılır.
+- Uygulamalar ve paketler CommonJS + `module: NodeNext`; ESM-only bağımlılıklar (jose, openid-client) Node 24'ün `require(esm)` desteğiyle yüklenir.
+- Testler: NestJS dekoratör meta verisi için Vitest + `unplugin-swc` (ESM dönüşümü).
+- Turborepo katı ortam modunda çalışır: derlemeyi etkileyen her ortam değişkeni `turbo.json` `env` listesine yazılmalıdır (ör. `API_INTERNAL_URL`).
+
 ## Değerlendirilen alternatifler
 | Alternatif | Neden seçilmedi |
 |---|---|
