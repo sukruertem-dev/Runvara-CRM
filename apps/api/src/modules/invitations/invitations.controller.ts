@@ -9,7 +9,7 @@ import { audit } from '../../common/audit';
 import { authorize } from '../../common/authorize';
 import { authenticate, TenantGuard } from '../../common/guards';
 import { ProblemError } from '../../common/problem';
-import { Client, CurrentTenant, type ClientInfo, type TenantRequestContext } from '../../common/request-context';
+import { Client, CurrentTenant, dbCtx, type ClientInfo, type TenantRequestContext } from '../../common/request-context';
 import { ZodPipe } from '../../common/zod.pipe';
 import { DB, ENV, MAILER, SIGNER, type Mailer } from '../../infra/tokens';
 import { assertPassword } from '../auth/auth.service';
@@ -37,7 +37,7 @@ export class InvitationsController {
   @UseGuards(TenantGuard)
   async list(@CurrentTenant() t: TenantRequestContext) {
     authorize(t, 'users.invite');
-    const rows = await this.db.withTenant({ tenantId: t.tenant.id, userId: t.principal.userId }, (tx) =>
+    const rows = await this.db.withTenant(dbCtx(t), (tx) =>
       tx.select().from(schema.invitations).orderBy(desc(schema.invitations.createdAt)).limit(200));
     return { data: rows.map(view) };
   }
@@ -52,7 +52,7 @@ export class InvitationsController {
     if (body.roleKey === 'admin' && !t.authz.roleKeys.includes('admin')) throw new ProblemError('MANAGER_LIMIT', 'cannot assign the Admin role');
     const token = randomToken();
     const inviter = await this.sessions.userSummary(t.principal.userId);
-    const row = await this.db.withTenant({ tenantId: t.tenant.id, userId: t.principal.userId }, async (tx) => {
+    const row = await this.db.withTenant(dbCtx(t), async (tx) => {
       const existing = await tx.execute(sql`SELECT 1 FROM memberships m JOIN users u ON u.id = m.user_id WHERE u.email = ${body.email}`);
       if ((existing.rowCount ?? 0) > 0) throw new ProblemError('CONFLICT', 'already a member');
       // One open invitation per address: re-inviting revokes the previous token.
@@ -77,7 +77,7 @@ export class InvitationsController {
   @UseGuards(TenantGuard)
   async revoke(@CurrentTenant() t: TenantRequestContext, @Param('id', new ParseUUIDPipe()) id: string, @Client() c: ClientInfo): Promise<void> {
     authorize(t, 'users.invite');
-    await this.db.withTenant({ tenantId: t.tenant.id, userId: t.principal.userId }, async (tx) => {
+    await this.db.withTenant(dbCtx(t), async (tx) => {
       const r = await tx.update(schema.invitations).set({ revokedAt: new Date() })
         .where(and(eq(schema.invitations.id, id), isNull(schema.invitations.acceptedAt), isNull(schema.invitations.revokedAt))).returning({ id: schema.invitations.id });
       if (r.length === 0) throw new ProblemError('NOT_FOUND');

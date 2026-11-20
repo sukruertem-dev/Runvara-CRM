@@ -238,3 +238,4 @@ export const GLOBAL_TABLES = [
 ] as const;
 
 export * from './schema-tasks';
+export * from './schema-crm';

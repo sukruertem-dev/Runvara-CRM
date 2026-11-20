@@ -1,5 +1,37 @@
 # İlerleme
 
+## P3 — Faz 3: CRM nesneleri · 2026-11-20 · ✅ (CI PR'da çalışacak)
+
+### Yapılanlar
+- **`0003_crm.sql`:** `accounts` (hiyerarşi + döngü trigger'ı, alan adı), `contacts` (üretilmiş `full_name`), `account_contact_roles`, `contact_points` (E.164, küçük harf e-posta, sahibine registry FK), `leads`, `lead_conversions`, `pipelines` + `pipeline_stages` (aşama → olasılık), `opportunities` (`numeric(18,4)` + para birimi, manuel/otomatik olasılık), `cases`, `notes` (polimorfik, özel/standart), `merges`; `pg_trgm` isim indeksleri. 12 yeni tablonun tamamı FORCE RLS + RESTRICTIVE tenant politikası.
+- **Segment RLS (ADR-0010) devrede:** `app.segments()`; CRM tablolarında, `tasks`, `notes` ve `record_registry`'de RESTRICTIVE `segment_isolation`; `contact_points` yalnızca sahibi görünürse görünür. Yeni şema koruma testi: segment sütunu olan her tablo segment politikası taşımalı.
+- **Varsayılan akışlar** (`app.seed_crm_workflows`, migration + provisioning tek kaynak): lead (new → working → qualified / unqualified / converted), satış hattı (10/25/50/75/100/0; `win` tutar, `lose` gerekçe ister), destek talebi (new → in_progress ↔ waiting → resolved → closed, reopen).
+- **API (56 yeni uç nokta):** 5 nesne için RQL'li liste, CRUD, `If-Match`, soft delete/restore, ilişkili görevler; lead/fırsat/talep geçişleri; iletişim noktaları; kişi–firma rolleri; atomik lead dönüştürme; firma/kişi merge ve mükerrer listesi; satış hatları; notlar. Görevler artık CRM kayıtlarına bağlanabilir ve kaydın segmentini devralır.
+- **Yetki:** `recordScope` kaynağa duyarlı (modül kapısı + Matris A `resources`); `own` = sahip veya oluşturan; başkasına kayıt vermek `reassign`.
+- **Seed:** `pnpm --filter @flexa/api seed:demo` — demo çalışma alanı API üzerinden (doğrulama, yetki ve RLS aynen uygulanır).
+- Ayrıntılar ve kararlar: `docs/p3-plan.md`, `docs/assumptions.md` B24–B27.
+
+### Kabul kriterleri (Faz 3)
+| Kriter | Durum | Kanıt |
+|---|---|---|
+| Lead dönüştürme atomik; hata durumunda hiçbir kayıt kalmaz | ✅ | `crm.int.test.ts`: firma + kişi (iletişim noktaları, rol) + fırsat tek adımda; geçersiz pipeline → 422 ve tablo sayıları değişmez; ikinci çağrı 409 |
+| Opportunity aşama değişiminde olasılık doğru | ✅ | 10 → 50, manuel 33 korunur, `probabilityManual:false` → 75, kazan → 100 + `closedAt`, yeniden açınca 75 |
+| Merge sonrası ilişkili task/aktiviteler taşınır | ✅ | kişi: görev, not, iletişim noktası (mükerrer e-posta düşer), fırsat; firma: fırsat, talep, kişi rolü, alt firma |
+| Tüm CRM nesnelerinde tenant izolasyonu | ✅ | şema koruması (otomatik, 17/17) + API çapraz tenant (id ile bile 404) + segment testi (b2b-only alanda b2c kayıt, görevi, notu ve telefonu görünmez — uygulama rolüyle DB'de de 0 satır) |
+
+### Testler
+API entegrasyon **52/52** (P1 25 + P2 14 + P3 13), DB izolasyon 17/17, birim testleri yeşil (authz'a kaynak daraltma testi eklendi), görev listesi perf testi yeşil (ortak liste motoruna geçiş sonrası), lint/typecheck temiz, kontrast/matris/katalog PASS.
+
+### Bilinen sınırlar
+- Kullanıcı bazlı segment yetkisi, ekip/kuyruk kapsamı ve FLS P4'te (şimdilik segment = tenant satış modu, kapsam fail-closed `own`).
+- CRM için özel workflow/pipeline yönetimi P6 ayar ekranlarıyla.
+- CRM ekranları P6 (bu adım yalnızca API + veri katmanı).
+- Outbox olayları ve activity timeline P4/P5.
+
+### Sonraki adım
+**P4 — Faz 4 + G2:** tek yetki motoru (predicate, rol hiyerarşisi, OWD, sharing, FLS, kullanıcı segment yetkisi), timeline, yorum, dosya, audit, bildirim temeli.
+
+
 ## P2 — Faz 2: Task çekirdeği · 2026-11-20 · ✅ (CI PR'da çalışacak)
 
 ### Marka değişikliği (aynı dalda)

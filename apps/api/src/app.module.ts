@@ -19,13 +19,19 @@ import { RqlController } from './modules/tasks/rql.controller';
 import { TaskListService } from './modules/tasks/task-list.service';
 import { TasksController } from './modules/tasks/tasks.controller';
 import { TasksService } from './modules/tasks/tasks.service';
+import { AccountsController, CasesController, ContactsController, CrmOperationsController, LeadsController, NotesController, OpportunitiesController } from './modules/crm/crm.controller';
+import { CrmOpsService } from './modules/crm/crm-ops.service';
+import { CrmService } from './modules/crm/crm.service';
+import { NotesService } from './modules/crm/notes.service';
 
 @Module({})
 export class AppModule {
   static forRoot(deps: ApiDeps): DynamicModule {
     return {
       module: AppModule,
-      controllers: [HealthController, AuthController, MeController, TenancyController, InvitationsController, SsoController, TasksController, TaskConfigController, RqlController],
+      controllers: [HealthController, AuthController, MeController, TenancyController, InvitationsController, SsoController, TasksController, TaskConfigController, RqlController,
+        // Operation routes first: Fastify matches static segments before parameters either way, but keep it explicit.
+        CrmOperationsController, AccountsController, ContactsController, LeadsController, OpportunitiesController, CasesController, NotesController],
       providers: [
         { provide: ENV, useValue: deps.env },
         { provide: DB, useValue: deps.db },
@@ -42,6 +48,9 @@ export class AppModule {
         OidcService,
         TasksService,
         TaskListService,
+        CrmService,
+        CrmOpsService,
+        NotesService,
       ],
     };
   }

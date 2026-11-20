@@ -64,16 +64,26 @@ describe('can() — tenant-level actions from permission-matrix.yaml', () => {
 
 describe('recordScope (P2 slice of ADR-0004)', () => {
   it('maps Matrix A A08/A10 to scopes, fail-closed for team/queue until P4', () => {
-    expect(recordScope(ctx(['admin']), 'read')).toEqual({ kind: 'all' });
-    expect(recordScope(ctx(['analyst']), 'read')).toEqual({ kind: 'all' });
-    expect(recordScope(ctx(['analyst']), 'update')).toEqual({ kind: 'none' });
-    expect(recordScope(ctx(['manager']), 'read')).toEqual({ kind: 'own' });
-    expect(recordScope(ctx(['sales_rep']), 'update')).toEqual({ kind: 'own' });
-    expect(recordScope(ctx(['call_agent']), 'read')).toEqual({ kind: 'own' });
-    expect(recordScope(ctx(['sales_rep']), 'archive')).toEqual({ kind: 'none' });
-    expect(recordScope(ctx(['manager']), 'archive')).toEqual({ kind: 'own' });
-    expect(recordScope(ctx(['admin']), 'purge')).toEqual({ kind: 'all' });
-    expect(recordScope(ctx([]), 'read')).toEqual({ kind: 'none' });
-    expect(recordScope(ctx(['sales_rep', 'admin']), 'read')).toEqual({ kind: 'all' });
+    expect(recordScope(ctx(['admin']), 'read', 'core.task')).toEqual({ kind: 'all' });
+    expect(recordScope(ctx(['analyst']), 'read', 'core.task')).toEqual({ kind: 'all' });
+    expect(recordScope(ctx(['analyst']), 'update', 'core.task')).toEqual({ kind: 'none' });
+    expect(recordScope(ctx(['manager']), 'read', 'core.task')).toEqual({ kind: 'own' });
+    expect(recordScope(ctx(['sales_rep']), 'update', 'core.task')).toEqual({ kind: 'own' });
+    expect(recordScope(ctx(['call_agent']), 'read', 'core.task')).toEqual({ kind: 'own' });
+    expect(recordScope(ctx(['sales_rep']), 'archive', 'core.task')).toEqual({ kind: 'none' });
+    expect(recordScope(ctx(['manager']), 'archive', 'core.task')).toEqual({ kind: 'own' });
+    expect(recordScope(ctx(['admin']), 'purge', 'core.task')).toEqual({ kind: 'all' });
+    expect(recordScope(ctx([]), 'read', 'core.task')).toEqual({ kind: 'none' });
+    expect(recordScope(ctx(['sales_rep', 'admin']), 'read', 'core.task')).toEqual({ kind: 'all' });
+  });
+
+  it('honours resource-narrowed grants and the module gate', () => {
+    // A09: call_agent may create leads and contacts only.
+    expect(recordScope(ctx(['call_agent'], ['core', 'crm']), 'create', 'crm.lead')).toEqual({ kind: 'own' });
+    expect(recordScope(ctx(['call_agent'], ['core', 'crm']), 'create', 'crm.contact')).toEqual({ kind: 'own' });
+    expect(recordScope(ctx(['call_agent'], ['core', 'crm']), 'create', 'crm.opportunity')).toEqual({ kind: 'none' });
+    expect(recordScope(ctx(['call_agent']), 'create', 'core.task')).toEqual({ kind: 'none' });
+    expect(recordScope(ctx(['sales_rep'], ['core', 'crm']), 'create', 'crm.opportunity')).toEqual({ kind: 'own' });
+    expect(recordScope({ ...ctx(['admin']), enabledModules: new Set(['core']) }, 'read', 'crm.account')).toEqual({ kind: 'none' });
   });
 });

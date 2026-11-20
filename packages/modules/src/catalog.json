@@ -193,7 +193,8 @@
           "/v1/audit",
           "/v1/stream",
           "/v1/me",
-          "/v1/search"
+          "/v1/search",
+          "/v1/notes"
         ]
       },
       "menu": [
@@ -348,7 +349,8 @@
           "/v1/opportunities",
           "/v1/cases",
           "/v1/products",
-          "/v1/price-lists"
+          "/v1/price-lists",
+          "/v1/pipelines"
         ]
       },
       "menu": [

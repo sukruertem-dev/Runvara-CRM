@@ -102,6 +102,8 @@ export function defaultEnabledPolicies(): Set<string> {
 }
 
 export type RecordAction = 'read' | 'create' | 'update' | 'archive' | 'purge' | 'reassign' | 'bulk';
+/** Record resources of the generic `*record*` permissions (permission-matrix.yaml `record_resources`). */
+export type RecordResource = 'core.task' | 'crm.account' | 'crm.contact' | 'crm.lead' | 'crm.opportunity' | 'crm.case' | 'crm.note';
 export type RecordScope = { kind: 'all' } | { kind: 'own' } | { kind: 'none' };
 
 const SCOPE_RANK: Record<Scope, number> = { own: 1, queue: 2, team: 2, segment: 3, all: 4 };
@@ -109,13 +111,16 @@ const SCOPE_RANK: Record<Scope, number> = { own: 1, queue: 2, team: 2, segment: 
 /** Record-level scope for generic record permissions (Matrix A rows A08–A13, A24).
  *  P2 slice: `all` is honoured; `team`, `queue` and `segment` need teams/queues/segments (P4) and are
  *  narrowed to `own` until then (fail-closed). Read-only grants (Analist) allow `read` only. */
-export function recordScope(ctx: AuthzContext, action: RecordAction): RecordScope {
+export function recordScope(ctx: AuthzContext, action: RecordAction, resource: RecordResource): RecordScope {
   const permission = `*record*.${action}`;
   const mode: GrantMode = action === 'read' ? 'read' : 'full';
+  if (!ctx.enabledModules.has(resource.slice(0, resource.indexOf('.')))) return { kind: 'none' };
   let best: Scope | null = null;
   for (const roleKey of ctx.roleKeys) {
     for (const grant of grantsFor(roleKey, permission)) {
       if (!satisfies(grant.mode, mode)) continue;
+      // A grant narrowed to listed resources (e.g. call_agent create: lead, contact, call note) applies to those only.
+      if (grant.resources && !grant.resources.includes(resource)) continue;
       for (const s of scopesOf(grant)) if (best === null || SCOPE_RANK[s] > SCOPE_RANK[best]) best = s;
     }
   }

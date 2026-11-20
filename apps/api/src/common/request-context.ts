@@ -21,10 +21,23 @@ export interface TenantInfo {
   currency: string;
 }
 
+export type Segment = 'b2b' | 'b2c';
+
 export interface TenantRequestContext {
   principal: Principal & { tenantId: string };
   tenant: TenantInfo;
   authz: AuthzContext;
+  /** Segments this request may see (ADR-0010). Until P4 user segment grants: the tenant's sales mode. */
+  segments: readonly Segment[];
+}
+
+export function segmentsForSalesMode(mode: TenantInfo['salesMode']): readonly Segment[] {
+  return mode === 'b2b_only' ? ['b2b'] : mode === 'b2c_only' ? ['b2c'] : ['b2b', 'b2c'];
+}
+
+/** The only way request handlers open a tenant transaction: tenant, user and segments from the verified context. */
+export function dbCtx(t: TenantRequestContext): { tenantId: string; userId: string; segments: readonly Segment[] } {
+  return { tenantId: t.tenant.id, userId: t.principal.userId, segments: t.segments };
 }
 
 declare module 'fastify' {

@@ -86,6 +86,22 @@ describe('schema guard (ADR-0003 §5)', () => {
     }
   });
 
+  it('every table with a segment column carries a RESTRICTIVE segment policy (ADR-0010)', async () => {
+    // Configuration tables whose segment is a default/filter, not a visibility boundary (queue membership
+    // and workflow choice are decided in P4 with user segment grants).
+    const configOnly = new Set(['queues', 'workflows']);
+    const cols = await superQuery<{ table_name: string }>(tdb.superUrl, `
+      SELECT DISTINCT table_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND column_name IN ('segment', 'segments')`);
+    const policies = await superQuery<{ tablename: string; permissive: string }>(tdb.superUrl,
+      `SELECT tablename, permissive FROM pg_policies WHERE schemaname = 'public' AND policyname = 'segment_isolation'`);
+    expect(cols.length).toBeGreaterThan(5);
+    for (const { table_name } of cols) {
+      if (configOnly.has(table_name)) continue;
+      expect.soft(policies.find((p) => p.tablename === table_name)?.permissive, `${table_name} segment_isolation`).toBe('RESTRICTIVE');
+    }
+  });
+
   it('flexa_app cannot bypass RLS and owns no table', async () => {
     const [role] = await superQuery<{ rolbypassrls: boolean; rolsuper: boolean }>(
       tdb.superUrl, `SELECT rolbypassrls, rolsuper FROM pg_roles WHERE rolname = 'flexa_app'`);

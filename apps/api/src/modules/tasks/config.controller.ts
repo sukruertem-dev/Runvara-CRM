@@ -8,10 +8,10 @@ import { audit } from '../../common/audit';
 import { authorize } from '../../common/authorize';
 import { TenantGuard } from '../../common/guards';
 import { isUniqueViolation, ProblemError } from '../../common/problem';
-import { Client, CurrentTenant, type ClientInfo, type TenantRequestContext } from '../../common/request-context';
+import { Client, CurrentTenant, dbCtx, type ClientInfo, type TenantRequestContext } from '../../common/request-context';
 import { ZodPipe } from '../../common/zod.pipe';
 import { DB } from '../../infra/tokens';
-import { compileDefFormula, loadFieldDefs, type FieldDefRow } from './task-fields';
+import { compileDefFormula, loadFieldDefs, RESOURCE_TYPES, type FieldDefRow, type ResourceType } from './task-fields';
 
 type DefRow = FieldDefRow;
 const defView = (d: DefRow) => ({
@@ -28,7 +28,7 @@ export class TaskConfigController {
 
   @Get('workflows')
   async workflows(@CurrentTenant() t: TenantRequestContext) {
-    return this.db.withTenant({ tenantId: t.tenant.id, userId: t.principal.userId }, async (tx) => {
+    return this.db.withTenant(dbCtx(t), async (tx) => {
       const wfs = await tx.select().from(schema.workflows);
       const st = await tx.select().from(schema.statuses);
       const tr = await tx.select().from(schema.workflowTransitions);
@@ -63,7 +63,7 @@ export class TaskConfigController {
     } catch (e) {
       throw new ProblemError('WORKFLOW_INVALID', (e as Error).message);
     }
-    return this.db.withTenant({ tenantId: t.tenant.id, userId: t.principal.userId }, async (tx) => {
+    return this.db.withTenant(dbCtx(t), async (tx) => {
       try {
         const wf = one(await tx.insert(schema.workflows).values({ tenantId: t.tenant.id, resourceType: 'task', key: body.key, name: body.name, isDefault: false, version: 1 }).returning(), 'workflow');
         let pos: string | null = null;
@@ -95,8 +95,9 @@ export class TaskConfigController {
 
   @Get('custom-fields')
   async customFields(@CurrentTenant() t: TenantRequestContext, @Query('resourceType') resourceType: string | undefined) {
-    if (resourceType !== undefined && resourceType !== 'task') throw new ProblemError('VALIDATION_FAILED', 'resourceType must be "task"');
-    const defs = await this.db.withTenant({ tenantId: t.tenant.id, userId: t.principal.userId }, (tx) => loadFieldDefs(tx, 'task'));
+    const rt = resourceType ?? 'task';
+    if (!(RESOURCE_TYPES as readonly string[]).includes(rt)) throw new ProblemError('VALIDATION_FAILED', `resourceType must be one of ${RESOURCE_TYPES.join(', ')}`);
+    const defs = await this.db.withTenant(dbCtx(t), (tx) => loadFieldDefs(tx, rt as ResourceType));
     return { data: defs.map(defView) };
   }
 
@@ -107,11 +108,11 @@ export class TaskConfigController {
     if ((body.type === 'relation') !== (body.relationTarget !== undefined)) throw new ProblemError('VALIDATION_FAILED', 'relationTarget is required for (and only for) relation fields');
     if ((body.type === 'formula') !== (body.formula !== undefined)) throw new ProblemError('VALIDATION_FAILED', 'formula is required for (and only for) formula fields');
     if (body.type === 'formula' && body.required) throw new ProblemError('VALIDATION_FAILED', 'formula fields cannot be required');
-    return this.db.withTenant({ tenantId: t.tenant.id, userId: t.principal.userId }, async (tx) => {
-      const defs = await loadFieldDefs(tx, 'task');
+    return this.db.withTenant(dbCtx(t), async (tx) => {
+      const defs = await loadFieldDefs(tx, body.resourceType);
       if (body.formula) {
-        const f = compileDefFormula(body.formula, defs);
-        const others = defs.filter((d) => d.type === 'formula' && d.formula && !d.archivedAt).map((d) => ({ key: `custom.${d.key}`, formula: compileDefFormula(d.formula ?? '', defs) }));
+        const f = compileDefFormula(body.formula, defs, body.resourceType);
+        const others = defs.filter((d) => d.type === 'formula' && d.formula && !d.archivedAt).map((d) => ({ key: `custom.${d.key}`, formula: compileDefFormula(d.formula ?? '', defs, body.resourceType) }));
         try {
           assertNoCycles([...others, { key: `custom.${body.key}`, formula: f }]);
         } catch (e) {
@@ -139,7 +140,7 @@ export class TaskConfigController {
   @HttpCode(204)
   async archive(@CurrentTenant() t: TenantRequestContext, @Param('id', new ParseUUIDPipe()) id: string, @Client() c: ClientInfo): Promise<void> {
     authorize(t, 'tenant.config.manage');
-    await this.db.withTenant({ tenantId: t.tenant.id, userId: t.principal.userId }, async (tx) => {
+    await this.db.withTenant(dbCtx(t), async (tx) => {
       const r = await tx.update(schema.customFieldDefinitions).set({ archivedAt: new Date() })
         .where(and(eq(schema.customFieldDefinitions.id, id), isNull(schema.customFieldDefinitions.archivedAt))).returning({ id: schema.customFieldDefinitions.id });
       if (r.length === 0) throw new ProblemError('NOT_FOUND');
