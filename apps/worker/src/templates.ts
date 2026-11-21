@@ -32,6 +32,8 @@ function make(title: string, paragraphs: string[], action: { label: string; url:
   return { subject: title, text, html: layout(title, paragraphs, action, footer) };
 }
 
+const PARAGRAPH_BREAK = /\n{2,}/;
+
 export function render(job: MailJob): RenderedMail {
   const tr = job.locale === 'tr-TR';
   switch (job.template) {
@@ -51,5 +53,10 @@ export function render(job: MailJob): RenderedMail {
       return tr
         ? make(`${job.vars.tenantName} sizi Flexa'ya davet ediyor`, [`${job.vars.inviterName}, sizi ${job.vars.tenantName} çalışma alanına davet etti. Davet 7 gün geçerlidir.`], { label: 'Daveti kabul et', url: job.vars.url }, 'Bu daveti beklemiyorsanız yok sayabilirsiniz.')
         : make(`${job.vars.tenantName} invited you to Flexa`, [`${job.vars.inviterName} invited you to the ${job.vars.tenantName} workspace. The invitation is valid for 7 days.`], { label: 'Accept invitation', url: job.vars.url }, 'If you were not expecting this, you can ignore it.');
+    case 'automation_notice':
+      // Subject and body come from a rule written by the workspace Admin; they are escaped like all text.
+      return tr
+        ? make(job.vars.subject, job.vars.body.split(PARAGRAPH_BREAK), { label: 'Kaydı aç', url: job.vars.url }, `${job.vars.tenantName} çalışma alanındaki bir otomasyon kuralı tarafından gönderildi.`)
+        : make(job.vars.subject, job.vars.body.split(PARAGRAPH_BREAK), { label: 'Open record', url: job.vars.url }, `Sent by an automation rule in the ${job.vars.tenantName} workspace.`);
   }
 }

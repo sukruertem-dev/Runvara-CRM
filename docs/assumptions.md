@@ -72,3 +72,7 @@
 | B34 | Mention geri çekme | Kaldırılan mention'ın **okunmamış** bildirimi silinir (okunmuşlar geçmiş olarak kalır); yeniden anılırsa yeniden bildirilir | ADR-0017 §2.5 |
 | B35 | Delegasyon süresi | Yetki, süre dolduğu an bir sonraki istekte kalkar (`valid_until`); süre dolumunun ayrı audit satırı P5 zamanlanmış işiyle yazılır | A07, SCN-18 |
 | B36 | Matris düzenleme | Tenant'a özel değişiklik yalnızca sistem rollerinin hücrelerinde; değer gönderilen sürüme eşitse override silinir (matris en küçük farkla kalır); geri alma yeni sürüm olarak kaydedilir (geçmiş yeniden yazılmaz) | A03, AUTH-11 |
+| B37 | Otomasyon tüketicisinin yeri | Kural aksiyonları alan servislerini (doğrulama, yetki, timeline) kullandığından tüketici API imajında ayrı bir süreçte (`automation` servisi, `EVENT_CONSUMERS=true`); relay worker'da (`flexa_relay`) | ADR-0006 |
+| B38 | Kuralın kimliği | Kural son kaydeden Admin'in **güncel** yetkisiyle çalışır; yetki düşerse çalıştırma `failed`/DLQ olur ve loglanır | docs/p5-plan.md §2 |
+| B39 | Döngü koruması | Derinlik > 5 → `halted_depth`; aynı zincirde aynı kural aynı kayda ikinci kez → `halted_loop` (genelde derinlikten önce keser) | ADR-0006 §3 |
+| B40 | Otomasyon e-postası | Kuyruğa commit'ten sonra deterministik iş kimliğiyle; yeniden teslimde aynı iş yeniden eklenir, kuyruk yinelenmeyi düşürür (en az bir kez, çift gönderim yok) | ADR-0006 §2 |

@@ -16,7 +16,8 @@ export const STORAGE = Symbol('STORAGE');
 export const SCANNER = Symbol('SCANNER');
 
 export interface Mailer {
-  send(job: MailJob): Promise<void>;
+  /** `jobId` makes the enqueue idempotent (the same id is not queued twice). */
+  send(job: MailJob, opts?: { jobId?: string }): Promise<void>;
 }
 
 export interface ApiDeps {

@@ -169,6 +169,12 @@ export const MailJob = z.discriminatedUnion('template', [
     locale: Locale,
     vars: z.object({ tenantName: z.string(), inviterName: z.string(), url: z.url() }),
   }),
+  z.object({
+    template: z.literal('automation_notice'),
+    to: z.string(),
+    locale: Locale,
+    vars: z.object({ tenantName: z.string(), subject: z.string(), body: z.string(), url: z.url() }),
+  }),
 ]);
 export type MailJob = z.infer<typeof MailJob>;
 export const MAIL_QUEUE = 'mail';

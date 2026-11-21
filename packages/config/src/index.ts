@@ -51,6 +51,8 @@ export const apiEnvSchema = commonEnvSchema.extend({
   /** clamd for the attachment scanning hook; without it files are marked `unscanned`, never `clean`. */
   CLAMAV_HOST: z.string().min(1).optional(),
   CLAMAV_PORT: z.coerce.number().int().min(1).max(65535).default(3310),
+  /** Run the domain-event consumers (automation rules, schedules) in this process (ADR-0006). */
+  EVENT_CONSUMERS: bool.default(false),
 }).refine((e) => !(e.NODE_ENV === 'production' && e.OIDC_ALLOW_INSECURE_LOCALHOST), {
   message: 'OIDC_ALLOW_INSECURE_LOCALHOST must be false in production',
   path: ['OIDC_ALLOW_INSECURE_LOCALHOST'],
@@ -60,6 +62,8 @@ export const workerEnvSchema = commonEnvSchema.extend({
   SMTP_URL: z.url({ protocol: /^smtps?$/ }),
   MAIL_FROM: z.string().min(3).default('Flexa <no-reply@flexa.local>'),
   WORKER_HEALTH_PORT: z.coerce.number().int().min(1).max(65535).default(4100),
+  /** flexa_relay connection for the outbox relay (BYPASSRLS, outbox only). Without it the relay is off. */
+  RELAY_DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }).optional(),
 });
 
 export const migrateEnvSchema = z.object({

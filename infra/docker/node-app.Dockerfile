@@ -6,11 +6,15 @@ FROM ${NODE_IMAGE} AS build
 ARG APP
 RUN npm install -g pnpm@10.34.9
 WORKDIR /repo
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc turbo.json tsconfig.base.json ./
+# Dependencies first: this layer depends on the lockfile only, so source changes reuse it (locally and in
+# CI through the build cache) instead of downloading every package again.
+COPY pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+RUN pnpm fetch --frozen-lockfile
+COPY package.json turbo.json tsconfig.base.json ./
 COPY packages ./packages
 COPY apps/${APP} ./apps/${APP}
 COPY docs/enterprise/permission-matrix.yaml ./docs/enterprise/permission-matrix.yaml
-RUN pnpm install --frozen-lockfile --filter "@flexa/${APP}..." --ignore-scripts=false
+RUN pnpm install --frozen-lockfile --offline --filter "@flexa/${APP}..." --ignore-scripts=false
 RUN pnpm exec turbo run build --filter="@flexa/${APP}..."
 RUN pnpm --filter "@flexa/${APP}" deploy --legacy --prod /out
 

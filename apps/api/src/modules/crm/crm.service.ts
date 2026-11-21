@@ -297,6 +297,12 @@ export class CrmService {
     });
   }
 
+  /** Patch inside an existing transaction without If-Match (automation actions; body validated by the caller). */
+  async patchIn(tx: Db, t: TenantRequestContext, type: CrmType, id: string, body: Record<string, unknown>): Promise<void> {
+    const row = await readCrmRow(tx, t, CRM[type], id, { forUpdate: true });
+    await this.applyPatch(tx, t, type, row, null, body);
+  }
+
   private async applyPatch(tx: Db, t: TenantRequestContext, type: CrmType, row: CrmRow, version: number | null, body: Record<string, unknown>, extra: Cols = {}): Promise<void> {
     const def = CRM[type];
     const me = t.principal.userId;

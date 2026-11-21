@@ -14,6 +14,7 @@
   "dependencies": {
     "@flexa/config": "workspace:*",
     "@flexa/contracts": "workspace:*",
+    "@flexa/db": "workspace:*",
     "bullmq": "5.81.5",
     "ioredis": "5.11.1",
     "nodemailer": "7.0.13",

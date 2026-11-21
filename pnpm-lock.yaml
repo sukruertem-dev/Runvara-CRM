@@ -214,6 +214,9 @@ importers:
       '@flexa/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@flexa/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       bullmq:
         specifier: 5.81.5
         version: 5.81.5

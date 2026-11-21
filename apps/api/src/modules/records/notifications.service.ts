@@ -10,11 +10,11 @@ import { TASK_SHAPE, taskReadPredicate } from '../tasks/tasks.service';
 import { notify, type NotificationKind } from '../../common/notify';
 
 export { notify };
-const KINDS: readonly NotificationKind[] = ['mention', 'assigned'];
+const KINDS: readonly NotificationKind[] = ['mention', 'assigned', 'automation'];
 
 type Row = {
   id: string; kind: NotificationKind; source_type: string; source_id: string; record_type: string; record_id: string;
-  actor_id: string | null; actor_name: string | null; created_at: string; read_at: string | null; accessible: boolean; title: string | null;
+  actor_id: string | null; actor_name: string | null; created_at: string; read_at: string | null; accessible: boolean; title: string | null; message: string | null;
 };
 
 @Injectable()
@@ -52,7 +52,7 @@ export class NotificationsService {
             ${query.unread === 'true' ? sql`AND read_at IS NULL` : sql``} ${before ? sql`AND created_at < ${before}` : sql``}
           ORDER BY created_at DESC, id DESC LIMIT ${limit}
         ), v AS (SELECT n.*, ${a.accessible} AS accessible FROM n)
-        SELECT v.id, v.kind, v.source_type, v.source_id, v.record_type, v.record_id, v.actor_id, u.display_name AS actor_name,
+        SELECT v.id, v.kind, v.source_type, v.source_id, v.record_type, v.record_id, v.actor_id, u.display_name AS actor_name, v.message,
                v.created_at, v.read_at, v.accessible, CASE WHEN v.accessible THEN (SELECT ${a.title} FROM (SELECT v.record_type, v.record_id) AS n) END AS title
         FROM v LEFT JOIN users u ON u.id = v.actor_id ORDER BY v.created_at DESC, v.id DESC`);
       const unread = await tx.execute<{ n: number }>(sql`SELECT count(*)::int AS n FROM notifications WHERE user_id = ${t.principal.userId} AND retracted_at IS NULL AND read_at IS NULL`);
@@ -61,6 +61,7 @@ export class NotificationsService {
           id: x.id, kind: x.kind, accessible: x.accessible,
           // Without access, only the fact of a notification remains: no title, no record or source id, no actor.
           title: x.accessible ? x.title : null,
+          message: x.accessible ? x.message : null,
           record: x.accessible ? { type: x.record_type, id: x.record_id } : null,
           source: x.accessible ? { type: x.source_type, id: x.source_id } : null,
           actor: x.accessible && x.actor_id ? { id: x.actor_id, displayName: x.actor_name } : null,

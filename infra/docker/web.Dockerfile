@@ -5,11 +5,14 @@ FROM ${NODE_IMAGE} AS build
 RUN npm install -g pnpm@10.34.9
 WORKDIR /repo
 ENV NEXT_TELEMETRY_DISABLED=1
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc turbo.json tsconfig.base.json ./
+# Dependencies first (lockfile-only layer, reused across source changes and CI runs).
+COPY pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+RUN pnpm fetch --frozen-lockfile
+COPY package.json turbo.json tsconfig.base.json ./
 COPY packages ./packages
 COPY apps/web ./apps/web
 COPY docs/enterprise/permission-matrix.yaml ./docs/enterprise/permission-matrix.yaml
-RUN pnpm install --frozen-lockfile --filter "@flexa/web..."
+RUN pnpm install --frozen-lockfile --offline --filter "@flexa/web..."
 # API_INTERNAL_URL is read by next.config rewrites at build time and baked into the routes manifest.
 ARG API_INTERNAL_URL=http://api:4000
 ENV API_INTERNAL_URL=${API_INTERNAL_URL}

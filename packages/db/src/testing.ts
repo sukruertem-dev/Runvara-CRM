@@ -8,6 +8,8 @@ export interface TestDatabase {
   appUrl: string;
   /** flexa_owner — migrations and SECURITY DEFINER owner. */
   ownerUrl: string;
+  /** flexa_relay (outbox relay, BYPASSRLS). */
+  relayUrl: string;
   /** Superuser, for assertions that must see everything. */
   superUrl: string;
   stop(): Promise<void>;
@@ -34,11 +36,13 @@ export async function startTestDatabase(): Promise<TestDatabase> {
   }
   const ownerUrl = `postgres://flexa_owner:${PASSWORDS.owner_password}@${host}:${port}/flexa`;
   const appUrl = `postgres://flexa_app:${PASSWORDS.app_password}@${host}:${port}/flexa`;
+  const relayUrl = `postgres://flexa_relay:${PASSWORDS.relay_password}@${host}:${port}/flexa`;
   await migrate(ownerUrl);
   return {
     container,
     appUrl,
     ownerUrl,
+    relayUrl,
     superUrl,
     stop: async () => {
       await container.stop();

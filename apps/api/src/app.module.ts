@@ -31,6 +31,10 @@ import { AttachmentsService } from './modules/records/attachments.service';
 import { NotificationsService } from './modules/records/notifications.service';
 import { RECORD_EXTRAS_CONTROLLERS, RecordItemsController } from './modules/records/records.controller';
 import { RecordsService } from './modules/records/records.service';
+import { AutomationController } from './modules/automation/automation.controller';
+import { AutomationService } from './modules/automation/automation.service';
+import { AutomationQueues } from './modules/automation/queues';
+import { AutomationRunner } from './modules/automation/runner.service';
 import { ClamdScanner } from './infra/scanner';
 import { storageFromEnv } from './infra/storage';
 
@@ -43,7 +47,7 @@ export class AppModule {
         // Operation routes first: Fastify matches static segments before parameters either way, but keep it explicit.
         CrmOperationsController, AccountsController, ContactsController, LeadsController, OpportunitiesController, CasesController, NotesController,
         AccessAdminController, ...SHARES_CONTROLLERS,
-        GovernanceController, RecordItemsController, ...RECORD_EXTRAS_CONTROLLERS],
+        GovernanceController, RecordItemsController, ...RECORD_EXTRAS_CONTROLLERS, AutomationController],
       providers: [
         { provide: ENV, useValue: deps.env },
         { provide: DB, useValue: deps.db },
@@ -68,6 +72,9 @@ export class AppModule {
         RecordsService,
         AttachmentsService,
         NotificationsService,
+        AutomationRunner,
+        AutomationQueues,
+        AutomationService,
         { provide: STORAGE, useValue: deps.storage !== undefined ? deps.storage : storageFromEnv(deps.env) },
         { provide: SCANNER, useValue: deps.scanner !== undefined ? deps.scanner : deps.env.CLAMAV_HOST ? new ClamdScanner(deps.env.CLAMAV_HOST, deps.env.CLAMAV_PORT) : null },
       ],

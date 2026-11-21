@@ -55,3 +55,8 @@ Zarf ve tüm olay tipleri `docs/events.md`. Tipler `packages/events` içinde Zod
 ## Sonuçlar
 - (+) Worker çökmesi olay kaybettirmez (yayınlanmamış satırlar kalır; işlenmemiş işler BullMQ'da `stalled` olarak geri döner).
 - (−) Redis kalıcılığı kritik: AOF `everysec`; Redis kaybında relay, `published_at` sonrası tüketilmemiş işleri yeniden yayınlayabilmek için `processed_events` ile mutabakat aracı sunar (runbook).
+
+## Uygulama notu (P5a, 2026-11-21)
+- Outbox'a tek yazma noktası timeline yazıcısıdır (`apps/api/src/common/activity.ts`): her timeline olayı aynı transaction'da zarfıyla birlikte yazılır; yük yalnızca alan adları ve durum anahtarlarıdır (FLS gizli değer olaya girmez). Tür eşlemesi: `<tür>.created|updated|status_changed|assigned|deleted|restored`, `lead.converted`, `record.merged`, `comment.created`, `attachment.uploaded`, `activity.logged`, ayrıca `automation.schedule_tick`, `automation.hook_received`, `automation.run.halted`.
+- Relay `packages/db/src/relay.ts` (`createRelay`, `startRelayLoop`), worker'da çalışır. Tüketici API imajında `automation` servisi (B37).
+- Kanıt: `apps/api/test/automation.int.test.ts` (döngü/derinlik, tam bir kez, retry → DLQ → replay, kaos). İşletim: `docs/ops/automation-dlq.md`.

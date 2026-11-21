@@ -1,7 +1,8 @@
 import { createServer } from 'node:http';
 import { loadEnv, workerEnvSchema } from '@flexa/config';
-import { MAIL_QUEUE, MailJob } from '@flexa/contracts';
-import { Worker } from 'bullmq';
+import { EVENTS_QUEUE, MAIL_QUEUE, MailJob } from '@flexa/contracts';
+import { createRelay, startRelayLoop, toEnvelope } from '@flexa/db';
+import { Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import nodemailer from 'nodemailer';
 import pino from 'pino';
@@ -26,6 +27,21 @@ mailWorker.on('failed', (job, err) => {
   log.warn({ jobId: job?.id, attempts: job?.attemptsMade, err: err.message }, 'mail failed');
 });
 
+// Outbox relay (ADR-0006): committed domain events → `events` queue (job id = event id, so a relay that dies
+// between publishing and marking cannot enqueue an event twice). Consumers run in the `automation` service.
+const relay = env.RELAY_DATABASE_URL ? createRelay(env.RELAY_DATABASE_URL) : null;
+const eventsQueue = new Queue(EVENTS_QUEUE, { connection });
+const relayLoop = relay
+  ? startRelayLoop(relay, async (rows) => {
+    await eventsQueue.addBulk(rows.map((r) => ({
+      name: r.type,
+      data: toEnvelope(r),
+      opts: { jobId: r.id, attempts: 8, backoff: { type: 'custom' }, removeOnComplete: { age: 86_400, count: 100_000 }, removeOnFail: { age: 1_209_600 } },
+    })));
+  }, { onError: (e) => { log.error({ err: (e as Error).message }, 'relay error (events stay in the outbox)'); } })
+  : null;
+if (!relay) log.warn('RELAY_DATABASE_URL not set: domain events are not relayed');
+
 // Liveness + readiness for Docker/Kubernetes.
 const health = createServer((req, res) => {
   if (req.url === '/healthz') {
@@ -46,6 +62,9 @@ health.listen(env.WORKER_HEALTH_PORT, '0.0.0.0', () => { log.info({ port: env.WO
 async function shutdown(signal: string): Promise<void> {
   log.info({ signal }, 'shutting down');
   health.close();
+  await relayLoop?.stop();
+  await relay?.close();
+  await eventsQueue.close();
   await mailWorker.close();
   transport.close();
   connection.disconnect();

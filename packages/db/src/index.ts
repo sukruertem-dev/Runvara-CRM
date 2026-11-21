@@ -1,4 +1,5 @@
 export * from './client';
+export { createRelay, startRelayLoop, toEnvelope, type OutboxRow, type Relay } from './relay';
 export * as schema from './schema';
 export { GLOBAL_TABLES } from './schema';
 export { migrate, rolesSql, MIGRATIONS_DIR, type MigrationResult } from './migrate';

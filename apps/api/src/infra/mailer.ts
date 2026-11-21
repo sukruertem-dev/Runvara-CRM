@@ -14,8 +14,8 @@ export class QueueMailer implements Mailer {
     });
   }
 
-  async send(job: MailJob): Promise<void> {
-    await this.queue.add(job.template, MailJob.parse(job));
+  async send(job: MailJob, opts: { jobId?: string } = {}): Promise<void> {
+    await this.queue.add(job.template, MailJob.parse(job), opts.jobId ? { jobId: opts.jobId } : {});
   }
 
   close(): Promise<void> {

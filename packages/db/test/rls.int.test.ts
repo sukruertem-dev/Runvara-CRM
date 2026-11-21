@@ -88,8 +88,9 @@ describe('schema guard (ADR-0003 §5)', () => {
 
   it('every table with a segment column carries a RESTRICTIVE segment policy (ADR-0010)', async () => {
     // Tables whose segment column is configuration or grant data, not a visibility boundary: queue and
-    // workflow defaults, the segments a user is granted, and the segments an invitation will grant.
-    const configOnly = new Set(['queues', 'workflows', 'user_segment_grants', 'invitations', 'delegations', 'access_requests']);
+    // workflow defaults, the segments a user is granted, and the segments an invitation will grant;
+    // the outbox is read only by trusted services that authorize per recipient.
+    const configOnly = new Set(['queues', 'workflows', 'user_segment_grants', 'invitations', 'delegations', 'access_requests', 'outbox_events']);
     const cols = await superQuery<{ table_name: string }>(tdb.superUrl, `
       SELECT DISTINCT table_name FROM information_schema.columns
       WHERE table_schema = 'public' AND column_name IN ('segment', 'segments')`);

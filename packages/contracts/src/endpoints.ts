@@ -4,6 +4,7 @@ import * as T from './tasks';
 import * as C from './crm';
 import * as A from './authz';
 import * as R from './records';
+import * as U from './automation';
 
 export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 export type AuthMode = 'none' | 'access' | 'tenant' | 'refresh_cookie';
@@ -226,4 +227,16 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   { method: 'put', path: '/v1/authz/matrix', summary: 'Apply matrix changes (new version)', tag: 'authz', auth: 'tenant', body: R.MatrixChange, responses: { 200: R.MatrixView }, errors: [400, 401, 403, 422] },
   { method: 'get', path: '/v1/authz/matrix/versions', summary: 'Matrix versions', tag: 'authz', auth: 'tenant', responses: { 200: R.MatrixVersionListResponse }, errors: [401, 403] },
   { method: 'post', path: '/v1/authz/matrix/versions/{version}/restore', summary: 'Roll back to an earlier version (as a new version)', tag: 'authz', auth: 'tenant', responses: { 200: R.MatrixView }, errors: [401, 403, 404] },
+  { method: 'get', path: '/v1/automations/rules', summary: 'Automation rules', tag: 'automations', auth: 'tenant', responses: { 200: U.AutomationRuleListResponse }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/automations/rules', summary: 'Create a rule (trigger → condition → actions)', tag: 'automations', auth: 'tenant', body: U.AutomationRuleCreate, responses: { 201: U.AutomationRuleView }, errors: [400, 401, 403, 404, 409, 422] },
+  { method: 'get', path: '/v1/automations/rules/{id}', summary: 'Get a rule', tag: 'automations', auth: 'tenant', responses: { 200: U.AutomationRuleView }, errors: [401, 403, 404] },
+  { method: 'patch', path: '/v1/automations/rules/{id}', summary: 'Change a rule (new version)', tag: 'automations', auth: 'tenant', body: U.AutomationRulePatch, responses: { 200: U.AutomationRuleView }, errors: [400, 401, 403, 404, 409, 422] },
+  { method: 'delete', path: '/v1/automations/rules/{id}', summary: 'Delete a rule', tag: 'automations', auth: 'tenant', responses: { 204: null }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/automations/rules/{id}/rotate-hook-token', summary: 'New inbound-webhook token (shown once)', tag: 'automations', auth: 'tenant', responses: { 200: U.AutomationRuleView }, errors: [401, 403, 404, 422] },
+  { method: 'get', path: '/v1/automations/runs', summary: 'Run log (?ruleId=&status=)', tag: 'automations', auth: 'tenant', responses: { 200: U.AutomationRunListResponse }, errors: [400, 401, 403, 404] },
+  { method: 'get', path: '/v1/automations/dead-letters', summary: 'Events that exhausted their retries', tag: 'automations', auth: 'tenant', responses: { 200: U.DeadLetterListResponse }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/automations/dead-letters/{id}/replay', summary: 'Put a dead event back on the queue', tag: 'automations', auth: 'tenant', responses: { 200: U.DeadLetterView }, errors: [401, 403, 404, 409] },
+  { method: 'get', path: '/v1/automations/assignment-policies', summary: 'Assignment policies', tag: 'automations', auth: 'tenant', responses: { 200: U.AssignmentPolicyListResponse }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/automations/assignment-policies', summary: 'Create a round-robin or load-balanced policy', tag: 'automations', auth: 'tenant', body: U.AssignmentPolicyCreate, responses: { 201: U.AssignmentPolicyView }, errors: [400, 401, 403, 404, 409] },
+  { method: 'post', path: '/v1/automations/hooks/{ruleId}', summary: 'Inbound webhook trigger (X-Flexa-Hook-Token)', tag: 'automations', auth: 'none', body: U.InboundHookRequest, responses: { 202: U.InboundHookResponse }, errors: [400, 401, 404, 429] },
 ];
