@@ -9,6 +9,8 @@ export interface Principal {
   /** From the signed access token only (ADR-0003 §4) — never from the body, query or headers. */
   tenantId: string | null;
   amr: string[];
+  /** Set when the caller authenticated with an API key (acts as its creator, narrowed to its scopes). */
+  apiKey?: { id: string; scopes: ('read' | 'write')[]; rateLimitPerMinute: number };
 }
 
 export interface TenantInfo {

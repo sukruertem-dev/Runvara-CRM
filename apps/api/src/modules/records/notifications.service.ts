@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { can } from '@flexa/authz';
 import { sql, type Db, type DbHandle } from '@flexa/db';
 import { ProblemError } from '../../common/problem';
 import { recordPredicate } from '../../common/record-access';
@@ -31,6 +32,10 @@ export class NotificationsService {
       branches.push(sql`WHEN n.record_type = ${type} THEN EXISTS (SELECT 1 FROM ${def.from} WHERE t.id = n.record_id AND t.deleted_at IS NULL AND ${await recordPredicate(tx, t, def.shape, 'read')})`);
       titles.push(sql`WHEN n.record_type = ${type} THEN (SELECT t.${sql.raw(titleCol[type])} FROM ${sql.raw(def.table)} t WHERE t.id = n.record_id)`);
     }
+    // Operational notices about a webhook subscription are for those who may read the tenant configuration.
+    const configReader = can(t.authz, 'tenant.config.read', 'read').allow;
+    branches.push(sql`WHEN n.record_type = 'webhook' THEN ${configReader}`);
+    titles.push(sql`WHEN n.record_type = 'webhook' THEN (SELECT w.name FROM webhook_subscriptions w WHERE w.id = n.record_id)`);
     return { accessible: sql`CASE ${sql.join(branches, sql` `)} ELSE false END`, title: sql`CASE ${sql.join(titles, sql` `)} END` };
   }
 
@@ -81,6 +86,12 @@ export class NotificationsService {
       if (id && (r.rowCount ?? 0) === 0) {
         const exists = await tx.execute(sql`SELECT 1 FROM notifications WHERE id = ${id} AND user_id = ${t.principal.userId}`);
         if ((exists.rowCount ?? 0) === 0) throw new ProblemError('NOT_FOUND');
+      }
+      // MEN-10: read state reaches the user's other devices through their streams.
+      if ((r.rowCount ?? 0) > 0) {
+        await tx.execute(sql`INSERT INTO outbox_events (tenant_id, type, actor, payload, correlation_id)
+          VALUES (${t.tenant.id}, 'notification.read', ${JSON.stringify({ type: 'user', id: t.principal.userId })}::jsonb,
+                  ${JSON.stringify({ userIds: [t.principal.userId], notificationIds: id ? [id] : [] })}::jsonb, gen_random_uuid())`);
       }
       return { updated: r.rowCount ?? 0 };
     });

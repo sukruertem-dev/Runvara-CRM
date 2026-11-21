@@ -76,3 +76,10 @@
 | B38 | Kuralın kimliği | Kural son kaydeden Admin'in **güncel** yetkisiyle çalışır; yetki düşerse çalıştırma `failed`/DLQ olur ve loglanır | docs/p5-plan.md §2 |
 | B39 | Döngü koruması | Derinlik > 5 → `halted_depth`; aynı zincirde aynı kural aynı kayda ikinci kez → `halted_loop` (genelde derinlikten önce keser) | ADR-0006 §3 |
 | B40 | Otomasyon e-postası | Kuyruğa commit'ten sonra deterministik iş kimliğiyle; yeniden teslimde aynı iş yeniden eklenir, kuyruk yinelenmeyi düşürür (en az bir kez, çift gönderim yok) | ADR-0006 §2 |
+| B41 | SLA ilk yanıt | İlk durum geçişi (kullanıcı/otomasyon), kayda kullanıcı yorumu ya da e-posta/arama logu ilk yanıttır; `closed` kategorisi çözümdür. Yeni kayda ilk eşleşen (sıraya göre) tek politika uygulanır | ADR-0020 not |
+| B42 | SLA takvim değişikliği | Takvim değişince çalışan saatlerin hesaplanmış hedefleri değişmez; yeni saatler yeni takvimle başlar (geçmiş taahhüt yeniden yazılmaz) | ADR-0020 |
+| B43 | Webhook otomatik kapatma | 24 saat kesintisiz başarısızlık (ilk başarısızlıktan bu yana hiç başarı yok) → abonelik kapanır, Admin'ler bildirim alır; tek başarı sayacı sıfırlar | ADR-0013 not |
+| B44 | Idempotency-Key deposu | DB tablosu yerine Redis (24 saat TTL); ADR-0012'nin depolama kısmını değiştirir | ADR-0023 |
+| B45 | API anahtarı yetkisi | Anahtar oluşturanın güncel yetkisi ∩ anahtar kapsamı; anahtarla anahtar/matris/rol yönetimi yok; oluşturma ve iptal `tenant.config.manage` | ADR-0023 |
+| B46 | SSE yeniden oynatma | Son 72 saat ve en çok 500 olay; ötesi `resync.required` | ADR-0007 not |
+| B47 | E-posta özeti | 10 dakikadan eski okunmamış bildirimler, 5 dakikada bir, yalnızca `email` kanalını seçen kullanıcılara; bildirim başına en çok bir e-posta | ADR-0017 not |

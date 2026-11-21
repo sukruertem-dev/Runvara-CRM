@@ -53,6 +53,14 @@ export function render(job: MailJob): RenderedMail {
       return tr
         ? make(`${job.vars.tenantName} sizi Flexa'ya davet ediyor`, [`${job.vars.inviterName}, sizi ${job.vars.tenantName} çalışma alanına davet etti. Davet 7 gün geçerlidir.`], { label: 'Daveti kabul et', url: job.vars.url }, 'Bu daveti beklemiyorsanız yok sayabilirsiniz.')
         : make(`${job.vars.tenantName} invited you to Flexa`, [`${job.vars.inviterName} invited you to the ${job.vars.tenantName} workspace. The invitation is valid for 7 days.`], { label: 'Accept invitation', url: job.vars.url }, 'If you were not expecting this, you can ignore it.');
+    case 'notification_digest': {
+      // Only titles the recipient may still see (checked when the digest was built); no record content.
+      const lines = job.vars.items.map((i) => `• ${i.title}${i.message ? ` — ${i.message}` : ''}`);
+      const more = job.vars.more > 0 ? [tr ? `ve ${job.vars.more} bildirim daha` : `and ${job.vars.more} more`] : [];
+      return tr
+        ? make(`${job.vars.tenantName}: okunmamış bildirimleriniz var`, [...lines, ...more], { label: 'Bildirimleri aç', url: job.vars.url }, 'Bu özeti bildirim tercihlerinizden kapatabilirsiniz.')
+        : make(`${job.vars.tenantName}: you have unread notifications`, [...lines, ...more], { label: 'Open notifications', url: job.vars.url }, 'You can turn this digest off in your notification preferences.');
+    }
     case 'automation_notice':
       // Subject and body come from a rule written by the workspace Admin; they are escaped like all text.
       return tr

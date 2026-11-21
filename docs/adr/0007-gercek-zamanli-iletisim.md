@@ -23,3 +23,9 @@
 ## Sonuçlar
 - (+) Durumsuz API örnekleri; herhangi bir örneğe bağlanılabilir (yapışkan oturum gereksiz).
 - (−) HTTP/1.1 proxy'lerde tarayıcı başına 6 bağlantı sınırı; tek akış üzerinden çoklama ile çözülür (bir sekme = bir akış, tüm konular aynı akışta).
+
+## Uygulama notu (P5b, 2026-11-21)
+- `GET /v1/stream` (`apps/api/src/modules/records/stream.service.ts`): olay tüketicisi her olayı işledikten sonra tenant kanalına (`rt:{tenant}`, Redis pub/sub) yayınlar. Her API örneği kendi bağlantıları için **olay başına yetki** kararı verir: kayıt olayları yalnızca kaydı şu an okuyabilene gider (`canRead`, REST ile aynı kural); `notification.*` yalnızca alıcılarına. Bağlantının yetki bağlamı 15 sn'de bir yenilenir; üyelik bittiyse akış kapanır.
+- Yük asgaridir: olay türü, kayıt referansı, değişen alan adları. Bildirimlerde yalnızca kimlikler gider; içerik REST'ten, okuma anında yetkiyle gelir.
+- `Last-Event-ID`: son 72 saatin outbox olayları aynı süzgeçle yeniden oynatılır. Kimlik bilinmiyorsa, eskiyse ya da 500'den fazla olay kaçmışsa `resync.required` gönderilir (istemci listeyi yeniden çeker). 20 sn'de bir `keep-alive` yorumu.
+- Yayın en az bir kez ve en iyi çabayla yapılır; istemci olayı "bir şey değişti" işareti sayar. Teslim bağlantı başına sıralıdır; bir kullanıcının yavaş yetki kontrolü diğerini geciktirmez. Abonelik yanıt başlıkları gönderilmeden önce yapılır (yanıtı alan istemci sonraki olayı kaçırmaz).

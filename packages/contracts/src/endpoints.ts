@@ -5,6 +5,7 @@ import * as C from './crm';
 import * as A from './authz';
 import * as R from './records';
 import * as U from './automation';
+import * as I from './integrations';
 
 export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 export type AuthMode = 'none' | 'access' | 'tenant' | 'refresh_cookie';
@@ -239,4 +240,22 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   { method: 'get', path: '/v1/automations/assignment-policies', summary: 'Assignment policies', tag: 'automations', auth: 'tenant', responses: { 200: U.AssignmentPolicyListResponse }, errors: [401, 403, 404] },
   { method: 'post', path: '/v1/automations/assignment-policies', summary: 'Create a round-robin or load-balanced policy', tag: 'automations', auth: 'tenant', body: U.AssignmentPolicyCreate, responses: { 201: U.AssignmentPolicyView }, errors: [400, 401, 403, 404, 409] },
   { method: 'post', path: '/v1/automations/hooks/{ruleId}', summary: 'Inbound webhook trigger (X-Flexa-Hook-Token)', tag: 'automations', auth: 'none', body: U.InboundHookRequest, responses: { 202: U.InboundHookResponse }, errors: [400, 401, 404, 429] },
+  { method: 'get', path: '/v1/calendars', summary: 'Business-hours calendars', tag: 'sla', auth: 'tenant', responses: { 200: I.BusinessCalendarListResponse }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/calendars', summary: 'Create a calendar (weekly hours, holidays, time zone)', tag: 'sla', auth: 'tenant', body: I.BusinessCalendarInput, responses: { 201: I.BusinessCalendarView }, errors: [400, 401, 403, 404, 409, 422] },
+  { method: 'put', path: '/v1/calendars/{id}', summary: 'Replace a calendar (running timers keep their computed targets)', tag: 'sla', auth: 'tenant', body: I.BusinessCalendarInput, responses: { 200: I.BusinessCalendarView }, errors: [400, 401, 403, 404, 409, 422] },
+  { method: 'get', path: '/v1/sla/policies', summary: 'SLA policies', tag: 'sla', auth: 'tenant', responses: { 200: I.SlaPolicyListResponse }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/sla/policies', summary: 'Create an SLA policy', tag: 'sla', auth: 'tenant', body: I.SlaPolicyCreate, responses: { 201: I.SlaPolicyView }, errors: [400, 401, 403, 404, 409, 422] },
+  { method: 'delete', path: '/v1/sla/policies/{id}', summary: 'Disable an SLA policy (timers keep running to their end)', tag: 'sla', auth: 'tenant', responses: { 204: null }, errors: [401, 403, 404] },
+  { method: 'get', path: '/v1/sla/timers', summary: 'SLA clocks of a record (?recordType=&recordId=)', tag: 'sla', auth: 'tenant', responses: { 200: I.SlaTimerListResponse }, errors: [400, 401, 404] },
+  { method: 'get', path: '/v1/webhooks', summary: 'Webhook subscriptions', tag: 'webhooks', auth: 'tenant', responses: { 200: I.WebhookListResponse }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/webhooks', summary: 'Subscribe a URL to events (secret returned once)', tag: 'webhooks', auth: 'tenant', body: I.WebhookCreate, responses: { 201: I.WebhookView }, errors: [400, 401, 403, 404, 409, 422] },
+  { method: 'patch', path: '/v1/webhooks/{id}', summary: 'Change or re-enable a subscription', tag: 'webhooks', auth: 'tenant', body: I.WebhookPatch, responses: { 200: I.WebhookView }, errors: [400, 401, 403, 404, 409, 422] },
+  { method: 'delete', path: '/v1/webhooks/{id}', summary: 'Delete a subscription', tag: 'webhooks', auth: 'tenant', responses: { 204: null }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/webhooks/{id}/rotate-secret', summary: 'New signing secret (the old one stays valid for 24 h)', tag: 'webhooks', auth: 'tenant', responses: { 200: I.WebhookView }, errors: [401, 403, 404] },
+  { method: 'get', path: '/v1/webhooks/{id}/deliveries', summary: 'Delivery history', tag: 'webhooks', auth: 'tenant', responses: { 200: I.WebhookDeliveryListResponse }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/webhooks/deliveries/{deliveryId}/redeliver', summary: 'Send a delivery again', tag: 'webhooks', auth: 'tenant', responses: { 200: I.WebhookDeliveryView }, errors: [401, 403, 404] },
+  { method: 'get', path: '/v1/api-keys', summary: 'API keys (never the secret part)', tag: 'api-keys', auth: 'tenant', responses: { 200: I.ApiKeyListResponse }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/api-keys', summary: 'Create an API key (shown once; acts with your rights within its scopes)', tag: 'api-keys', auth: 'tenant', body: I.ApiKeyCreate, responses: { 201: I.ApiKeyView }, errors: [400, 401, 403, 404, 409] },
+  { method: 'post', path: '/v1/api-keys/{id}/revoke', summary: 'Revoke an API key', tag: 'api-keys', auth: 'tenant', responses: { 200: I.ApiKeyView }, errors: [401, 403, 404] },
+  { method: 'get', path: '/v1/stream', summary: 'Server-sent events: record changes and notifications the caller may see (Last-Event-ID replay)', tag: 'stream', auth: 'tenant', responses: { 200: null }, errors: [401] },
 ];

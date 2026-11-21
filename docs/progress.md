@@ -1,5 +1,35 @@
 # İlerleme
 
+## P5b — Faz 5: SLA, webhook, API anahtarı, SSE, e-posta özeti · 2026-11-21 · ✅ (CI PR'da çalışacak)
+
+### Yapılanlar
+- **`0007_integrations.sql`:** `business_calendars`, `sla_policies`, `sla_timers` (segment politikasıyla), `webhook_subscriptions` (şifreli gizli + döndürme), `webhook_deliveries`, `api_keys` (yalnızca özet), `notifications.emailed_at`. Tenant'lar arası taramalar için dar SECURITY DEFINER fonksiyonlar: vadesi gelen SLA saatleri, API anahtarı çözümleme, özet adayları, özet işaretleme. Kural tetikleyicisine `sla` eklendi.
+- **SLA motoru (`packages/sla` + `SlaService`):** çalışma saati, tatil (tam/kısmi), saat dilimi ve DST; ilk yanıt ve çözüm milestone'ları; bekleme durumlarında duraklatma; dakikalık denetleyici `sla.warning` / `sla.breached` (tam bir kez, eşzamanlı güvenli); `sla.met`. Kurallar `sla` tetikleyicisiyle tepki verir.
+- **Webhook'lar:** olay türü kalıpları, `Flexa-Signature` HMAC (döndürmede 24 saat çift imza), DNS sabitlemeli güvenli gönderim, 8 deneme + backoff, teslimat geçmişi, elle yeniden gönderim, 24 saat başarısızlıkta otomatik kapatma + Admin bildirimi + audit. Kural aksiyonu `call_webhook`.
+- **API anahtarları:** `fx_…`, kapsam `read`/`write`, oluşturanın güncel yetkisi, anahtar başına hız sınırı, iptal/süre; hassas yönetim uç noktaları anahtara kapalı.
+- **`Idempotency-Key`:** tüm yazma isteklerinde; tekrar → aynı yanıt (`Idempotent-Replayed`), farklı gövde → 422, sürerken → 409 (ADR-0023: depo Redis).
+- **SSE (`GET /v1/stream`):** Redis pub/sub ile tüm API örneklerine; olay başına REST ile aynı okuma yetkisi; bildirimler yalnızca alıcıya ve içeriksiz; `Last-Event-ID` ile 72 saatlik yeniden oynatma, aksi halde `resync.required`.
+- **Bildirim e-posta özeti:** 5 dakikada bir, `email` kanalını seçenlere, gönderim anında yeniden yetkilendirilmiş başlıklarla; bildirim başına en çok bir kez.
+- **Bulunan ve düzeltilen önceki hatalar:**
+  - P5a otomasyon e-postası iş kimliği gerçek BullMQ'da reddedilirdi (`:` kuralı). Test kuyruğu bunu gizliyordu; artık aynı kuralı uyguluyor.
+  - `GET /v1/workflows` sırasızdı: yük altında görev testi rastgele düşüyordu. Artık kaynak türü + oluşturma sırasıyla dönüyor.
+- **API (18 yeni uç nokta).** Kararlar: `assumptions.md` B41–B47, ADR-0023; ADR-0006/0007/0012/0013/0017/0020 uygulama notları.
+
+### Kabul kriterleri (P5b)
+| Kriter | Durum | Kanıt |
+|---|---|---|
+| SLA: iş saatine göre hedef, duraklatma, uyarı/ihlal bir kez, kural tetiklenir | ✅ | `integrations.int.test.ts` "SLA": eşleşmeyen politika saat başlatmaz; bekleme → `paused` + kalan süre; ihlal iki eşzamanlı denetleyiciyle bile tek `sla.warning` + tek `sla.breached`; kural bildirimi |
+| Webhook imzası doğrulanabilir, retry, otomatik kapatma | ✅ | yerel alıcı imzayı `t + gövde` HMAC'iyle doğrular; 500 → `failed`, sonra `succeeded`; döndürmede iki imza; 24 saat sonra `auto_failures` + Admin bildirimi + `webhook.disabled`; `call_webhook` |
+| API anahtarı kapsamı, iptal, hız sınırı; Idempotency-Key | ✅ | salt okunur anahtar POST → 403; anahtar yönetimi/matris → 403; iptal → 401; limit → 429; aynı anahtarla tekrar tek kayıt, farklı gövde → 422 |
+| SSE yetkiye uyar, yeniden oynatır | ✅ | temsilci yalnızca kendi kaydının olayını alır (yöneticininki gelmez), bildirim içeriksiz; `Last-Event-ID` ile kaçanlar aynı süzgeçle gelir; bilinmeyen kimlik → `resync.required`; kimliksiz → 401 |
+| E-posta özeti | ✅ | 10 dk'dan taze bildirim gönderilmez; tercihi `email` olan kullanıcıya tek e-posta; ikinci çalıştırma yeniden göndermez |
+
+### Testler
+API entegrasyon **92/92** (+8), DB 18/18, `packages/sla` 38/38, birim/lint/typecheck temiz, matris/katalog PASS.
+
+### Sonraki adım
+**P6** — arayüz çekirdeği ve tasarım sistemi: token → tema, bileşen kütüphanesi + Storybook, kabuk (modüle duyarlı menü, segment değiştirici, komut paleti), görev görünümleri, kayıt detayı, ayar ekranları.
+
 ## P5a — Faz 5: olay yolu ve kural motoru · 2026-11-21 · ✅ (CI PR'da çalışacak)
 
 > Faz 5 iki adıma bölündü (`docs/p5-plan.md`): **P5a** olay yolu + kural motoru (bu adım), **P5b** SLA, webhook, API anahtarı, SSE, e-posta özeti.

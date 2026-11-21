@@ -35,3 +35,8 @@ mention.created (outbox) → notification servisi
 
 ## 5. KVKK (MEN-13)
 Kullanıcı anonimleştirmede: mention düğümleri `{kind:"user", id:<anon-id>}` olarak kalır, okuma anında "Silinmiş kullanıcı" çözülür; bildirimleri silinir; push abonelikleri silinir.
+
+## Uygulama notu (P5b, 2026-11-21)
+- E-posta özeti (`apps/api/src/modules/records/digest.service.ts`) 5 dakikada bir çalışır. Kapsam: kanal tercihinde `email` olan kullanıcıların 10 dakikadan eski, okunmamış, henüz e-postalanmamış bildirimleri. Kullanıcı başına tek e-posta gider (en çok 20 satır + "ve N bildirim daha").
+- Başlıklar gönderim anında yeniden yetkilendirilir; erişimi kalkan bildirim gönderilmez. Her bildirim en çok bir kez e-postalanır (`emailed_at`).
+- Bildirim oluşturma ve okuma `notification.created` / `notification.read` olaylarını üretir. Açık akışlar (ADR-0007) diğer cihazlarda sayacı ve okundu durumunu günceller (MEN-10).

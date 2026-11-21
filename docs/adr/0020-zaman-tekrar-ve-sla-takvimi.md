@@ -11,3 +11,10 @@
 
 ## Test
 DST geçiş günleri (Avrupa/İstanbul sabit UTC+3 olduğu için ek olarak Europe/Berlin, America/New_York), hafta sonu, tatil, tatil+duraklatma kombinasyonları için tablo tabanlı ve property testler (Faz 2, Faz 5 kabul kriterleri).
+
+## Uygulama notu (P5b, 2026-11-21)
+- `packages/sla`: `businessAdd`, `businessDiff`, `nextOpening`, `isOpen`, `validateCalendar` (property testleriyle). Takvim: haftalık saatler (gün 1–7, `24:00` dahil), tam gün ya da kısmi saatli tatiller, IANA saat dilimi.
+- Politika (`sla_policies`): kaynak `case | task | lead`, RQL ölçütü (kural koşullarıyla aynı derleyici) ve sıra. Yeni kayıtta **ilk eşleşen** politika iki saat başlatır, `first_response` ve `resolution`; uyarı eşiği `warn_percent`.
+- İlk yanıt şunlardan biridir: ilk durum geçişi (kullanıcı ya da otomasyon), kayda kullanıcı yorumu, e-posta/arama logu. Çözüm: `closed` kategorisine geçiş.
+- `pause_statuses` içindeki bir duruma girince kalan iş süresi dondurulur; çıkınca hedef yeniden hesaplanır.
+- Dakikalık denetleyici (BullMQ zamanlayıcı, `FOR UPDATE SKIP LOCKED`, eşzamanlı çalışması güvenli) `sla.warning` ve `sla.breached` olaylarını tam bir kez üretir; karşılanınca `sla.met` üretilir. Otomasyon kuralları `sla` tetikleyicisiyle bu olaylara bağlanır.

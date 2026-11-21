@@ -170,6 +170,17 @@ export const MailJob = z.discriminatedUnion('template', [
     vars: z.object({ tenantName: z.string(), inviterName: z.string(), url: z.url() }),
   }),
   z.object({
+    template: z.literal('notification_digest'),
+    to: z.string(),
+    locale: Locale,
+    vars: z.object({
+      tenantName: z.string(),
+      items: z.array(z.object({ title: z.string(), message: z.string().nullable(), url: z.url() })).min(1).max(20),
+      more: z.number().int().min(0),
+      url: z.url(),
+    }),
+  }),
+  z.object({
     template: z.literal('automation_notice'),
     to: z.string(),
     locale: Locale,
