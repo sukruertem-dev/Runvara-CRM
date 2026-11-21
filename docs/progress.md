@@ -29,7 +29,7 @@
 ### Testler
 API entegrasyon **77/77** (+10), DB **18/18** (+1), birim testleri yeşil (zengin metin, ClamAV protokolü, dosya imzaları), lint/typecheck temiz, kontrast/matris/katalog PASS.
 
-**Performans notu (dürüst kayıt):** Bu oturumda perf testi gürültülü sonuç verdi. Sayımlı senaryolardan biri her koşuda farklı olmak üzere 200 ms'yi aştı. P4b kod tabanı ve **P4a (`main`) aynı makinede aynı anda koşturulunca ikisi de aynı biçimde aştı** (ör. Admin sayım p95: P4b 139–243 ms, P4a 231 ms). Docker VM'de 3,7 GB bellekle başka projelerin 10 kapsayıcısı çalışıyordu. Yani gerileme yok; liste okuma yolunda P4b değişikliği yalnızca iyileştirme (override'lar tek sorguya katıldı, tümünü okuyan için parent alt sorguları üretilmiyor). Temiz bir makinede yeniden ölçülmeli; `docs/perf/p2-task-list.md` son koşuyu olduğu gibi gösteriyor.
+**Performans:** ✅ Temiz Docker ortamında (başka projelerin kapsayıcıları kaldırıldıktan sonra) tüm senaryolar hedefin çok altında: Admin sayım p95 58 ms, Yönetici (ekip + kural + parent erişimi) 65 ms, Yönetici sayım 74 ms (`docs/perf/p2-task-list.md`). Önceki koşulardaki 200 ms aşımları makine yükündendi: P4a (`main`) aynı yük altında aynı biçimde aşıyordu.
 
 ### Sonraki adım
 **P5** — outbox relay, kural motoru, SLA, webhook, API anahtarı, SSE (bildirimlerin anlık iletimi ve e-posta özeti dahil).
