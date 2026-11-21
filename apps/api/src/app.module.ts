@@ -1,5 +1,5 @@
 import { Module, type DynamicModule } from '@nestjs/common';
-import { APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { KeyRing, TokenSigner } from '@flexa/security';
 import { ProblemFilter } from './common/problem.filter';
 import { AccessGuard, TenantGuard } from './common/guards';
@@ -35,6 +35,13 @@ import { AutomationController } from './modules/automation/automation.controller
 import { AutomationService } from './modules/automation/automation.service';
 import { AutomationQueues } from './modules/automation/queues';
 import { AutomationRunner } from './modules/automation/runner.service';
+import { ApiKeysService } from './modules/integrations/api-keys.service';
+import { IntegrationsController } from './modules/integrations/integrations.controller';
+import { SlaService } from './modules/integrations/sla.service';
+import { WebhooksService } from './modules/integrations/webhooks.service';
+import { DigestService } from './modules/records/digest.service';
+import { StreamService } from './modules/records/stream.service';
+import { IdempotencyInterceptor } from './common/idempotency';
 import { ClamdScanner } from './infra/scanner';
 import { storageFromEnv } from './infra/storage';
 
@@ -47,7 +54,7 @@ export class AppModule {
         // Operation routes first: Fastify matches static segments before parameters either way, but keep it explicit.
         CrmOperationsController, AccountsController, ContactsController, LeadsController, OpportunitiesController, CasesController, NotesController,
         AccessAdminController, ...SHARES_CONTROLLERS,
-        GovernanceController, RecordItemsController, ...RECORD_EXTRAS_CONTROLLERS, AutomationController],
+        GovernanceController, RecordItemsController, ...RECORD_EXTRAS_CONTROLLERS, AutomationController, IntegrationsController],
       providers: [
         { provide: ENV, useValue: deps.env },
         { provide: DB, useValue: deps.db },
@@ -75,6 +82,12 @@ export class AppModule {
         AutomationRunner,
         AutomationQueues,
         AutomationService,
+        SlaService,
+        WebhooksService,
+        ApiKeysService,
+        StreamService,
+        DigestService,
+        { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
         { provide: STORAGE, useValue: deps.storage !== undefined ? deps.storage : storageFromEnv(deps.env) },
         { provide: SCANNER, useValue: deps.scanner !== undefined ? deps.scanner : deps.env.CLAMAV_HOST ? new ClamdScanner(deps.env.CLAMAV_HOST, deps.env.CLAMAV_PORT) : null },
       ],

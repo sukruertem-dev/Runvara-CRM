@@ -15,6 +15,8 @@ export class CapturingMailer implements Mailer {
   /** Like the BullMQ queue: a job id that was already queued is ignored. */
   send(job: MailJob, opts: { jobId?: string } = {}): Promise<void> {
     if (opts.jobId) {
+      // Same rule as BullMQ's Job.validateOptions: no integers, ':' only in its own three-part form.
+      if (`${parseInt(opts.jobId, 10)}` === opts.jobId || (opts.jobId.includes(':') && opts.jobId.split(':').length !== 3)) throw new Error(`invalid BullMQ job id ${opts.jobId}`);
       if (this.ids.has(opts.jobId)) return Promise.resolve();
       this.ids.add(opts.jobId);
     }
@@ -59,6 +61,7 @@ export async function startHarness(overrides: Record<string, string> = {}, deps:
     RATE_LIMIT_PER_MINUTE: '10000',
     AUTH_RATE_LIMIT_PER_MINUTE: '10000',
     OIDC_ALLOW_INSECURE_LOCALHOST: 'true',
+    EGRESS_ALLOW_INSECURE_LOCALHOST: 'true',
     S3_ENDPOINT: process.env.TEST_S3_ENDPOINT,
     S3_BUCKET: 'flexa-test',
     S3_ACCESS_KEY_ID: 'test',

@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { CustomFieldCreate, WorkflowCreate, type z } from '@flexa/contracts';
-import { and, eq, isNull, one, schema, type DbHandle } from '@flexa/db';
+import { and, asc, eq, isNull, one, schema, type DbHandle } from '@flexa/db';
 import { FormulaError, assertNoCycles } from '@flexa/formula';
 import { keyBetween, validateWorkflow, type Workflow } from '@flexa/workflow';
 import { randomUUID } from 'node:crypto';
@@ -29,7 +29,8 @@ export class TaskConfigController {
   @Get('workflows')
   async workflows(@CurrentTenant() t: TenantRequestContext) {
     return this.db.withTenant(dbCtx(t), async (tx) => {
-      const wfs = await tx.select().from(schema.workflows);
+      // Stable order: by resource type, then creation (uuidv7).
+      const wfs = await tx.select().from(schema.workflows).orderBy(asc(schema.workflows.resourceType), asc(schema.workflows.id));
       const st = await tx.select().from(schema.statuses);
       const tr = await tx.select().from(schema.workflowTransitions);
       return {

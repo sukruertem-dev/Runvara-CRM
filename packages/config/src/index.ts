@@ -53,9 +53,14 @@ export const apiEnvSchema = commonEnvSchema.extend({
   CLAMAV_PORT: z.coerce.number().int().min(1).max(65535).default(3310),
   /** Run the domain-event consumers (automation rules, schedules) in this process (ADR-0006). */
   EVENT_CONSUMERS: bool.default(false),
+  /** Development/test only: webhook deliveries may target http://localhost receivers. */
+  EGRESS_ALLOW_INSECURE_LOCALHOST: bool.default(false),
 }).refine((e) => !(e.NODE_ENV === 'production' && e.OIDC_ALLOW_INSECURE_LOCALHOST), {
   message: 'OIDC_ALLOW_INSECURE_LOCALHOST must be false in production',
   path: ['OIDC_ALLOW_INSECURE_LOCALHOST'],
+}).refine((e) => !(e.NODE_ENV === 'production' && e.EGRESS_ALLOW_INSECURE_LOCALHOST), {
+  message: 'EGRESS_ALLOW_INSECURE_LOCALHOST must be false in production',
+  path: ['EGRESS_ALLOW_INSECURE_LOCALHOST'],
 });
 
 export const workerEnvSchema = commonEnvSchema.extend({

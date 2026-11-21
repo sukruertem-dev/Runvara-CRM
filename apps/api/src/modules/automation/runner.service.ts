@@ -12,6 +12,7 @@ import { DB, ENV, MAILER, type ApiEnv, type Mailer } from '../../infra/tokens';
 import { isCrmType } from '../crm/crm-objects';
 import { CrmService } from '../crm/crm.service';
 import { taskReadPredicate, TasksService } from '../tasks/tasks.service';
+import { WebhooksService } from '../integrations/webhooks.service';
 import { pickAssignee } from './assignment';
 import { conditionRegistry, shapeOf, updateBody, type RuleAction, type RuleDefinition } from './rule-support';
 
@@ -36,6 +37,7 @@ export function stableUuid(key: string): string {
 /** Mail produced by a run is enqueued only after its transaction commits (job id = run + action index, so a
  *  redelivered event re-enqueues the same jobs and the queue drops the duplicates). */
 interface PendingMail { jobId: string; userId: string; subject: string; body: string; recordType: string; recordId: string }
+interface PendingWebhook { tenantId: string; deliveryId: string; event: DomainEvent }
 
 export interface ProcessResult { rule: string; record: string; status: RunStatus | 'duplicate' }
 
@@ -52,6 +54,7 @@ export class AutomationRunner {
     @Inject(MAILER) private readonly mailer: Mailer,
     private readonly crm: CrmService,
     private readonly tasks: TasksService,
+    private readonly webhooks: WebhooksService,
   ) {}
 
   /** Processes one event. `final` = this is the last delivery attempt (failures become dead letters). */
@@ -106,6 +109,17 @@ export class AutomationRunner {
         });
         return [{ rule, recordIds: ids }];
       }
+      if (event.type.startsWith('sla.') && event.resource) {
+        const kind = event.type.slice('sla.'.length);
+        const r = await tx.execute<RuleRow>(sql`SELECT id, name, resource_type, trigger_type, definition, run_as, version FROM automation_rules
+          WHERE enabled AND trigger_type = 'sla' AND resource_type = ${event.resource.type} ORDER BY created_at, id`);
+        return r.rows
+          .filter((rule) => {
+            const tr = rule.definition.trigger;
+            return tr.type === 'sla' && tr.event === kind && (tr.milestone === undefined || tr.milestone === event.payload.milestone);
+          })
+          .map((rule) => ({ rule, recordIds: [event.resource?.id ?? ''] }));
+      }
       if (!event.resource || event.resource.type !== resourceType || !verb) return [];
       const triggers = verb === 'created' ? ['record.created'] : verb === 'updated' ? ['record.updated', 'field_changed'] : verb === 'status_changed' ? ['status_changed'] : [];
       if (triggers.length === 0) return [];
@@ -139,15 +153,19 @@ export class AutomationRunner {
     const started = Date.now();
     const ctx = await this.contextFor(event, rule);
     const mails: PendingMail[] = [];
+    const hooks: PendingWebhook[] = [];
     let status: RunStatus | 'duplicate';
     try {
       status = await this.db.withTenant(dbCtx(ctx), async (tx) => {
-        const prior = await tx.execute<{ status: RunStatus; attempt: number; actions: { mail?: PendingMail }[] }>(sql`
+        const prior = await tx.execute<{ status: RunStatus; attempt: number; actions: { mail?: PendingMail; deliveryId?: string }[] }>(sql`
           SELECT status, attempt, actions FROM automation_runs WHERE rule_id = ${rule.id} AND event_id = ${event.id} AND record_id = ${recordId} FOR UPDATE`);
         const p = prior.rows[0];
         if (p && TERMINAL.has(p.status)) {
           // Already applied: only re-enqueue its mails (the queue de-duplicates by job id).
-          for (const a of p.actions) if (a.mail) mails.push(a.mail);
+          for (const a of p.actions) {
+            if (a.mail) mails.push(a.mail);
+            if (a.deliveryId) hooks.push({ tenantId: event.tenantId, deliveryId: a.deliveryId, event });
+          }
           return 'duplicate';
         }
         const attempt = (p?.attempt ?? 0) + 1;
@@ -165,7 +183,7 @@ export class AutomationRunner {
 
         const results: Record<string, unknown>[] = [];
         for (const [i, action] of rule.definition.actions.entries()) {
-          results.push(await this.act(tx, ctx, rule, recordId, action, `run:${rule.id}:${event.id}:${recordId}:${i}`, mails));
+          results.push(await this.act(tx, ctx, rule, recordId, action, `run:${rule.id}:${event.id}:${recordId}:${i}`, mails, hooks, event));
         }
         return this.finish(tx, ctx, base, 'succeeded', true, results, null);
       });
@@ -178,6 +196,7 @@ export class AutomationRunner {
       throw e;
     }
     for (const m of mails) await this.sendMail(ctx, m);
+    for (const h of hooks) await this.webhooks.enqueue(h);
     return status;
   }
 
@@ -218,7 +237,9 @@ export class AutomationRunner {
     return owner;
   }
 
-  private async act(tx: Db, ctx: TenantRequestContext, rule: RuleRow, recordId: string, action: RuleAction, jobId: string, mails: PendingMail[]): Promise<Record<string, unknown>> {
+  private async act(
+    tx: Db, ctx: TenantRequestContext, rule: RuleRow, recordId: string, action: RuleAction, jobId: string, mails: PendingMail[], hooks: PendingWebhook[], event: DomainEvent,
+  ): Promise<Record<string, unknown>> {
     const type = rule.resource_type;
     switch (action.type) {
       case 'update_field': {
@@ -252,7 +273,8 @@ export class AutomationRunner {
       }
       case 'send_email': {
         const userId = await this.target(tx, rule, recordId, action.to);
-        const mail: PendingMail = { jobId, userId, subject: action.subject, body: action.body, recordType: type, recordId };
+        // BullMQ custom ids may not contain ':' (beyond its own three-part form): a stable uuid of the run key.
+        const mail: PendingMail = { jobId: `mail-${stableUuid(jobId)}`, userId, subject: action.subject, body: action.body, recordType: type, recordId };
         mails.push(mail);
         return { type: action.type, userId, mail };
       }
@@ -261,6 +283,13 @@ export class AutomationRunner {
         else if (isCrmType(type) && type !== 'account' && type !== 'contact') await this.crm.transitionIn(tx, ctx, type, recordId, { transitionKey: action.transitionKey });
         else throw new ProblemError('RULE_DEFINITION_INVALID', `${type} has no workflow`);
         return { type: action.type, transitionKey: action.transitionKey };
+      }
+      case 'call_webhook': {
+        const sub = await tx.execute(sql`SELECT 1 FROM webhook_subscriptions WHERE id = ${action.subscriptionId} AND enabled`);
+        if ((sub.rowCount ?? 0) === 0) throw new ProblemError('NOT_FOUND', 'webhook subscription not found or disabled');
+        const job = await this.webhooks.createDelivery(tx, event, action.subscriptionId);
+        hooks.push(job);
+        return { type: action.type, subscriptionId: action.subscriptionId, deliveryId: job.deliveryId };
       }
     }
   }

@@ -20,6 +20,10 @@ export async function notify(
   const recipients = users.filter((u) => !muted.has(u));
   if (recipients.length) {
     await tx.execute(sql`SELECT app.create_notifications(${uuidArray(recipients)}, ${n.kind}, ${n.sourceType}, ${n.sourceId}::uuid, ${n.recordType}, ${n.recordId}::uuid, ${n.message ?? null})`);
+    // Realtime: the recipients' open streams learn that something new arrived (no content, ADR-0007).
+    await tx.execute(sql`INSERT INTO outbox_events (tenant_id, type, actor, payload, correlation_id)
+      VALUES (${t.tenant.id}, 'notification.created', ${JSON.stringify({ type: 'system', id: null })}::jsonb,
+              ${JSON.stringify({ userIds: recipients, kind: n.kind })}::jsonb, ${t.automation?.correlationId ?? sql`gen_random_uuid()`})`);
   }
   return recipients;
 }

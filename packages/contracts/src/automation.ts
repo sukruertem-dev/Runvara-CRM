@@ -19,6 +19,11 @@ export const AutomationTrigger = z.discriminatedUnion('type', [
     timezone: z.string().min(1).max(64).default('Europe/Istanbul'),
   }).strict(),
   z.object({ type: z.literal('inbound_webhook') }).strict(),
+  z.object({
+    type: z.literal('sla'),
+    event: z.enum(['warning', 'breached', 'met']),
+    milestone: z.enum(['first_response', 'resolution']).optional(),
+  }).strict(),
 ]);
 
 /** Who receives a notification / e-mail or becomes the owner: the record owner, a fixed member, or a policy. */
@@ -41,6 +46,8 @@ export const AutomationAction = z.discriminatedUnion('type', [
   z.object({ type: z.literal('notify'), to: Target, message: z.string().trim().min(1).max(500) }).strict(),
   z.object({ type: z.literal('send_email'), to: Target, subject: z.string().trim().min(1).max(200), body: z.string().trim().min(1).max(5000) }).strict(),
   z.object({ type: z.literal('transition'), transitionKey: z.string().regex(/^[a-z][a-z0-9_]{1,47}$/) }).strict(),
+  /** Sends the triggering event to a webhook subscription (signed, retried like any delivery). */
+  z.object({ type: z.literal('call_webhook'), subscriptionId: Uuid }).strict(),
 ]);
 
 export const AutomationRuleDefinition = z

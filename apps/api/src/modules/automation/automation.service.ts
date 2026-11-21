@@ -52,6 +52,7 @@ export class AutomationService {
     const known = (f: string) => (f.startsWith('custom.') ? defs.some((x) => !x.archivedAt && `custom.${x.key}` === f) : VIEW_FIELDS[d.resourceType].includes(f));
     if (d.trigger.type === 'field_changed') for (const f of d.trigger.fields) if (!known(f)) bad(`trigger: unknown field ${f}`);
     if (d.trigger.type === 'status_changed' && !WORKFLOW_TYPES.has(d.resourceType)) bad(`${d.resourceType} has no statuses`);
+    if (d.trigger.type === 'sla' && !['case', 'task', 'lead'].includes(d.resourceType)) bad(`${d.resourceType} has no SLA clocks`);
     const users = new Set<string>();
     const policies = new Set<string>();
     for (const a of d.actions) {
@@ -60,6 +61,10 @@ export class AutomationService {
         updateBody(d.resourceType, a.field, a.value);
       }
       if (a.type === 'transition' && !WORKFLOW_TYPES.has(d.resourceType)) bad(`${d.resourceType} has no workflow`);
+      if (a.type === 'call_webhook') {
+        const w = await tx.execute(sql`SELECT 1 FROM webhook_subscriptions WHERE id = ${a.subscriptionId}`);
+        if ((w.rowCount ?? 0) === 0) bad('unknown webhook subscription');
+      }
       const to = a.type === 'assign' || a.type === 'notify' || a.type === 'send_email' ? a.to : a.type === 'create_task' ? a.assignTo : null;
       if (to?.kind === 'user') users.add(to.userId);
       if (to?.kind === 'policy') policies.add(to.policyId);

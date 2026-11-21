@@ -29,7 +29,7 @@ describe('task CRUD, optimistic locking and the workflow engine (Faz 2 kabul: ge
   it('new tenants get the default workflow; tasks start in its initial status with a position', async () => {
     const { c } = await signupAndLogin(h);
     const wfs = await c.get('/v1/workflows');
-    const wf = (wfs.body.data as Json[])[0]!;
+    const wf = (wfs.body.data as Json[]).find((w) => w.resourceType === 'task' && w.isDefault)!;
     expect((wf.statuses as Json[]).map((s) => s.key)).toEqual(['todo', 'in_progress', 'done', 'canceled']);
     const t = await task(c, { priority: 3 });
     expect(t).toMatchObject({ status: { key: 'todo', category: 'open' }, priority: 3, version: 1, depth: 0 });

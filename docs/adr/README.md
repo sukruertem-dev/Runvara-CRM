@@ -26,4 +26,5 @@ Biçim: Bağlam → Karar → Alternatifler → Sonuçlar. Durum: Önerildi / Ka
 | [0020](0020-zaman-tekrar-ve-sla-takvimi.md) | Zaman dilimi, tekrar, SLA takvimi | Önerildi | F2, F5 |
 | [0021](0021-teklif-versiyonlama-ve-onay-motoru.md) | Teklif versiyonlama ve onay motoru | Önerildi | G3, G4 |
 | [0022](0022-ai-mimarisi.md) | AI asistan mimarisi (çerçeve) | Önerildi | G11 |
+| [0023](0023-idempotency-anahtari-ve-api-anahtarlari.md) | Idempotency-Key deposu (Redis) ve API anahtarları | Kabul edildi | Faz 5 |
 | 0023 | AI model seçimi | G11'de yazılacak | G11 |

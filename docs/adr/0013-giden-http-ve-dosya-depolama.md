@@ -24,3 +24,11 @@ Webhook teslimatı, CCaaS REST çağrıları, BYO AI uç noktası, OIDC keşfi *
 ## Uygulama notu (P4b, 2026-11-21)
 - Dosya akışı `apps/api/src/modules/records/attachments.service.ts`: imzalı PUT (içerik türü ve `Content-Disposition` imzalı) → `complete`'te boyut ve dosya imzası (sihirli bayt) doğrulaması, uyuşmazlıkta nesne silinir → `ClamdScanner` (INSTREAM) ya da açıkça `unscanned`; tarayıcı erişilemezse dosya `quarantine`'de kalır ve indirilemez → indirme her istekte yetki + 60 sn imzalı GET.
 - Geliştirme/test deposu SeaweedFS (MinIO imajları erişilemez, `assumptions.md` B33). SVG şimdilik kabul edilmiyor.
+
+## Uygulama notu (P5b, 2026-11-21)
+- Webhook teslimi `apps/api/src/modules/integrations/webhooks.service.ts`. Abonelik başına olay türü kalıpları vardır (`*`, `account.*`, tam ad). Gizli `whsec_…` tenant DEK'iyle şifreli saklanır; yalnızca oluşturmada ve döndürmede bir kez gösterilir.
+- Başlıklar: `Flexa-Event`, `Flexa-Delivery`, `Flexa-Signature: t=<unix>,v1=<HMAC-SHA256(gizli, t + "." + gövde)>`. Döndürmeden sonra 24 saat boyunca eski gizliyle de imzalanır (iki `v1`).
+- Gönderim `safePost` ile yapılır: DNS bir kez çözülür, özel/yerel adresler reddedilir ve bağlantı çözülen adrese sabitlenir (DNS rebinding yok). Yönlendirme izlenmez; 3 sn bağlantı / 10 sn toplam süre; yanıtın en çok 64 KB'ı okunur. 2xx dışı yanıt başarısız sayılır.
+- 8 deneme, üstel bekleme + jitter (olay kuyruğuyla aynı). Teslimat geçmişi (durum, deneme, yanıt kodu, gecikme) ve elle yeniden gönderim vardır.
+- 24 saat kesintisiz başarısızlıkta abonelik kapanır (`auto_failures`): `webhook.disabled` olayı, Admin bildirimi ve audit kaydı üretilir. Yeniden açınca sayaç sıfırlanır.
+- Kural aksiyonu `call_webhook` aynı teslim hattını kullanır (abonelik olay türüyle eşleşmese de).

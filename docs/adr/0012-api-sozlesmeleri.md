@@ -25,3 +25,6 @@
 ## Sonuçlar
 - (+) Tutarlı, makine okunur hatalar; istemci ve test üretimi kolay.
 - (−) İmzalı cursor, sunucu anahtarı döndürmede eski cursor'ları geçersiz kılar (kabul edilebilir; istemci ilk sayfadan yeniler).
+
+## Uygulama notu (P5b, 2026-11-21)
+- `Idempotency-Key` deposu DB tablosu yerine Redis'tir (24 saat TTL, atomik `SET NX`). Gerekçe ve API anahtarı kuralları **ADR-0023**'te. Davranış (422/409, 24 saat, kapsam = tenant + çağıran) bu ADR'deki gibidir.
