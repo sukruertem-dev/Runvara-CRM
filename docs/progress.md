@@ -1,5 +1,34 @@
 # İlerleme
 
+## P5a — Faz 5: olay yolu ve kural motoru · 2026-11-21 · ✅ (CI PR'da çalışacak)
+
+> Faz 5 iki adıma bölündü (`docs/p5-plan.md`): **P5a** olay yolu + kural motoru (bu adım), **P5b** SLA, webhook, API anahtarı, SSE, e-posta özeti.
+
+### Yapılanlar
+- **`0006_automation.sql`:** `outbox_events` (commit'te `NOTIFY`), `processed_events`, `automation_rules` (sürümlü, kimlik = son kaydeden Admin), `automation_runs` (girdi, koşul sonucu, aksiyonlar, süre, hata, deneme; `UNIQUE(kural, olay, kayıt)`), `dead_letters`, `assignment_policies`; otomasyon bildirimi; gelen webhook ve zamanlama için iki dar SECURITY DEFINER çözümleyici.
+- **Olay yolu:** her kayıt değişikliği aynı transaction'da outbox'a yazılır (alan değeri yok, yalnızca alan adları). Relay (`flexa_relay`) → BullMQ `events` (iş kimliği = olay kimliği) → `automation` servisi.
+- **Kural motoru:** tetikleyiciler (oluşturuldu, güncellendi, alan değişti, durum değişti, zamanlanmış/cron, gelen webhook), RQL koşulu (ilişkili firma alanları dahil), aksiyonlar (alan güncelle, görev oluştur, ata, bildirim, e-posta, durum geçişi). Kural JSON şeması `AutomationRuleDefinition` (P6 görsel editörü için).
+- **Güvenlik önlemleri:** tam bir kez etki (kural × olay × kayıt tek transaction), döngü koruması (`halted_loop`, derinlik > 5 → `halted_depth`, ikisi de loglanır ve olay üretir), 8 deneme + üstel bekleme + tam jitter (üst sınır 15 dk), DLQ + replay, çalıştırma logu.
+- **Atama politikaları:** round-robin (kilitli sıra), yük dengeli (açık görev/talep/aday sayısı), ekip veya kuyruk, yedek kullanıcı.
+- **Compose:** `automation` servisi (API imajı, `EVENT_CONSUMERS=true`), worker'da relay. İşletim kılavuzu: `docs/ops/automation-dlq.md`.
+- **CI hızlandırma:** Dockerfile'larda bağımlılık katmanı ayrı (`pnpm fetch`, yalnızca lockfile ile değişir) ve e2e işinde imaj katmanları GitHub Actions önbelleğinde (`docker/bake-action`). P4b'deki uzun e2e süresinin nedeni önbelleksiz imaj derlemesiydi.
+- **API (12 yeni uç nokta).** Kararlar: `assumptions.md` B37–B40.
+
+### Kabul kriterleri (P5a)
+| Kriter | Durum | Kanıt |
+|---|---|---|
+| Döngüye giren iki kural limitte durur ve loglanır | ✅ | `automation.int.test.ts`: ping-pong → `halted_loop` + `automation.run.halted`; büyüyen zincir → 6 başarılı + `halted_depth` |
+| Aynı olay iki kez işlense bile aksiyon bir kez | ✅ | aynı olay tekrar → boş; tüketici işareti silinse bile → `duplicate`; görev ve e-posta sayısı değişmez |
+| Worker çökmesi sonrası olaylar kaybolmaz (kaos) | ✅ | relay yayınlayıp işaretlemeden "çöker", tekrar yayınlar: 12 kaydın her biri için tam 1 görev, bekleyen olay yok |
+| Retry + DLQ + replay | ✅ | geçici hata → `failed`, son deneme → `dead` + DLQ; neden düzeltilip gerçek kuyruk/tüketiciyle replay → tek kez uygulanır |
+
+### Testler
+API entegrasyon **84/84** (+7), DB 18/18, birim/lint/typecheck temiz, matris/katalog PASS.
+
+### Sonraki adım
+**P5b** — SLA motoru (çalışma saati, tatil, DST), webhook'lar (HMAC, retry, devre dışı bırakma, `call_webhook` aksiyonu), API anahtarları + `Idempotency-Key`, SSE, bildirim e-posta özeti.
+
+
 ## P4b — Faz 4 + G2: kayıt etrafı · 2026-11-21 · ✅ (CI PR'da çalışacak)
 
 ### Yapılanlar

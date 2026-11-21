@@ -279,6 +279,16 @@ export class TasksService {
     });
   }
 
+  /** Patch / transition inside an existing transaction without If-Match (automation actions). */
+  async patchIn(tx: Db, t: TenantRequestContext, id: string, body: Patch): Promise<void> {
+    const row = await this.readRow(tx, t, id, { forUpdate: true });
+    await this.applyPatch(tx, t, row, null, body);
+  }
+
+  async transitionByKeyIn(tx: Db, t: TenantRequestContext, id: string, transitionKey: string): Promise<void> {
+    await this.transitionIn(tx, t, id, { transitionKey }, undefined);
+  }
+
   private async applyPatch(tx: Db, t: TenantRequestContext, row: TaskRow, version: number | null, body: Patch, statusChange?: { statusId: string; closedAt: Date | null }): Promise<void> {
     const me = t.principal.userId;
     await assertCan(tx, t, TASK_SHAPE, row.id, 'update');

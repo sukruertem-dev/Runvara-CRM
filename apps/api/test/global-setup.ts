@@ -32,6 +32,7 @@ export async function setup(): Promise<void> {
   process.env.TEST_S3_ENDPOINT = endpoint;
   process.env.TEST_DATABASE_URL = db.appUrl;
   process.env.TEST_SUPER_DATABASE_URL = db.superUrl;
+  process.env.TEST_RELAY_DATABASE_URL = db.relayUrl;
   process.env.TEST_REDIS_URL = `redis://${redis.getHost()}:${redis.getMappedPort(6379)}`;
 }
 

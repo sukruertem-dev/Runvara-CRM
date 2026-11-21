@@ -33,6 +33,8 @@ export interface TenantRequestContext {
   segments: readonly Segment[];
   /** Teams, queues, hierarchy, sharing and field policies of the caller (record-access.ts). */
   access: AccessInfo;
+  /** Set when an automation rule acts: events it causes continue the chain (ADR-0006 §3). */
+  automation?: { ruleId: string; correlationId: string; causationId: string; depth: number };
 }
 
 export function segmentsForSalesMode(mode: TenantInfo['salesMode']): readonly Segment[] {

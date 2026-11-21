@@ -11,7 +11,13 @@ import type { ApiDeps, Mailer } from '../src/infra/tokens';
 /** Test double for the mail queue: records jobs so tests can read the links a user would receive. */
 export class CapturingMailer implements Mailer {
   readonly jobs: MailJob[] = [];
-  send(job: MailJob): Promise<void> {
+  private readonly ids = new Set<string>();
+  /** Like the BullMQ queue: a job id that was already queued is ignored. */
+  send(job: MailJob, opts: { jobId?: string } = {}): Promise<void> {
+    if (opts.jobId) {
+      if (this.ids.has(opts.jobId)) return Promise.resolve();
+      this.ids.add(opts.jobId);
+    }
     this.jobs.push(job);
     return Promise.resolve();
   }

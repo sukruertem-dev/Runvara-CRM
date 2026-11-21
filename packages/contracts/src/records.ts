@@ -48,7 +48,7 @@ export const CommentRevisionListResponse = z
 // ------------------------------------------------------------------ notifications
 export const NotificationView = z
   .object({
-    id: Uuid, kind: z.enum(['mention', 'assigned']), accessible: z.boolean(), title: z.string().nullable(),
+    id: Uuid, kind: z.enum(['mention', 'assigned', 'automation']), accessible: z.boolean(), title: z.string().nullable(), message: z.string().nullable(),
     record: z.object({ type: z.string(), id: Uuid }).nullable(), source: z.object({ type: z.string(), id: Uuid }).nullable(),
     actor: Actor, link: z.string().nullable(), createdAt: z.string(), readAt: z.string().nullable(),
   })
@@ -57,10 +57,10 @@ export const NotificationListResponse = z.object({ data: z.array(NotificationVie
 export const NotificationReadResponse = z.object({ updated: z.number().int() }).openapi('NotificationReadResponse');
 const Channel = z.enum(['in_app', 'email', 'push']);
 export const NotificationPreferences = z
-  .object({ data: z.array(z.object({ kind: z.enum(['mention', 'assigned']), channels: z.array(Channel) })) })
+  .object({ data: z.array(z.object({ kind: z.enum(['mention', 'assigned', 'automation']), channels: z.array(Channel) })) })
   .openapi('NotificationPreferences');
 export const NotificationPreferencesSet = z
-  .object({ preferences: z.array(z.object({ kind: z.enum(['mention', 'assigned']), channels: z.array(Channel).max(3) }).strict()).min(1).max(2) })
+  .object({ preferences: z.array(z.object({ kind: z.enum(['mention', 'assigned', 'automation']), channels: z.array(Channel).max(3) }).strict()).min(1).max(3) })
   .strict()
   .openapi('NotificationPreferencesSet');
 

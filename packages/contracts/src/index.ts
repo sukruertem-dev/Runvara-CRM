@@ -5,5 +5,7 @@ export * from './tasks';
 export * from './crm';
 export * from './authz';
 export * from './records';
+export * from './events';
+export * from './automation';
 export { buildOpenApiDocument } from './openapi';
 export { z } from 'zod';

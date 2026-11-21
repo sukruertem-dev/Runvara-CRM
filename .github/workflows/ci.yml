@@ -26,7 +26,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
-      - name: 'Integration tests (Testcontainers: PostgreSQL 18 + Redis 7)'
+      - name: 'Integration tests (Testcontainers: PostgreSQL 18 + Redis 7 + SeaweedFS)'
         run: pnpm test:int
 
   e2e:
@@ -40,8 +40,20 @@ jobs:
       - uses: actions/setup-node@v5
         with: { node-version: 24, cache: pnpm }
       - run: node scripts/dev-env.mjs
+      - uses: docker/setup-buildx-action@v3
+      # Image layers are cached in GitHub Actions between runs: the dependency layer (pnpm fetch) is rebuilt only
+      # when the lockfile changes, so a typical run builds just the application code.
+      - name: Build images (cached)
+        uses: docker/bake-action@v6
+        with:
+          source: .
+          files: docker-compose.yml
+          load: true
+          set: |
+            *.cache-from=type=gha,scope=flexa-e2e
+            *.cache-to=type=gha,scope=flexa-e2e,mode=max
       - name: Start the stack from scratch
-        run: docker compose up --build --wait --wait-timeout 600
+        run: docker compose up --wait --wait-timeout 600
       - run: pnpm install --frozen-lockfile --filter @flexa/web...
       - run: pnpm --filter @flexa/web exec playwright install --with-deps chromium
       - run: pnpm e2e
