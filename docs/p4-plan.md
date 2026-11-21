@@ -67,5 +67,28 @@ Görünmez (segment, kapsam, tenant) → 404; görünür ama eylem yetkisiz → 
 ## 9. Bilinçli sınırlar (P4a)
 Delegasyon, yetki talebi, matris düzenleme/diff/sürüm, "bu kullanıcı olarak gör" → P4b. Segment değiştirici (isteğe göre daraltma) P6 kabuğuyla (API başlığı `X-Segment` P4a'da daraltma olarak desteklenir).
 
-## 10. P4b kapsamı (sonraki oturum)
-`activity_events` (append-only, alan diff'i, geçiş, atama, oluşturma/silme; segment etiketli), yorumlar (rich text, mention doğrulaması ADR-0017 §2, düzenleme geçmişi), dosya ekleri (MinIO, imzalı URL, karantina/tarama kancası), e-posta/arama logu, bildirim tablosu + okundu + tercihler + okuma anında yetki, audit okuma API'si (Yönetici: ekibin eylemleri), delegasyon (süreli, zamanlanmış sona erme), yetki talebi, matris yönetim API'leri.
+## 10. P4b — kayıt etrafı (dal `feat/p4b-records`)
+| Konu | Karar |
+|---|---|
+| **Activity timeline** | `activity_events` append-only (trigger + `REVOKE UPDATE, DELETE`); servisler iş yazımıyla **aynı transaction'da** yazar: `created`, `field_changed` (alan diff'i, API alan adlarıyla), `status_changed`, `assigned`, `deleted`, `restored`, `converted`, `merged`, `comment`, `attachment`, `email_log`, `call_log`. Segment kayıttan türetilir (RLS). `GET /v1/{type}/{id}/timeline`: kaydı okuyabilen görür; **FLS**: gizli alanların diff'i çıkarılır. |
+| **E-posta / arama logu** | `POST /v1/{type}/{id}/activities` (`email_log` / `call_log`: yön, konu, metin, zaman, süre) — kayıtta `create` yetkisi + okuma. |
+| **Yorumlar** | `comments` + `comment_revisions` (düzenleme geçmişi); gövde ProseMirror JSON → sunucuda izinli düğümlerle üretilen `body_html` + `body_text`. Silme: yazar veya kaynakta tenant geneli `archive`; yumuşak silme, geçmiş korunur. |
+| **Mention (ADR-0017 §2)** | Kullanıcı mention'ı: hedef kaydı okuyamıyorsa **422 `MENTION_TARGET_NO_ACCESS`** (yalnızca çağıranın görebildiği kullanıcıları adlandırır). Ekip mention'ı: erişimi olmayan üyeler sessizce atlanır (`via_team_id`). Düzenlemede yalnızca yeni anılanlara bildirim; kaldırılanların mention'ı ve okunmamış bildirimi geri çekilir. En fazla 20 kullanıcı + 3 ekip. `mentions.create` izni (A27). |
+| **Bildirimler** | `notifications` (referans, içerik değil) + `notification_preferences`. Türler: `mention`, `assigned` (kayıt başkasına atanınca). `GET /v1/notifications` **okuma anında yetki** (MEN-09): kayda erişim kaybedildiyse başlık/kayıt adı boş, `accessible:false`. Okundu, tümünü okundu, okunmamış sayısı, tercihler (A28). Push/e-posta özet kanalları ve SSE P5 (outbox + worker). |
+| **Dosya ekleri (ADR-0013 §2)** | S3 uyumlu (dev/test: MinIO). `initiate` (yetki, boyut ≤ 25 MB, MIME beyaz listesi) → 5 dk imzalı PUT → `complete` (nesne boyutu ve **sihirli bayt** doğrulaması; uyuşmazlık → nesne silinir, 422) → tarama kancası (`ATTACHMENT_SCANNER`: yoksa durum açıkça `unscanned`) → indirme: her istekte yetki + 60 sn imzalı GET, `Content-Disposition: attachment`. Karantina/enfekte dosya indirilemez. |
+| **Audit okuma (A23)** | `GET /v1/audit`: Admin tümü; Yönetici yalnızca ekip üyelerinin eylemleri; filtre (eylem öneki, aktör, hedef, tarih) + cursor. |
+| **Delegasyon (A07)** | Delegator kendi rollerinden birini ve segmentlerinden bir alt kümeyi süreli devreder → `user_roles.valid_until` / `user_segment_grants.valid_until` ile gerçekleşir (süre dolunca bir sonraki istekte geçersiz, SCN-18); `delegations` kaydı + iptal. Admin herkese; Yönetici yalnızca yönettiği ekip üyelerine, kendine değil, kendi yetkisini aşmadan. Süre dolumunun audit satırı P5 zamanlanmış işiyle (yetki kaldırma zaten anında). |
+| **Yetki talebi** | `access_requests` (rol veya segment, gerekçe, istenen süre) → Admin veya talep edenin Yöneticisi onaylar/reddeder (aynı sınırlarla); onay delegasyonla aynı yoldan uygulanır. |
+| **Matris yönetimi (AUTH-11, A03)** | Tenant'a özel `role_grant_overrides` (rol × izin → grant ya da kaldırma) + `matrix_versions` anlık görüntüleri. `GET /v1/authz/matrix` (kapalı modül izinleri gizli), `POST …/preview` (diff), `PUT` (yeni sürüm), `POST …/versions/{n}/restore` (geri alma). Admin'in korunan izinleri kaldırılamaz; motor (`can`, `recordScope`) override'ları istek bağlamından okur. |
+
+### P4b kabul kriterleri ↔ testler
+| Kriter | Test |
+|---|---|
+| Timeline alan diff'leri, durum geçişi, atama, oluşturma/silme; değiştirilemez | `records.int.test.ts` + DB testi (UPDATE/DELETE reddi) |
+| Gizli alanın diff'i timeline'da görünmez | aynı |
+| Mention: erişimsiz hedef 422, ekip genişletme, düzenlemede yalnızca yeniye bildirim, geri çekme | aynı |
+| Bildirim okuma anında yetki (SCN-17) | erişim kaldırıldıktan sonra içerik gizli |
+| Dosya: imzalı yükleme/indirme, sihirli bayt, yetkisiz indirme 404 | MinIO kapsayıcısıyla |
+| Audit: Yönetici yalnızca ekibinin eylemlerini görür | aynı |
+| Delegasyon süresi dolunca yetki kalkar (SCN-18); Yönetici sınırları | aynı |
+| Matris düzenleme bir sonraki istekte geçerli; diff; geri alma; korunan izin | aynı |

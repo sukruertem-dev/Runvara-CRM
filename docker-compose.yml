@@ -1,6 +1,7 @@
 # Local stack: `node scripts/dev-env.mjs` (writes .env with random secrets) then `docker compose up --build`.
 # Web http://localhost:3000 · API http://localhost:4000 (docs /docs) · Mailpit http://localhost:8025
-# Host ports are overridable in .env: FLEXA_WEB_PORT, FLEXA_API_PORT, FLEXA_PG_PORT, FLEXA_REDIS_PORT, FLEXA_MAILPIT_PORT
+# Host ports are overridable in .env: FLEXA_WEB_PORT, FLEXA_API_PORT, FLEXA_PG_PORT, FLEXA_REDIS_PORT, FLEXA_MAILPIT_PORT, FLEXA_S3_PORT
+# Attachments: S3-compatible SeaweedFS on http://localhost:8333 (bucket `flexa`, created by s3-init).
 name: flexa
 
 x-node-env: &node-env
@@ -51,6 +52,24 @@ services:
       timeout: 3s
       retries: 20
 
+  s3:
+    image: chrislusf/seaweedfs:3.80
+    command: ["server", "-s3", "-dir=/data", "-volume.max=50", "-master.volumeSizeLimitMB=256"]
+    volumes: [s3data:/data]
+    ports: ["127.0.0.1:${FLEXA_S3_PORT:-8333}:8333"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8888/ >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  s3-init:
+    image: chrislusf/seaweedfs:3.80
+    entrypoint: ["/bin/sh", "-c", "echo 's3.bucket.create -name flexa' | weed shell -master=s3:9333 -filer=s3:8888"]
+    depends_on:
+      s3: { condition: service_healthy }
+    restart: "no"
+
   migrate:
     build: { context: ., dockerfile: infra/docker/node-app.Dockerfile, args: { APP: api } }
     image: flexa-api:local
@@ -74,10 +93,16 @@ services:
       # Local stack runs over plain http; production must keep the default (true).
       COOKIE_SECURE: "false"
       TRUST_PROXY: "true"
+      S3_ENDPOINT: http://s3:8333
+      S3_PUBLIC_ENDPOINT: http://localhost:${FLEXA_S3_PORT:-8333}
+      S3_BUCKET: flexa
+      S3_ACCESS_KEY_ID: local
+      S3_SECRET_ACCESS_KEY: local
     ports: ["127.0.0.1:${FLEXA_API_PORT:-4000}:4000"]
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
+      s3-init: { condition: service_completed_successfully }
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/readyz"]
       interval: 5s
@@ -114,5 +139,6 @@ services:
       retries: 30
 
 volumes:
+  s3data:
   pgdata:
   redisdata:

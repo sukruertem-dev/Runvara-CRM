@@ -20,3 +20,7 @@ Webhook teslimatı, CCaaS REST çağrıları, BYO AI uç noktası, OIDC keşfi *
 ## Sonuçlar
 - (+) SSRF ve dosya kaynaklı XSS sistematik olarak engellenir.
 - (−) Kullanıcının kendi ağındaki (özel IP) webhook hedefleri desteklenmez; kurumsal ihtiyaçta izinli CIDR listesi tenant başına platform operatörü onayıyla açılır.
+
+## Uygulama notu (P4b, 2026-11-21)
+- Dosya akışı `apps/api/src/modules/records/attachments.service.ts`: imzalı PUT (içerik türü ve `Content-Disposition` imzalı) → `complete`'te boyut ve dosya imzası (sihirli bayt) doğrulaması, uyuşmazlıkta nesne silinir → `ClamdScanner` (INSTREAM) ya da açıkça `unscanned`; tarayıcı erişilemezse dosya `quarantine`'de kalır ve indirilemez → indirme her istekte yetki + 60 sn imzalı GET.
+- Geliştirme/test deposu SeaweedFS (MinIO imajları erişilemez, `assumptions.md` B33). SVG şimdilik kabul edilmiyor.

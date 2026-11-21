@@ -89,7 +89,7 @@ describe('schema guard (ADR-0003 §5)', () => {
   it('every table with a segment column carries a RESTRICTIVE segment policy (ADR-0010)', async () => {
     // Tables whose segment column is configuration or grant data, not a visibility boundary: queue and
     // workflow defaults, the segments a user is granted, and the segments an invitation will grant.
-    const configOnly = new Set(['queues', 'workflows', 'user_segment_grants', 'invitations']);
+    const configOnly = new Set(['queues', 'workflows', 'user_segment_grants', 'invitations', 'delegations', 'access_requests']);
     const cols = await superQuery<{ table_name: string }>(tdb.superUrl, `
       SELECT DISTINCT table_name FROM information_schema.columns
       WHERE table_schema = 'public' AND column_name IN ('segment', 'segments')`);
@@ -206,6 +206,17 @@ describe('append-only tables', () => {
       await expectDbError(owner.withAnonymous((tx) => tx.execute(sql`DELETE FROM audit_log`)), /append-only/);
       await expectDbError(owner.withAnonymous((tx) => tx.execute(sql`UPDATE auth_events SET kind = 'x'`)), /append-only/);
       await expectDbError(owner.withAnonymous((tx) => tx.execute(sql`TRUNCATE audit_log`)), /append-only/);
+    } finally {
+      await owner.close();
+    }
+  });
+
+  it('activity_events (timeline) cannot be changed by the application, nor updated by anyone', async () => {
+    await expectDbError(db.withTenant({ tenantId: A.tenant, userId: A.user }, (tx) => tx.execute(sql`UPDATE activity_events SET kind = 'deleted'`)), /permission denied|append-only/);
+    await expectDbError(db.withTenant({ tenantId: A.tenant, userId: A.user }, (tx) => tx.execute(sql`DELETE FROM activity_events`)), /permission denied/);
+    const owner = createDb(tdb.ownerUrl, { max: 1 });
+    try {
+      await expectDbError(owner.withAnonymous((tx) => tx.execute(sql`UPDATE activity_events SET kind = 'deleted'`)), /append-only/);
     } finally {
       await owner.close();
     }

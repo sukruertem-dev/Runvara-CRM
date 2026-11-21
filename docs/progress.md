@@ -1,5 +1,40 @@
 # İlerleme
 
+## P4b — Faz 4 + G2: kayıt etrafı · 2026-11-21 · ✅ (CI PR'da çalışacak)
+
+### Yapılanlar
+- **`0005_records.sql`:** `activity_events` (append-only: güncelleme trigger'la, silme uygulama rolünden yasak), `comments` + `comment_revisions`, `mentions`, `notifications` (+ tercihler; alıcı yalnızca kendi bildirimini okur), `attachments`, `delegations`, `access_requests`, `role_grant_overrides` + `matrix_versions`. Başkası adına bildirim oluşturma ve geri çekme dar kapsamlı iki SECURITY DEFINER fonksiyonuyla (tenant ve aktör oturumdan).
+- **Activity timeline:** kayıt oluşturma, alan diff'i (API alan adlarıyla), durum geçişi, atama, silme/geri alma, dönüştürme, merge, yorum, dosya, e-posta/arama logu — iş yazımıyla aynı transaction'da. Okurken **FLS**: gizli alanın diff'i ve yalnızca onu değiştiren olay görünmez.
+- **Yorumlar + mention (ADR-0017):** sunucuda üretilen güvenli HTML, düzenleme geçmişi (revizyon kontrolüyle), mezar taşı silme; hedef kaydı göremeyen kişi anılamaz (422, adlarıyla), ekip mention'ı erişimi olmayanları atlar, düzenlemede yalnızca yeni anılanlara bildirim, kaldırılanların okunmamış bildirimi geri çekilir.
+- **Bildirimler:** `mention` ve `assigned`; okuma anında yetki (SCN-17: erişim kalkınca başlık, kayıt, aktör ve bağlantı boş), okundu / tümü okundu / okunmamış sayısı, kanal tercihleri (A28).
+- **Dosya ekleri:** imzalı yükleme/indirme, boyut + dosya imzası doğrulaması, ClamAV kancası, karantina/enfekte dosya indirilemez, 25 MB ve MIME beyaz listesi.
+- **Audit okuma (A23):** Admin tümü, Yönetici yalnızca ekip üyelerinin eylemleri; filtre + cursor.
+- **Delegasyon (A07) ve yetki talebi:** süreli rol/segment devri ve iptali, onay/ret/geri çekme; Yönetici sınırları (`managed_teams_only`, `own_segments_only`, `no_escalation`, `not_self`) aynen.
+- **Matris yönetimi (A03, AUTH-11):** tenant'a özel hücre değişikliği, diff önizleme, sürümler, geri alma; kapalı modül izinleri görünmez; Admin'in korunan izinleri değiştirilemez; motor override'ları her istekte bağlamdan okur.
+- **Altyapı:** S3 istemcisi (`infra/storage.ts`), ClamAV istemcisi (`infra/scanner.ts`), Compose'a SeaweedFS + bucket kurulum adımı; testlerde SeaweedFS kapsayıcısı (MinIO imajları artık çekilemiyor, B33).
+- **API (60 yeni uç nokta).** Kararlar: `assumptions.md` B33–B36.
+
+### Kabul kriterleri (P4b)
+| Kriter | Durum | Kanıt |
+|---|---|---|
+| Timeline: diff, geçiş, atama, oluşturma/silme; değiştirilemez | ✅ | `records.int.test.ts` + DB testi (uygulama UPDATE/DELETE yapamaz, sahibi bile UPDATE yapamaz) |
+| Gizli alanın diff'i timeline'da görünmez | ✅ | aynı |
+| Mention: erişimsiz hedef 422, ekip genişletme, yalnızca yeniye bildirim, geri çekme | ✅ | aynı |
+| Bildirim okuma anında yetki (SCN-17) | ✅ | paylaşım kaldırılınca içerik boş |
+| Dosya: imzalı yükleme/indirme, dosya imzası, yetkisiz indirme 404, enfekte dosya indirilemez | ✅ | SeaweedFS kapsayıcısıyla gerçek S3 akışı |
+| Audit: Yönetici yalnızca ekibinin eylemleri | ✅ | aynı |
+| Delegasyon süresi dolunca yetki kalkar (SCN-18); sınırlar | ✅ | aynı |
+| Matris düzenleme sonraki istekte geçerli; diff; geri alma; korunan izin | ✅ | aynı |
+
+### Testler
+API entegrasyon **77/77** (+10), DB **18/18** (+1), birim testleri yeşil (zengin metin, ClamAV protokolü, dosya imzaları), lint/typecheck temiz, kontrast/matris/katalog PASS.
+
+**Performans:** ✅ Temiz Docker ortamında (başka projelerin kapsayıcıları kaldırıldıktan sonra) tüm senaryolar hedefin çok altında: Admin sayım p95 58 ms, Yönetici (ekip + kural + parent erişimi) 65 ms, Yönetici sayım 74 ms (`docs/perf/p2-task-list.md`). Önceki koşulardaki 200 ms aşımları makine yükündendi: P4a (`main`) aynı yük altında aynı biçimde aşıyordu.
+
+### Sonraki adım
+**P5** — outbox relay, kural motoru, SLA, webhook, API anahtarı, SSE (bildirimlerin anlık iletimi ve e-posta özeti dahil).
+
+
 ## P4a — Faz 4 + G2: tek yetki motoru · 2026-11-21 · ✅ (CI PR'da çalışacak)
 
 > P4 iki adıma bölündü (`docs/p4-plan.md`): **P4a yetki motoru** (bu adım) ve **P4b** kayıt etrafı (timeline, yorum/mention, dosya, bildirim, audit okuma, delegasyon, matris yönetimi).

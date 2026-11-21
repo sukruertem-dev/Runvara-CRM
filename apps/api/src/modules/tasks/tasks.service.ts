@@ -20,6 +20,9 @@ import { ProblemError } from '../../common/problem';
 import { dbCtx, type TenantRequestContext } from '../../common/request-context';
 import { DB } from '../../infra/tokens';
 import { assertCan, canAssignTo, recordPredicate, type RecordShape } from '../../common/record-access';
+import { randomUUID } from 'node:crypto';
+import { recordActivity, viewDiff } from '../../common/activity';
+import { notify } from '../../common/notify';
 import { attachedSegment, CRM, CRM_TYPES, isCrmType, readCrmRow } from '../crm/crm-objects';
 import { compileFormulas, loadFieldDefs, taskRegistry, validateCustom, withFormulas, type FieldDefRow } from './task-fields';
 
@@ -89,6 +92,10 @@ export const TASK_SHAPE: RecordShape = {
 /** Read predicate for tasks (alias t): the task's own scope, or read access to the CRM record it is linked to
  *  (Faz 4: activity/task access derives from the parent record). Writes stay on the task's own scope. */
 export async function taskReadPredicate(tx: Db, t: TenantRequestContext): Promise<SQL> {
+  // Tenant-wide task read (or an organisation-wide default) already covers every task: no parent subqueries.
+  if (recordScope(t.authz, 'read', 'core.task').kind === 'all' || t.access.owd.task === 'read' || t.access.owd.task === 'read_write') {
+    return recordPredicate(tx, t, TASK_SHAPE, 'read');
+  }
   const terms: SQL[] = [await recordPredicate(tx, t, TASK_SHAPE, 'read')];
   for (const type of CRM_TYPES) {
     const def = CRM[type];
@@ -251,6 +258,8 @@ export class TasksService {
         updatedBy: me,
       }).returning({ id: schema.tasks.id }), 'task');
       if (body.tagIds?.length) await tx.insert(schema.taskTags).values(body.tagIds.map((tagId) => ({ tenantId: t.tenant.id, taskId: row.id, tagId })));
+      await recordActivity(tx, t, { type: 'task', id: row.id, kind: 'created' });
+      await this.notifyAssignees(tx, t, row.id, [owner.type === 'user' ? owner.id : null, assignee]);
       return row.id;
     } catch (e) {
       const c = (e as { cause?: { constraint?: string } }).cause;
@@ -325,6 +334,15 @@ export class TasksService {
         await tx.delete(schema.taskTags).where(eq(schema.taskTags.taskId, row.id));
         if (body.tagIds.length) await tx.insert(schema.taskTags).values(body.tagIds.map((tagId) => ({ tenantId: t.tenant.id, taskId: row.id, tagId })));
       }
+      // Timeline diff in API terms; the post-update row is read without the read predicate (it may have been given away).
+      const vc = await this.viewContext(tx);
+      const after = await tx.execute<TaskRow>(sql`${TASK_SELECT} WHERE t.id = ${row.id}`);
+      const afterRow = after.rows[0];
+      if (afterRow) await recordActivity(tx, t, { type: 'task', id: row.id, kind: 'field_changed', diff: viewDiff(toView(row, vc), toView(hydrate(afterRow), vc)) });
+      await this.notifyAssignees(tx, t, row.id, [
+        ownerChange && body.owner?.type === 'user' ? body.owner.id : null,
+        assigneeChange ? (body.assigneeUserId ?? null) : null,
+      ]);
     } catch (e) {
       if (e instanceof ProblemError) throw e;
       const c = (e as { cause?: { constraint?: string } }).cause;
@@ -341,6 +359,7 @@ export class TasksService {
       await assertCan(tx, t, TASK_SHAPE, row.id, 'archive');
       if (row.version !== version) throw new ProblemError('PRECONDITION_FAILED', 'the task was changed by someone else', { currentVersion: row.version });
       await tx.update(schema.tasks).set({ deletedAt: new Date(), version: row.version + 1, updatedBy: t.principal.userId }).where(eq(schema.tasks.id, id));
+      await recordActivity(tx, t, { type: 'task', id, kind: 'deleted' });
     });
   }
 
@@ -350,6 +369,7 @@ export class TasksService {
       await assertCan(tx, t, TASK_SHAPE, row.id, 'archive');
       if (row.deleted_at) {
         await tx.update(schema.tasks).set({ deletedAt: null, version: row.version + 1, updatedBy: t.principal.userId }).where(eq(schema.tasks.id, id));
+        await recordActivity(tx, t, { type: 'task', id, kind: 'restored' });
       }
       return toView(await this.readRow(tx, t, id), await this.viewContext(tx));
     });
@@ -414,7 +434,16 @@ export class TasksService {
       ...(patch.startAt !== undefined ? { startAt: patch.startAt ? new Date(patch.startAt) : null } : {}),
       ...(patch.priority !== undefined ? { priority: patch.priority } : {}),
     }).where(eq(schema.tasks.id, id));
+    await recordActivity(tx, t, { type: 'task', id, kind: 'status_changed', diff: { status: { from: row.s_key, to: to.key } }, data: { transition: result.transition.key } });
     if (closing && row.series_id && row.occurrence_index !== null) await this.materializeNext(tx, t, row);
+  }
+
+  /** Users who just became owner or assignee of a task (other than the actor) get an `assigned` notification. */
+  private async notifyAssignees(tx: Db, t: TenantRequestContext, id: string, users: (string | null)[]): Promise<void> {
+    const targets = [...new Set(users.filter((u): u is string => u !== null && u !== t.principal.userId))];
+    if (targets.length === 0) return;
+    await recordActivity(tx, t, { type: 'task', id, kind: 'assigned', data: { userIds: targets } });
+    await notify(tx, t, { users: targets, kind: 'assigned', sourceType: 'assignment', sourceId: randomUUID(), recordType: 'task', recordId: id });
   }
 
   private factRecord(r: TaskRow): Record<string, unknown> {

@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { LeadConvertRequest, MergeRequest, z } from '@flexa/contracts';
 import { sql, type Db, type DbHandle, type SQL } from '@flexa/db';
+import { recordActivity } from '../../common/activity';
 import { audit } from '../../common/audit';
 import { ProblemError } from '../../common/problem';
 import { dbCtx, type Segment, type TenantRequestContext } from '../../common/request-context';
@@ -78,6 +79,7 @@ export class CrmOpsService {
       const r = await tx.execute<{ converted_at: string }>(sql`
         UPDATE leads SET status_id = ${converted.id}, converted_at = now(), version = version + 1, updated_by = ${me}
         WHERE id = ${leadId} RETURNING converted_at`);
+      await recordActivity(tx, t, { type: 'lead', id: leadId, kind: 'converted', data: { accountId, contactId, opportunityId } });
       await audit(tx, t.tenant.id, { action: 'lead.converted', actorId: me, targetType: 'lead', targetId: leadId, ip, details: { accountId, contactId, opportunityId } });
       return { leadId, accountId, contactId, opportunityId, convertedAt: new Date(String(r.rows[0]?.converted_at)).toISOString() };
     });
@@ -169,6 +171,7 @@ export class CrmOpsService {
         VALUES (${t.tenant.id}, ${type}, ${survivor.id}, ${losersArr}::uuid[], ${JSON.stringify(body.fieldChoices)}::jsonb, ${JSON.stringify(moved)}::jsonb, ${me}) RETURNING id`);
       const mergeId = m.rows[0]?.id;
       if (!mergeId) throw new ProblemError('INTERNAL');
+      await recordActivity(tx, t, { type, id: survivor.id, kind: 'merged', data: { mergeId, mergedIds: losersIds, moved } });
       await audit(tx, t.tenant.id, { action: `${type}.merged`, actorId: me, targetType: type, targetId: survivor.id, ip, details: { mergeId, mergedIds: losersIds, moved } });
       return { mergeId, survivorId: survivor.id, mergedIds: losersIds, moved };
     });

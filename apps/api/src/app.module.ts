@@ -3,7 +3,7 @@ import { APP_FILTER } from '@nestjs/core';
 import { KeyRing, TokenSigner } from '@flexa/security';
 import { ProblemFilter } from './common/problem.filter';
 import { AccessGuard, TenantGuard } from './common/guards';
-import { DB, ENV, KEYRING, MAILER, REDIS, SIGNER, type ApiDeps } from './infra/tokens';
+import { DB, ENV, KEYRING, MAILER, REDIS, SCANNER, SIGNER, STORAGE, type ApiDeps } from './infra/tokens';
 import { AuthController } from './modules/auth/auth.controller';
 import { AuthService } from './modules/auth/auth.service';
 import { SessionService } from './modules/auth/session.service';
@@ -25,6 +25,14 @@ import { CrmService } from './modules/crm/crm.service';
 import { NotesService } from './modules/crm/notes.service';
 import { AccessAdminController, SHARES_CONTROLLERS } from './modules/access/access-admin.controller';
 import { AccessAdminService } from './modules/access/access-admin.service';
+import { GovernanceController } from './modules/access/governance.controller';
+import { GovernanceService } from './modules/access/governance.service';
+import { AttachmentsService } from './modules/records/attachments.service';
+import { NotificationsService } from './modules/records/notifications.service';
+import { RECORD_EXTRAS_CONTROLLERS, RecordItemsController } from './modules/records/records.controller';
+import { RecordsService } from './modules/records/records.service';
+import { ClamdScanner } from './infra/scanner';
+import { storageFromEnv } from './infra/storage';
 
 @Module({})
 export class AppModule {
@@ -34,7 +42,8 @@ export class AppModule {
       controllers: [HealthController, AuthController, MeController, TenancyController, InvitationsController, SsoController, TasksController, TaskConfigController, RqlController,
         // Operation routes first: Fastify matches static segments before parameters either way, but keep it explicit.
         CrmOperationsController, AccountsController, ContactsController, LeadsController, OpportunitiesController, CasesController, NotesController,
-        AccessAdminController, ...SHARES_CONTROLLERS],
+        AccessAdminController, ...SHARES_CONTROLLERS,
+        GovernanceController, RecordItemsController, ...RECORD_EXTRAS_CONTROLLERS],
       providers: [
         { provide: ENV, useValue: deps.env },
         { provide: DB, useValue: deps.db },
@@ -55,6 +64,12 @@ export class AppModule {
         CrmOpsService,
         NotesService,
         AccessAdminService,
+        GovernanceService,
+        RecordsService,
+        AttachmentsService,
+        NotificationsService,
+        { provide: STORAGE, useValue: deps.storage !== undefined ? deps.storage : storageFromEnv(deps.env) },
+        { provide: SCANNER, useValue: deps.scanner !== undefined ? deps.scanner : deps.env.CLAMAV_HOST ? new ClamdScanner(deps.env.CLAMAV_HOST, deps.env.CLAMAV_PORT) : null },
       ],
     };
   }
