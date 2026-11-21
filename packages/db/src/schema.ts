@@ -14,6 +14,7 @@ import {
   uuid,
   bigint,
 } from 'drizzle-orm/pg-core';
+import { segmentEnum } from './schema-tasks';
 
 const citext = customType<{ data: string }>({ dataType: () => 'citext' });
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' });
@@ -87,6 +88,7 @@ export const roles = pgTable('roles', {
   name: text('name').notNull(),
   isSystem: boolean('is_system').notNull(),
   path: text('path').notNull(),
+  parentRoleId: uuid('parent_role_id'),
   version: integer('version').notNull(),
   createdAt: ts('created_at').notNull().defaultNow(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
@@ -117,6 +119,8 @@ export const invitations = pgTable('invitations', {
   acceptedBy: uuid('accepted_by'),
   revokedAt: ts('revoked_at'),
   createdAt: ts('created_at').notNull().defaultNow(),
+  segments: segmentEnum('segments').array().notNull().default(sql`'{b2b,b2c}'`),
+  teamId: uuid('team_id'),
 });
 
 export const tenantModules = pgTable(
@@ -239,3 +243,4 @@ export const GLOBAL_TABLES = [
 
 export * from './schema-tasks';
 export * from './schema-crm';
+export * from './schema-authz';

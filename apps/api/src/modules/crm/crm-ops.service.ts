@@ -5,7 +5,8 @@ import { audit } from '../../common/audit';
 import { ProblemError } from '../../common/problem';
 import { dbCtx, type Segment, type TenantRequestContext } from '../../common/request-context';
 import { DB } from '../../infra/tokens';
-import { asText, assertRecordAllowed, CRM, crmScope, crmScopeSql, readCrmRow, type CrmRow } from './crm-objects';
+import { assertCan, recordPredicate } from '../../common/record-access';
+import { asText, CRM, readCrmRow, type CrmRow } from './crm-objects';
 import { CrmService, type ContactPointBody } from './crm.service';
 
 type Convert = z.infer<typeof LeadConvertRequest>;
@@ -31,11 +32,11 @@ export class CrmOpsService {
     const me = t.principal.userId;
     return this.db.withTenant(dbCtx(t), async (tx) => {
       const lead = await readCrmRow(tx, t, CRM.lead, leadId, { forUpdate: true });
-      assertRecordAllowed(crmScope(t, CRM.lead, 'update'), lead, me);
+      await assertCan(tx, t, CRM.lead.shape, lead.id, 'update');
       if (lead.converted_at) throw new ProblemError('LEAD_ALREADY_CONVERTED');
       if (lead.s_category === 'closed') throw new ProblemError('LEAD_NOT_CONVERTIBLE', `a lead in status "${String(lead.s_key)}" cannot be converted`);
       const segment = lead.segment as Segment;
-      if (body.ownerUserId !== undefined && body.ownerUserId !== me) this.crm.assertReassign(t, CRM.lead);
+      if (body.ownerUserId !== undefined && body.ownerUserId !== me) this.crm.assertAssignable(t, CRM.lead, { userId: body.ownerUserId });
       const owner = body.ownerUserId ?? lead.owner_user_id ?? me;
       const ownerField = owner === me ? {} : { ownerUserId: owner };
       const personName = asText(lead.full_name).trim();
@@ -93,9 +94,9 @@ export class CrmOpsService {
       for (const id of [...ids].sort()) rows.set(id, await readCrmRow(tx, t, def, id, { forUpdate: true }));
       const survivor = rows.get(body.survivorId);
       if (!survivor) throw new ProblemError('NOT_FOUND');
-      assertRecordAllowed(crmScope(t, def, 'update'), survivor, me);
+      await assertCan(tx, t, def.shape, survivor.id, 'update');
       const losers = ids.slice(1).map((id) => rows.get(id) as CrmRow);
-      for (const l of losers) assertRecordAllowed(crmScope(t, def, 'archive'), l, me);
+      for (const l of losers) await assertCan(tx, t, def.shape, l.id, 'archive');
       const union = [...new Set([survivor, ...losers].flatMap(segsOf))];
       // Moving related rows happens under RLS: the caller must see every segment involved, or rows in a
       // hidden segment would silently stay behind on a deleted record.
@@ -116,7 +117,10 @@ export class CrmOpsService {
         }
         const col = allowed[field];
         if (!col) throw new ProblemError('MERGE_INVALID', `field "${field}" cannot be chosen`);
-        if (col === 'owner_user_id' && source.owner_user_id !== survivor.owner_user_id) this.crm.assertReassign(t, def);
+        if (col === 'owner_user_id' && source.owner_user_id !== survivor.owner_user_id) {
+          await assertCan(tx, t, def.shape, survivor.id, 'reassign');
+          if (typeof source.owner_user_id === 'string' && source.owner_user_id !== me) this.crm.assertAssignable(t, def, { userId: source.owner_user_id });
+        }
         if (col === 'parent_account_id' && ids.includes(String(source.parent_account_id))) continue; // would point into the merge (or at the survivor)
         const v = source[col];
         sets.push(col === 'description' ? sql`description = ${v === null || v === undefined ? null : JSON.stringify(v)}::jsonb, description_text = ${source.description_text ?? null}` : sql`${sql.raw(col)} = ${v ?? null}`);
@@ -175,7 +179,7 @@ export class CrmOpsService {
     const def = CRM[type];
     return this.db.withTenant(dbCtx(t), async (tx) => {
       const row = await readCrmRow(tx, t, def, id);
-      const scope = crmScopeSql(crmScope(t, def, 'read'), t.principal.userId);
+      const scope = await recordPredicate(tx, t, def.shape, 'read');
       const r = type === 'account' ? await this.accountDuplicates(tx, row, scope) : await this.contactDuplicates(tx, row, scope);
       return { data: r };
     });

@@ -1,6 +1,7 @@
 import { createParamDecorator, type ExecutionContext } from '@nestjs/common';
 import type { AuthzContext } from '@flexa/authz';
 import type { FastifyRequest } from 'fastify';
+import type { AccessInfo } from './record-access';
 
 export interface Principal {
   userId: string;
@@ -27,8 +28,11 @@ export interface TenantRequestContext {
   principal: Principal & { tenantId: string };
   tenant: TenantInfo;
   authz: AuthzContext;
-  /** Segments this request may see (ADR-0010). Until P4 user segment grants: the tenant's sales mode. */
+  /** Segments this request may see (ADR-0010 §6): the user's active grants ∩ the tenant's sales mode,
+   *  optionally narrowed by the `X-Segment` header (the segment switcher only narrows). */
   segments: readonly Segment[];
+  /** Teams, queues, hierarchy, sharing and field policies of the caller (record-access.ts). */
+  access: AccessInfo;
 }
 
 export function segmentsForSalesMode(mode: TenantInfo['salesMode']): readonly Segment[] {

@@ -2,6 +2,7 @@ import type { ZodType } from 'zod';
 import * as S from './schemas';
 import * as T from './tasks';
 import * as C from './crm';
+import * as A from './authz';
 
 export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 export type AuthMode = 'none' | 'access' | 'tenant' | 'refresh_cookie';
@@ -124,4 +125,44 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   { method: 'post', path: '/v1/notes', summary: 'Add a note to a record', tag: 'notes', auth: 'tenant', body: C.NoteCreate, responses: { 201: C.NoteView }, errors: [400, 401, 403, 404, 422] },
   { method: 'patch', path: '/v1/notes/{id}', summary: 'Edit a note (author only)', tag: 'notes', auth: 'tenant', body: C.NotePatch, responses: { 200: C.NoteView }, errors: [400, 401, 403, 404] },
   { method: 'delete', path: '/v1/notes/{id}', summary: 'Delete a note (author or archive permission)', tag: 'notes', auth: 'tenant', responses: { 204: null }, errors: [401, 403, 404] },
+  { method: 'get', path: '/v1/teams', summary: 'Teams with members', tag: 'teams', auth: 'tenant', responses: { 200: A.TeamListResponse }, errors: [401, 403] },
+  { method: 'post', path: '/v1/teams', summary: 'Create a team (Admin)', tag: 'teams', auth: 'tenant', body: A.TeamCreate, responses: { 201: A.TeamView }, errors: [400, 401, 403, 409, 422] },
+  { method: 'patch', path: '/v1/teams/{id}', summary: 'Rename or move a team (Admin)', tag: 'teams', auth: 'tenant', body: A.TeamPatch, responses: { 200: A.TeamView }, errors: [400, 401, 403, 404, 409, 422] },
+  { method: 'put', path: '/v1/teams/{id}/members/{userId}', summary: 'Add a member or change their team role', tag: 'teams', auth: 'tenant', body: A.TeamMemberSet, responses: { 200: A.TeamView }, errors: [400, 401, 403, 404] },
+  { method: 'delete', path: '/v1/teams/{id}/members/{userId}', summary: 'Remove a member', tag: 'teams', auth: 'tenant', responses: { 204: null }, errors: [401, 403, 404] },
+  { method: 'get', path: '/v1/queues', summary: 'Work and call queues', tag: 'queues', auth: 'tenant', responses: { 200: A.QueueListResponse }, errors: [401, 403] },
+  { method: 'post', path: '/v1/queues', summary: 'Create a queue (Admin)', tag: 'queues', auth: 'tenant', body: A.QueueCreate, responses: { 201: A.QueueView }, errors: [400, 401, 403, 409] },
+  { method: 'put', path: '/v1/queues/{id}/members/{userId}', summary: 'Add a queue member', tag: 'queues', auth: 'tenant', responses: { 200: A.QueueView }, errors: [401, 403, 404] },
+  { method: 'delete', path: '/v1/queues/{id}/members/{userId}', summary: 'Remove a queue member', tag: 'queues', auth: 'tenant', responses: { 204: null }, errors: [401, 403, 404] },
+  { method: 'get', path: '/v1/users', summary: 'Members with roles, segments and teams', tag: 'users', auth: 'tenant', responses: { 200: A.UserListResponse }, errors: [401, 403] },
+  { method: 'get', path: '/v1/users/{id}/access', summary: 'One member’s roles, segments and teams', tag: 'users', auth: 'tenant', responses: { 200: A.UserAccessView }, errors: [401, 403, 404] },
+  { method: 'put', path: '/v1/users/{id}/segments', summary: 'Set a member’s segment grants (A05)', tag: 'users', auth: 'tenant', body: A.UserSegmentsSet, responses: { 200: A.UserAccessView }, errors: [400, 401, 403, 404] },
+  { method: 'put', path: '/v1/users/{id}/roles', summary: 'Set a member’s roles (Admin, A04)', tag: 'users', auth: 'tenant', body: A.UserRolesSet, responses: { 200: A.UserAccessView }, errors: [400, 401, 403, 404, 409] },
+  { method: 'get', path: '/v1/roles', summary: 'Roles with their hierarchy', tag: 'roles', auth: 'tenant', responses: { 200: A.RoleListResponse }, errors: [401, 403] },
+  { method: 'put', path: '/v1/roles/{id}/parent', summary: 'Place a role under another (role hierarchy)', tag: 'roles', auth: 'tenant', body: A.RoleParentSet, responses: { 200: A.RoleView }, errors: [400, 401, 403, 404, 422] },
+  { method: 'get', path: '/v1/sharing/defaults', summary: 'Organisation-wide defaults per object', tag: 'sharing', auth: 'tenant', responses: { 200: A.SharingDefaultsView }, errors: [401, 403] },
+  { method: 'put', path: '/v1/sharing/defaults', summary: 'Set organisation-wide defaults', tag: 'sharing', auth: 'tenant', body: A.SharingDefaultsSet, responses: { 200: A.SharingDefaultsView }, errors: [400, 401, 403] },
+  { method: 'get', path: '/v1/sharing/rules', summary: 'Criteria-based sharing rules', tag: 'sharing', auth: 'tenant', responses: { 200: A.SharingRuleListResponse }, errors: [401, 403] },
+  { method: 'post', path: '/v1/sharing/rules', summary: 'Create a sharing rule (RQL criteria → team)', tag: 'sharing', auth: 'tenant', body: A.SharingRuleCreate, responses: { 201: A.SharingRuleView }, errors: [400, 401, 403, 404, 409, 422] },
+  { method: 'delete', path: '/v1/sharing/rules/{id}', summary: 'Delete a sharing rule', tag: 'sharing', auth: 'tenant', responses: { 204: null }, errors: [401, 403, 404] },
+  { method: 'get', path: '/v1/field-policies', summary: 'Field-level security policies', tag: 'field-policies', auth: 'tenant', responses: { 200: A.FieldPolicyListResponse }, errors: [401, 403] },
+  { method: 'put', path: '/v1/field-policies', summary: 'Hide a field, make it read-only or lift the restriction', tag: 'field-policies', auth: 'tenant', body: A.FieldPolicySet, responses: { 200: A.FieldPolicyListResponse }, errors: [400, 401, 403, 404, 422] },
+  { method: 'get', path: '/v1/tasks/{id}/shares', summary: 'Manual shares of the record', tag: 'tasks', auth: 'tenant', responses: { 200: A.ShareListResponse }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/tasks/{id}/shares', summary: 'Share the record with a user or team', tag: 'tasks', auth: 'tenant', body: A.ShareCreate, responses: { 201: A.ShareView }, errors: [400, 401, 403, 404, 422] },
+  { method: 'delete', path: '/v1/tasks/{id}/shares/{shareId}', summary: 'Remove a manual share', tag: 'tasks', auth: 'tenant', responses: { 204: null }, errors: [401, 403, 404] },
+  { method: 'get', path: '/v1/accounts/{id}/shares', summary: 'Manual shares of the record', tag: 'accounts', auth: 'tenant', responses: { 200: A.ShareListResponse }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/accounts/{id}/shares', summary: 'Share the record with a user or team', tag: 'accounts', auth: 'tenant', body: A.ShareCreate, responses: { 201: A.ShareView }, errors: [400, 401, 403, 404, 422] },
+  { method: 'delete', path: '/v1/accounts/{id}/shares/{shareId}', summary: 'Remove a manual share', tag: 'accounts', auth: 'tenant', responses: { 204: null }, errors: [401, 403, 404] },
+  { method: 'get', path: '/v1/contacts/{id}/shares', summary: 'Manual shares of the record', tag: 'contacts', auth: 'tenant', responses: { 200: A.ShareListResponse }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/contacts/{id}/shares', summary: 'Share the record with a user or team', tag: 'contacts', auth: 'tenant', body: A.ShareCreate, responses: { 201: A.ShareView }, errors: [400, 401, 403, 404, 422] },
+  { method: 'delete', path: '/v1/contacts/{id}/shares/{shareId}', summary: 'Remove a manual share', tag: 'contacts', auth: 'tenant', responses: { 204: null }, errors: [401, 403, 404] },
+  { method: 'get', path: '/v1/leads/{id}/shares', summary: 'Manual shares of the record', tag: 'leads', auth: 'tenant', responses: { 200: A.ShareListResponse }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/leads/{id}/shares', summary: 'Share the record with a user or team', tag: 'leads', auth: 'tenant', body: A.ShareCreate, responses: { 201: A.ShareView }, errors: [400, 401, 403, 404, 422] },
+  { method: 'delete', path: '/v1/leads/{id}/shares/{shareId}', summary: 'Remove a manual share', tag: 'leads', auth: 'tenant', responses: { 204: null }, errors: [401, 403, 404] },
+  { method: 'get', path: '/v1/opportunities/{id}/shares', summary: 'Manual shares of the record', tag: 'opportunities', auth: 'tenant', responses: { 200: A.ShareListResponse }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/opportunities/{id}/shares', summary: 'Share the record with a user or team', tag: 'opportunities', auth: 'tenant', body: A.ShareCreate, responses: { 201: A.ShareView }, errors: [400, 401, 403, 404, 422] },
+  { method: 'delete', path: '/v1/opportunities/{id}/shares/{shareId}', summary: 'Remove a manual share', tag: 'opportunities', auth: 'tenant', responses: { 204: null }, errors: [401, 403, 404] },
+  { method: 'get', path: '/v1/cases/{id}/shares', summary: 'Manual shares of the record', tag: 'cases', auth: 'tenant', responses: { 200: A.ShareListResponse }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/cases/{id}/shares', summary: 'Share the record with a user or team', tag: 'cases', auth: 'tenant', body: A.ShareCreate, responses: { 201: A.ShareView }, errors: [400, 401, 403, 404, 422] },
+  { method: 'delete', path: '/v1/cases/{id}/shares/{shareId}', summary: 'Remove a manual share', tag: 'cases', auth: 'tenant', responses: { 204: null }, errors: [401, 403, 404] },
 ];

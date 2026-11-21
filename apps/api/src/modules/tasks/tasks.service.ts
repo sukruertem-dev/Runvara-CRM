@@ -19,8 +19,9 @@ import { mapDbError } from '../../common/http-helpers';
 import { ProblemError } from '../../common/problem';
 import { dbCtx, type TenantRequestContext } from '../../common/request-context';
 import { DB } from '../../infra/tokens';
-import { attachedSegment, CRM, isCrmType, readCrmRow } from '../crm/crm-objects';
-import { compileFormulas, loadFieldDefs, validateCustom, withFormulas, type FieldDefRow } from './task-fields';
+import { assertCan, canAssignTo, recordPredicate, type RecordShape } from '../../common/record-access';
+import { attachedSegment, CRM, CRM_TYPES, isCrmType, readCrmRow } from '../crm/crm-objects';
+import { compileFormulas, loadFieldDefs, taskRegistry, validateCustom, withFormulas, type FieldDefRow } from './task-fields';
 
 type Create = z.infer<typeof TaskCreate>;
 type Patch = z.infer<typeof TaskPatch>;
@@ -73,11 +74,29 @@ export const TASK_SELECT = sql`
            WHERE tt.tenant_id = t.tenant_id AND tt.task_id = t.id) AS tag_ids
   FROM tasks t JOIN statuses s ON s.tenant_id = t.tenant_id AND s.id = t.status_id`;
 
-/** SQL predicate for a record scope (ADR-0004). `own` = owner, assignee or creator. */
-export function scopeSql(scope: RecordScope, userId: string): SQL {
-  if (scope.kind === 'all') return sql`TRUE`;
-  if (scope.kind === 'none') return sql`FALSE`;
-  return sql`(t.owner_user_id = ${userId} OR t.assignee_user_id = ${userId} OR t.created_by = ${userId})`;
+/** permission-matrix.yaml policies.bulk_max_items_own (default; per-tenant policy values arrive with P4b). */
+const BULK_MAX_ITEMS_OWN = 100;
+
+export const TASK_SHAPE: RecordShape = {
+  type: 'task',
+  resource: 'core.task',
+  from: sql`tasks t JOIN statuses s ON s.tenant_id = t.tenant_id AND s.id = t.status_id`,
+  queueColumn: true,
+  assigneeColumn: true,
+  registry: async (tx) => taskRegistry(await loadFieldDefs(tx, 'task')),
+};
+
+/** Read predicate for tasks (alias t): the task's own scope, or read access to the CRM record it is linked to
+ *  (Faz 4: activity/task access derives from the parent record). Writes stay on the task's own scope. */
+export async function taskReadPredicate(tx: Db, t: TenantRequestContext): Promise<SQL> {
+  const terms: SQL[] = [await recordPredicate(tx, t, TASK_SHAPE, 'read')];
+  for (const type of CRM_TYPES) {
+    const def = CRM[type];
+    if (recordScope(t.authz, 'read', def.resource).kind === 'none') continue;
+    const parent = await recordPredicate(tx, t, def.shape, 'read');
+    terms.push(sql`(t.related_type = ${type} AND t.related_id IN (SELECT t.id FROM ${def.from} WHERE t.deleted_at IS NULL AND ${parent}))`);
+  }
+  return sql`(${sql.join(terms, sql` OR `)})`;
 }
 
 const iso = (d: Date | null): string | null => (d ? d.toISOString() : null);
@@ -135,15 +154,15 @@ function scopeOf(t: TenantRequestContext, action: RecordAction): RecordScope {
   return recordScope(t.authz, action, 'core.task');
 }
 
-function isOwn(r: Pick<TaskRow, 'owner_user_id' | 'assignee_user_id' | 'created_by'>, userId: string): boolean {
-  return r.owner_user_id === userId || r.assignee_user_id === userId || r.created_by === userId;
-}
-
-/** Visible-but-forbidden → 403; the caller has already turned invisible into 404. */
-function assertAllowed(scope: RecordScope, row: Pick<TaskRow, 'owner_user_id' | 'assignee_user_id' | 'created_by'>, userId: string): void {
-  if (scope.kind === 'all') return;
-  if (scope.kind === 'own' && isOwn(row, userId)) return;
-  throw new ProblemError('FORBIDDEN');
+/** Giving a task to a user or queue other than oneself is a reassignment (Matrix A A13). */
+function assertAssignable(t: TenantRequestContext, owner: { type: 'user' | 'queue'; id: string } | null, assignee: string | null): void {
+  const me = t.principal.userId;
+  if (owner && !(owner.type === 'user' && owner.id === me) && !canAssignTo(t, 'core.task', owner.type === 'user' ? { userId: owner.id } : { queueId: owner.id })) {
+    throw new ProblemError('FORBIDDEN', 'assigning tasks to others requires the reassign permission for that person or queue');
+  }
+  if (assignee !== null && assignee !== me && !canAssignTo(t, 'core.task', { userId: assignee })) {
+    throw new ProblemError('FORBIDDEN', 'assigning tasks to others requires the reassign permission for that person');
+  }
 }
 
 @Injectable()
@@ -161,9 +180,8 @@ export class TasksService {
 
   /** Reads one task through the caller's read scope; invisible (other tenant, other owner, deleted) → 404. */
   async readRow(tx: Db, t: TenantRequestContext, id: string, opts: { includeDeleted?: boolean; forUpdate?: boolean } = {}): Promise<TaskRow> {
-    const scope = scopeOf(t, 'read');
     const r = await tx.execute<TaskRow>(sql`${TASK_SELECT}
-      WHERE t.id = ${id} AND ${scopeSql(scope, t.principal.userId)} ${opts.includeDeleted ? sql`` : sql`AND t.deleted_at IS NULL`}
+      WHERE t.id = ${id} AND ${await taskReadPredicate(tx, t)} ${opts.includeDeleted ? sql`` : sql`AND t.deleted_at IS NULL`}
       ${opts.forUpdate ? sql`FOR UPDATE OF t` : sql``}`);
     const row = r.rows[0];
     if (!row) throw new ProblemError('NOT_FOUND');
@@ -190,8 +208,7 @@ export class TasksService {
     const assignee = body.assigneeUserId ?? null;
     // Giving a task to someone else is a reassignment (Matrix A A13); until teams exist (P4) only a
     // tenant-wide grant may do it.
-    const givesAway = (owner.type === 'queue' || owner.id !== me) || (assignee !== null && assignee !== me);
-    if (givesAway && scopeOf(t, 'reassign').kind !== 'all') throw new ProblemError('FORBIDDEN', 'assigning tasks to others requires the reassign permission');
+    assertAssignable(t, owner, assignee);
 
     const wf = await this.workflowFor(tx, body.workflowId ?? null);
     const initial = wf.statuses.find((s) => s.isInitial);
@@ -255,14 +272,11 @@ export class TasksService {
 
   private async applyPatch(tx: Db, t: TenantRequestContext, row: TaskRow, version: number | null, body: Patch, statusChange?: { statusId: string; closedAt: Date | null }): Promise<void> {
     const me = t.principal.userId;
-    assertAllowed(scopeOf(t, 'update'), row, me);
+    await assertCan(tx, t, TASK_SHAPE, row.id, 'update');
     if (version !== null && row.version !== version) throw new ProblemError('PRECONDITION_FAILED', 'the task was changed by someone else', { currentVersion: row.version });
     const ownerChange = body.owner !== undefined && (body.owner.type !== row.owner_type || body.owner.id !== row.owner_id);
     const assigneeChange = body.assigneeUserId !== undefined && body.assigneeUserId !== row.assignee_user_id;
-    const assigneeToSelfOrNone = assigneeChange && (body.assigneeUserId === me || body.assigneeUserId === null);
-    if ((ownerChange || (assigneeChange && !assigneeToSelfOrNone)) && scopeOf(t, 'reassign').kind !== 'all') {
-      throw new ProblemError('FORBIDDEN', 'reassigning requires the reassign permission');
-    }
+    assertAssignable(t, ownerChange && body.owner ? body.owner : null, assigneeChange ? (body.assigneeUserId ?? null) : null);
     if (body.parentId) await this.readRow(tx, t, body.parentId);
     const relatedSegment = body.related ? await this.assertRelated(tx, t, body.related) : null;
     let custom: Record<string, unknown> | undefined;
@@ -324,7 +338,7 @@ export class TasksService {
   async remove(t: TenantRequestContext, id: string, version: number): Promise<void> {
     await this.db.withTenant(this.ctx(t), async (tx) => {
       const row = await this.readRow(tx, t, id, { forUpdate: true });
-      assertAllowed(scopeOf(t, 'archive'), row, t.principal.userId);
+      await assertCan(tx, t, TASK_SHAPE, row.id, 'archive');
       if (row.version !== version) throw new ProblemError('PRECONDITION_FAILED', 'the task was changed by someone else', { currentVersion: row.version });
       await tx.update(schema.tasks).set({ deletedAt: new Date(), version: row.version + 1, updatedBy: t.principal.userId }).where(eq(schema.tasks.id, id));
     });
@@ -333,7 +347,7 @@ export class TasksService {
   async restore(t: TenantRequestContext, id: string) {
     return this.db.withTenant(this.ctx(t), async (tx) => {
       const row = await this.readRow(tx, t, id, { includeDeleted: true, forUpdate: true });
-      assertAllowed(scopeOf(t, 'archive'), row, t.principal.userId);
+      await assertCan(tx, t, TASK_SHAPE, row.id, 'archive');
       if (row.deleted_at) {
         await tx.update(schema.tasks).set({ deletedAt: null, version: row.version + 1, updatedBy: t.principal.userId }).where(eq(schema.tasks.id, id));
       }
@@ -352,7 +366,7 @@ export class TasksService {
   private async transitionIn(tx: Db, t: TenantRequestContext, id: string, target: { transitionKey: string } | { toStatusId: string }, fields: Patch | undefined): Promise<void> {
     const me = t.principal.userId;
     let row = await this.readRow(tx, t, id, { forUpdate: true });
-    assertAllowed(scopeOf(t, 'update'), row, me);
+    await assertCan(tx, t, TASK_SHAPE, row.id, 'update');
     if (fields) {
       await this.applyPatch(tx, t, row, null, fields);
       row = await this.readRow(tx, t, id, { forUpdate: true });
@@ -418,7 +432,7 @@ export class TasksService {
       if (body.transitionKey) await this.transitionIn(tx, t, id, { transitionKey: body.transitionKey }, undefined);
       else if (body.toStatusId) await this.transitionIn(tx, t, id, { toStatusId: body.toStatusId }, undefined);
       const row = await this.readRow(tx, t, id, { forUpdate: true });
-      assertAllowed(scopeOf(t, 'update'), row, t.principal.userId);
+      await assertCan(tx, t, TASK_SHAPE, row.id, 'update');
       // Positions are compared within the status column; serialise moves per column.
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`task_pos:${row.status_id}`}, 0))`);
       const before = body.beforeId ? (await this.readRow(tx, t, body.beforeId)).position : null;
@@ -451,8 +465,7 @@ export class TasksService {
   async subtasks(t: TenantRequestContext, id: string) {
     return this.db.withTenant(this.ctx(t), async (tx) => {
       await this.readRow(tx, t, id);
-      const scope = scopeOf(t, 'read');
-      const r = await tx.execute<TaskRow>(sql`${TASK_SELECT} WHERE t.parent_id = ${id} AND t.deleted_at IS NULL AND ${scopeSql(scope, t.principal.userId)} ORDER BY t.position COLLATE "C", t.id`);
+      const r = await tx.execute<TaskRow>(sql`${TASK_SELECT} WHERE t.parent_id = ${id} AND t.deleted_at IS NULL AND ${await taskReadPredicate(tx, t)} ORDER BY t.position COLLATE "C", t.id`);
       const vc = await this.viewContext(tx);
       const closed = r.rows.filter((x) => x.s_category === 'closed').length;
       return { data: r.rows.map((x) => toView(hydrate(x), vc)), progress: { total: r.rows.length, closed, percent: r.rows.length ? Math.round((closed / r.rows.length) * 1000) / 10 : 0 } };
@@ -462,7 +475,7 @@ export class TasksService {
   async dependencies(t: TenantRequestContext, id: string) {
     return this.db.withTenant(this.ctx(t), async (tx) => {
       await this.readRow(tx, t, id);
-      const scope = scopeSql(scopeOf(t, 'read'), t.principal.userId);
+      const scope = await taskReadPredicate(tx, t);
       const blockers = await tx.execute<{ blocker_id: string; blocked_id: string; created_at: Date }>(sql`
         SELECT d.blocker_id, d.blocked_id, d.created_at FROM task_dependencies d JOIN tasks t ON t.tenant_id = d.tenant_id AND t.id = d.blocker_id
         WHERE d.blocked_id = ${id} AND t.deleted_at IS NULL AND ${scope} ORDER BY d.created_at`);
@@ -477,7 +490,7 @@ export class TasksService {
   async addDependency(t: TenantRequestContext, blockedId: string, blockerId: string) {
     return this.db.withTenant(this.ctx(t), async (tx) => {
       const blocked = await this.readRow(tx, t, blockedId, { forUpdate: true });
-      assertAllowed(scopeOf(t, 'update'), blocked, t.principal.userId);
+      await assertCan(tx, t, TASK_SHAPE, blocked.id, 'update');
       await this.readRow(tx, t, blockerId);
       if (blockerId === blockedId) throw new ProblemError('DEPENDENCY_CYCLE', undefined, { cycle: [blockerId, blockedId] });
       // Same lock as the database trigger: the reachability check and the insert see a stable graph.
@@ -502,7 +515,7 @@ export class TasksService {
   async removeDependency(t: TenantRequestContext, blockedId: string, blockerId: string): Promise<void> {
     await this.db.withTenant(this.ctx(t), async (tx) => {
       const blocked = await this.readRow(tx, t, blockedId);
-      assertAllowed(scopeOf(t, 'update'), blocked, t.principal.userId);
+      await assertCan(tx, t, TASK_SHAPE, blocked.id, 'update');
       const r = await tx.delete(schema.taskDependencies)
         .where(and(eq(schema.taskDependencies.blockedId, blockedId), eq(schema.taskDependencies.blockerId, blockerId))).returning({ b: schema.taskDependencies.blockerId });
       if (r.length === 0) throw new ProblemError('NOT_FOUND');
@@ -511,8 +524,11 @@ export class TasksService {
 
   // ---------------------------------------------------------------- bulk
   async bulk(t: TenantRequestContext, body: z.infer<typeof TaskBulkRequest>) {
-    if (scopeOf(t, 'bulk').kind === 'none') throw new ProblemError('FORBIDDEN');
+    const bulkScope = scopeOf(t, 'bulk');
+    if (bulkScope.kind === 'none') throw new ProblemError('FORBIDDEN');
     const ids = [...new Set(body.ids)];
+    // Matrix A A24 `bulk_limit`: own-scoped bulk work is capped by the tenant policy (default 100).
+    if (bulkScope.kind === 'scoped' && !bulkScope.team && ids.length > BULK_MAX_ITEMS_OWN) throw new ProblemError('LIMIT_EXCEEDED', `at most ${BULK_MAX_ITEMS_OWN} items per bulk operation`);
     const results: { id: string; ok: boolean; code?: string }[] = [];
     const one_ = async (tx: Db, id: string) => {
       const row = await this.readRow(tx, t, id, { forUpdate: true });

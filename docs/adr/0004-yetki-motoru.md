@@ -94,3 +94,9 @@ Her ret `authz.denied` debug logu: `{reason: module_disabled | no_permission | s
 ## Sonuçlar
 - (+) Tek kod yolu → yüzeyler arası tutarlılık; sayım ve sayfalama doğru.
 - (−) Predicate karmaşıklığı sorgu planlarını etkiler; `(tenant_id, owner_user_id)`, `(tenant_id, queue_id)`, `(tenant_id, segment)` indeksleri zorunlu; `record_shares` için `(tenant_id, grantee, record_type, record_id)` indeksi.
+
+## Uygulama notu (P4a, 2026-11-21)
+- `packages/authz.recordScope(ctx, action, resource)` rolün kapsam birleşimini döndürür (`all` | `scoped{own,queue,team}` | `none`); `canAssignRole()` A04 `no_escalation` / `no_admin_assignment` kısıtlarını uygular.
+- Kayıt düzeyi predicate tek yerde: `apps/api/src/common/record-access.ts` (`recordPredicate`, `assertCan`, `canAssignTo`, FLS yardımcıları). Bağlam her istekte tek sorguyla yüklenir (`access-loader.ts`); önbellek yoktur, bu yüzden yetki değişikliği bir sonraki istekte geçerlidir (sürüm alanları gelecekteki önbellek için yine artırılır).
+- Paylaşım kuralları kayıt anında materyalize edilmez: RQL koşulu istek başına derlenip predicate'e eklenir (kural değişince tutarsızlık kalmaz). Derlenemeyen kural hiçbir şey vermez (fail-closed).
+- Kanıt: `apps/api/test/authz.int.test.ts` (matristen üretilen 5 rol paketi + senaryolar), `docs/perf/p2-task-list.md` (P4a satırları).

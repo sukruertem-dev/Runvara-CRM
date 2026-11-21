@@ -55,6 +55,8 @@ export class ProvisioningService {
   /** Roles, admin membership, always-on modules, DEK v1. Separate so seeds and tests reuse the same path. */
   async seedTenant(tx: Db, tenantId: string, adminUserId: string): Promise<void> {
     await tx.insert(schema.memberships).values({ tenantId, userId: adminUserId, status: 'active', authzVersion: 0, density: 'comfortable' });
+    // ADR-0010: segment visibility comes from grants; the founding Admin holds both (sales mode still narrows).
+    await tx.insert(schema.userSegmentGrants).values([{ tenantId, userId: adminUserId, segment: 'b2b' }, { tenantId, userId: adminUserId, segment: 'b2c' }]);
     const roles = await tx.insert(schema.roles)
       .values(SYSTEM_ROLES.map((key) => ({ tenantId, key, name: SYSTEM_ROLE_NAMES[key] ?? key, isSystem: true, path: key, version: 1 })))
       .returning({ id: schema.roles.id, key: schema.roles.key });

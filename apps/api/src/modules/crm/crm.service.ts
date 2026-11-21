@@ -8,6 +8,7 @@ import { sql, type Db, type DbHandle, type SQL } from '@flexa/db';
 import { resolveTransition, type Condition, type PostFunction, type Validator, type Workflow } from '@flexa/workflow';
 import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js';
 import type { CursorCodec } from '../../common/http-helpers';
+import { audit } from '../../common/audit';
 import { mapDbError } from '../../common/http-helpers';
 import { keysetPage, parseFields, pickFields, type ListQuery } from '../../common/keyset-list';
 import { ProblemError } from '../../common/problem';
@@ -15,9 +16,8 @@ import { dbCtx, type Segment, type TenantRequestContext } from '../../common/req
 import { DB, ENV } from '../../infra/tokens';
 import { cursorCodec, TaskListService } from '../tasks/task-list.service';
 import { loadFieldDefs, validateCustom } from '../tasks/task-fields';
-import {
-  assertRecordAllowed, CRM, crmRegistry, crmScope, crmScopeSql, crmViewContext, readCrmRow, type CrmDef, type CrmRow, type CrmType,
-} from './crm-objects';
+import { assertCan, assertWritable, canAssignTo, maskRegistry, maskView, recordPredicate } from '../../common/record-access';
+import { CRM, crmRegistry, crmScope, crmViewContext, readCrmRow, type CrmDef, type CrmRow, type CrmType } from './crm-objects';
 
 export type AccountCreateBody = z.infer<typeof AccountCreate>;
 export type ContactCreateBody = z.infer<typeof ContactCreate>;
@@ -105,8 +105,7 @@ export class CrmService {
   // ------------------------------------------------------------------ read
   async list(t: TenantRequestContext, type: CrmType, query: ListQuery) {
     const def = CRM[type];
-    const scope = crmScope(t, def, 'read');
-    if (scope.kind === 'none') throw new ProblemError('FORBIDDEN');
+    if (crmScope(t, def, 'read').kind === 'none') throw new ProblemError('FORBIDDEN');
     return this.db.withTenant(dbCtx(t), async (tx) => {
       const vc = await crmViewContext(tx, type);
       const page = await keysetPage<CrmRow>(tx, t, this.cursors, {
@@ -114,10 +113,11 @@ export class CrmService {
         from: def.from,
         select: def.select,
         idExpr: sql`t.id`,
-        base: [sql`t.deleted_at IS NULL`, crmScopeSql(scope, t.principal.userId)],
-        registry: crmRegistry(def, vc.defs),
+        base: [sql`t.deleted_at IS NULL`, await recordPredicate(tx, t, def.shape, 'read')],
+        // Hidden fields cannot be filtered or sorted on (UNKNOWN_FIELD, like a field that does not exist).
+        registry: maskRegistry(t, type, crmRegistry(def, vc.defs), def.viewFieldOf),
       }, query);
-      const views = page.rows.map((r) => def.view(r, vc));
+      const views = page.rows.map((r) => maskView(t, type, def.view(r, vc)));
       const fields = parseFields(query.fields, new Set(views[0] ? Object.keys(views[0]) : Object.keys(def.baseRegistry)));
       return {
         data: views.map((v) => pickFields(v, fields)),
@@ -132,7 +132,7 @@ export class CrmService {
   }
 
   async view(tx: Db, t: TenantRequestContext, type: CrmType, id: string): Promise<Record<string, unknown>> {
-    return CRM[type].view(await readCrmRow(tx, t, CRM[type], id), await crmViewContext(tx, type));
+    return maskView(t, type, CRM[type].view(await readCrmRow(tx, t, CRM[type], id), await crmViewContext(tx, type)));
   }
 
   /** A referenced record must be readable by the caller; otherwise the reference is rejected as not found. */
@@ -162,6 +162,7 @@ export class CrmService {
   async insert(tx: Db, t: TenantRequestContext, type: CrmType, body: unknown): Promise<string> {
     const def = CRM[type];
     if (crmScope(t, def, 'create').kind === 'none') throw new ProblemError('FORBIDDEN');
+    assertWritable(t, type, body as Record<string, unknown>);
     const me = t.principal.userId;
     let cols: Cols;
     let points: ContactPointBody[] = [];
@@ -263,22 +264,23 @@ export class CrmService {
 
   private ownerFor(t: TenantRequestContext, def: CrmDef, requested: string | undefined): string {
     const me = t.principal.userId;
-    if (requested !== undefined && requested !== me) this.assertReassign(t, def);
+    if (requested !== undefined && requested !== me) this.assertAssignable(t, def, { userId: requested });
     return requested ?? me;
   }
 
   private userOrQueue(t: TenantRequestContext, def: CrmDef, ownerUserId: string | null | undefined, queueId: string | null | undefined): Cols {
     const me = t.principal.userId;
-    if ((ownerUserId !== undefined && ownerUserId !== me) || (queueId !== undefined && queueId !== null)) this.assertReassign(t, def);
+    if (ownerUserId !== undefined && ownerUserId !== null && ownerUserId !== me) this.assertAssignable(t, def, { userId: ownerUserId });
+    if (queueId !== undefined && queueId !== null) this.assertAssignable(t, def, { queueId });
     const owner = ownerUserId === undefined ? (queueId ? null : me) : ownerUserId;
     if (owner === null && !queueId) throw new ProblemError('VALIDATION_FAILED', 'an owner or a queue is required');
     return { owner_user_id: owner, queue_id: queueId ?? null };
   }
 
-  assertReassign(t: TenantRequestContext, def: CrmDef): void {
-    // Giving a record to someone else is a reassignment (Matrix A A13); until teams exist (P4) only a
-    // tenant-wide grant may do it.
-    if (crmScope(t, def, 'reassign').kind !== 'all') throw new ProblemError('FORBIDDEN', 'assigning records to others requires the reassign permission');
+  /** Giving a record to someone else is a reassignment (Matrix A A13): tenant-wide, or within the caller's
+   *  teams/queues for scoped grants (record-access `canAssignTo`). */
+  assertAssignable(t: TenantRequestContext, def: CrmDef, target: { userId: string } | { queueId: string }): void {
+    if (!canAssignTo(t, def.resource, target)) throw new ProblemError('FORBIDDEN', 'assigning records to that person or queue requires the reassign permission');
   }
 
   // ------------------------------------------------------------------ update
@@ -293,7 +295,8 @@ export class CrmService {
   private async applyPatch(tx: Db, t: TenantRequestContext, type: CrmType, row: CrmRow, version: number | null, body: Record<string, unknown>, extra: Cols = {}): Promise<void> {
     const def = CRM[type];
     const me = t.principal.userId;
-    assertRecordAllowed(crmScope(t, def, 'update'), row, me);
+    await assertCan(tx, t, def.shape, row.id, 'update');
+    assertWritable(t, type, body);
     if (version !== null && row.version !== version) throw new ProblemError('PRECONDITION_FAILED', `the ${type} was changed by someone else`, { currentVersion: row.version });
     if (type === 'lead' && row.converted_at) throw new ProblemError('LEAD_ALREADY_CONVERTED');
     const has = (k: string) => Object.prototype.hasOwnProperty.call(body, k);
@@ -309,11 +312,13 @@ export class CrmService {
 
     // Ownership changes are reassignments.
     if (has('ownerUserId') && body.ownerUserId !== row.owner_user_id) {
-      this.assertReassign(t, def);
+      await assertCan(tx, t, def.shape, row.id, 'reassign');
+      if (typeof body.ownerUserId === 'string' && body.ownerUserId !== me) this.assertAssignable(t, def, { userId: body.ownerUserId });
       cols.owner_user_id = body.ownerUserId;
     }
     if (has('queueId') && body.queueId !== row.queue_id) {
-      this.assertReassign(t, def);
+      await assertCan(tx, t, def.shape, row.id, 'reassign');
+      if (typeof body.queueId === 'string') this.assertAssignable(t, def, { queueId: body.queueId });
       cols.queue_id = body.queueId;
     }
     if ((type === 'lead' || type === 'case') && (cols.owner_user_id ?? row.owner_user_id) === null && (cols.queue_id ?? row.queue_id) === null) {
@@ -356,6 +361,12 @@ export class CrmService {
       cols.custom = Object.fromEntries(Object.entries({ ...row.custom, ...changes }).filter(([, v]) => v !== null));
     }
     if (Object.keys(cols).length === 0) return;
+    if (cols.owner_user_id !== undefined || cols.queue_id !== undefined) {
+      await audit(tx, t.tenant.id, {
+        action: 'record.reassigned', actorId: me, targetType: type, targetId: row.id,
+        details: { from: { ownerUserId: row.owner_user_id, queueId: row.queue_id ?? null }, to: { ownerUserId: cols.owner_user_id ?? row.owner_user_id, queueId: cols.queue_id ?? row.queue_id ?? null } },
+      });
+    }
     cols.updated_by = me;
     try {
       const sets = Object.keys(cols).map((c) => sql`${ident(c)} = ${val(c, cols[c])}`);
@@ -371,7 +382,7 @@ export class CrmService {
     await this.db.withTenant(dbCtx(t), async (tx) => {
       const def = CRM[type];
       const row = await readCrmRow(tx, t, def, id, { forUpdate: true });
-      assertRecordAllowed(crmScope(t, def, 'archive'), row, t.principal.userId);
+      await assertCan(tx, t, def.shape, row.id, 'archive');
       if (row.version !== version) throw new ProblemError('PRECONDITION_FAILED', `the ${type} was changed by someone else`, { currentVersion: row.version });
       await tx.execute(sql`UPDATE ${ident(def.table)} SET deleted_at = now(), version = version + 1, updated_by = ${t.principal.userId} WHERE id = ${id}`);
     });
@@ -381,7 +392,7 @@ export class CrmService {
     return this.db.withTenant(dbCtx(t), async (tx) => {
       const def = CRM[type];
       const row = await readCrmRow(tx, t, def, id, { includeDeleted: true, forUpdate: true });
-      assertRecordAllowed(crmScope(t, def, 'archive'), row, t.principal.userId);
+      await assertCan(tx, t, def.shape, row.id, 'archive');
       if (row.merged_into) throw new ProblemError('CONFLICT', 'a merged record cannot be restored');
       if (row.deleted_at) await tx.execute(sql`UPDATE ${ident(def.table)} SET deleted_at = NULL, version = version + 1, updated_by = ${t.principal.userId} WHERE id = ${id}`);
       return this.view(tx, t, type, id);
@@ -404,7 +415,7 @@ export class CrmService {
     const def = CRM[type];
     const me = t.principal.userId;
     let row = await readCrmRow(tx, t, def, id, { forUpdate: true });
-    assertRecordAllowed(crmScope(t, def, 'update'), row, me);
+    await assertCan(tx, t, def.shape, row.id, 'update');
     if (type === 'lead' && row.converted_at) throw new ProblemError('LEAD_ALREADY_CONVERTED');
     if (fields && Object.keys(fields).length > 0) {
       await this.applyPatch(tx, t, type, row, null, fields);
@@ -508,7 +519,7 @@ export class CrmService {
   async addContactPoint(t: TenantRequestContext, type: 'account' | 'contact' | 'lead', id: string, body: ContactPointBody) {
     return this.db.withTenant(dbCtx(t), async (tx) => {
       const row = await readCrmRow(tx, t, CRM[type], id, { forUpdate: true });
-      assertRecordAllowed(crmScope(t, CRM[type], 'update'), row, t.principal.userId);
+      await assertCan(tx, t, CRM[type].shape, row.id, 'update');
       const pointId = await this.insertPoint(tx, t, type, id, body);
       const r = await tx.execute<{ id: string; kind: 'email' | 'phone'; value: string; e164: string | null; label: string | null; is_primary: boolean }>(sql`
         SELECT id, kind, value, e164, label, is_primary FROM contact_points WHERE id = ${pointId}`);
@@ -532,7 +543,7 @@ export class CrmService {
   async removeContactPoint(t: TenantRequestContext, type: 'account' | 'contact' | 'lead', id: string, pointId: string): Promise<void> {
     await this.db.withTenant(dbCtx(t), async (tx) => {
       const row = await readCrmRow(tx, t, CRM[type], id, { forUpdate: true });
-      assertRecordAllowed(crmScope(t, CRM[type], 'update'), row, t.principal.userId);
+      await assertCan(tx, t, CRM[type].shape, row.id, 'update');
       const r = await tx.execute(sql`DELETE FROM contact_points WHERE id = ${pointId} AND owner_type = ${type} AND owner_id = ${id}`);
       if ((r.rowCount ?? 0) === 0) throw new ProblemError('NOT_FOUND');
     });
@@ -541,7 +552,7 @@ export class CrmService {
   async linkAccount(t: TenantRequestContext, contactId: string, accountId: string, role: string, isPrimary: boolean) {
     return this.db.withTenant(dbCtx(t), async (tx) => {
       const contact = await readCrmRow(tx, t, CRM.contact, contactId, { forUpdate: true });
-      assertRecordAllowed(crmScope(t, CRM.contact, 'update'), contact, t.principal.userId);
+      await assertCan(tx, t, CRM.contact.shape, contact.id, 'update');
       const acc = await this.ref(tx, t, 'account', accountId);
       const accSegs = parseSegs(acc.segs);
       if (!parseSegs(contact.segs).some((s) => accSegs.includes(s))) throw new ProblemError('SEGMENT_NOT_ALLOWED', 'contact and account share no segment');
@@ -560,7 +571,7 @@ export class CrmService {
   async unlinkAccount(t: TenantRequestContext, contactId: string, accountId: string): Promise<void> {
     await this.db.withTenant(dbCtx(t), async (tx) => {
       const contact = await readCrmRow(tx, t, CRM.contact, contactId, { forUpdate: true });
-      assertRecordAllowed(crmScope(t, CRM.contact, 'update'), contact, t.principal.userId);
+      await assertCan(tx, t, CRM.contact.shape, contact.id, 'update');
       const r = await tx.execute(sql`DELETE FROM account_contact_roles WHERE contact_id = ${contactId} AND account_id = ${accountId}`);
       if ((r.rowCount ?? 0) === 0) throw new ProblemError('NOT_FOUND');
     });

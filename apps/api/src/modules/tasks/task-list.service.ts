@@ -1,15 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { recordScope } from '@flexa/authz';
 import type { ApiEnv } from '@flexa/config';
 import { sql, type DbHandle, type SQL } from '@flexa/db';
 import { createHash } from 'node:crypto';
 import { CursorCodec } from '../../common/http-helpers';
 import { keysetPage, parseFields, pickFields, type ListQuery } from '../../common/keyset-list';
-import { ProblemError } from '../../common/problem';
 import { dbCtx, type TenantRequestContext } from '../../common/request-context';
 import { DB, ENV } from '../../infra/tokens';
 import { taskRegistry } from './task-fields';
-import { hydrate, scopeSql, TASK_SELECT, toView, TasksService, type TaskRow } from './tasks.service';
+import { hydrate, TASK_SELECT, taskReadPredicate, toView, TasksService, type TaskRow } from './tasks.service';
 
 export type { ListQuery } from '../../common/keyset-list';
 
@@ -37,8 +35,7 @@ export class TaskListService {
 
   /** Task list; `extra` adds fixed predicates (e.g. related record) on alias `t`. */
   async list(t: TenantRequestContext, query: ListQuery, extra: SQL[] = []) {
-    const scope = recordScope(t.authz, 'read', 'core.task');
-    if (scope.kind === 'none') throw new ProblemError('FORBIDDEN');
+    // Tasks are also readable through their parent record (taskReadPredicate), so no early 403 here.
     const fields = parseFields(query.fields, VIEW_FIELDS);
     return this.db.withTenant(dbCtx(t), async (tx) => {
       const vc = await this.tasks.viewContext(tx);
@@ -47,7 +44,7 @@ export class TaskListService {
         from: sql`tasks t JOIN statuses s ON s.tenant_id = t.tenant_id AND s.id = t.status_id`,
         select: TASK_SELECT,
         idExpr: sql`t.id`,
-        base: [sql`t.deleted_at IS NULL`, scopeSql(scope, t.principal.userId), ...extra],
+        base: [sql`t.deleted_at IS NULL`, await taskReadPredicate(tx, t), ...extra],
         registry: taskRegistry(vc.defs),
       }, query);
       return {

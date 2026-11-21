@@ -1,5 +1,37 @@
 # İlerleme
 
+## P4a — Faz 4 + G2: tek yetki motoru · 2026-11-21 · ✅ (CI PR'da çalışacak)
+
+> P4 iki adıma bölündü (`docs/p4-plan.md`): **P4a yetki motoru** (bu adım) ve **P4b** kayıt etrafı (timeline, yorum/mention, dosya, bildirim, audit okuma, delegasyon, matris yönetimi).
+
+### Yapılanlar
+- **`0004_authz.sql`:** `user_segment_grants` (süreli), `teams` (üst ekip, döngü trigger'ı) + `team_members` (member/manager), rol hiyerarşisi (`roles.parent_role_id`, döngü trigger'ı), `sharing_defaults` (OWD), `record_shares` (kullanıcı/ekip, okuma/düzenleme; kaydı görünmüyorsa paylaşım satırı da görünmez), `sharing_rules` (RQL koşulu → ekip), `field_policies`; davetlere segment + ekip. Mevcut üyelere geriye uyumlu segment yetkisi verildi.
+- **Segment = kullanıcı yetkisi ∩ satış modu**, `X-Segment` başlığı yalnızca daraltır (segment değiştirici).
+- **Kayıt düzeyi motor** (`common/record-access.ts`): own / queue / team (alt ekipler dahil) / rol hiyerarşisi / OWD / manuel paylaşım / paylaşım kuralı → tek SQL predicate. Tekil okuma, liste, sayım ve yazma kontrolleri aynı yoldan; sonradan filtreleme yok. Görevler bağlı CRM kaydı üzerinden okunabilir (parent'tan türetilmiş erişim).
+- **Alan düzeyi güvenlik:** gizli alan yanıtta yok, RQL/sıralama/`fields` için var olmayan alanla aynı `UNKNOWN_FIELD`; gizli alana yazma adını vermeden 403, salt-okunura yazma adıyla 403 `FIELD_READ_ONLY`.
+- **Yönetici sınırları:** `managed_teams_only`, `own_segments_only`, `not_self`, `no_escalation`, `no_admin_assignment` (rol atama `canAssignRole`), Yönetici davetleri (yönettiği ekibe, Satış Temsilcisi, kendi segmentleri), yeniden atama ekip içinde.
+- **API (40 yeni uç nokta):** ekipler ve üyeleri, kuyruklar ve üyeleri, kullanıcı erişim özeti, segment ve rol atama, rol hiyerarşisi, OWD, paylaşım kuralları, 6 nesnede manuel paylaşım, alan politikaları. Her değişiklik audit'li; yeniden atama da audit'e yazılır.
+- Matristeki bir tutarsızlık çözüldü: kayıt dışı referans verisi okuması (A17, A26) rol atamada kapsam karşılaştırmasına girmez; aksi hâlde Yönetici Satış Temsilcisi atayamazdı (`assumptions.md` B28). Diğer kararlar B29–B32.
+
+### Kabul kriterleri
+| Kriter | Durum | Kanıt |
+|---|---|---|
+| Matristen otomatik üretilen test paketi (rol × eylem × kapsam × segment) | ✅ | `authz.int.test.ts`: `matrix.json`'dan bağımsız kâhin; 5 rol × okuma/düzenleme/arşiv/oluşturma × kendi/ekip arkadaşı/başka ekip/gizli segment |
+| Yetkisiz kullanıcı göremez/değiştiremez; liste sayıları ve sayfalama doğru | ✅ | aynı paket: `count=true` toplamı ve tam liste, görünür kayıtlarla birebir |
+| Gizli alan filtre/sıralama ile sızdırılamaz | ✅ | FLS testi: yanıt, `q`, `sort`, `fields`, yazma; Admin etkilenmez; kaldırma sonraki istekte geçerli |
+| Rol hiyerarşisi ve paylaşım kuralı senaryoları | ✅ | hiyerarşi (görür / döngü reddi / geri alma), alt ekipler, OWD, manuel paylaşım, kriter kuralı |
+| Karar senaryoları 10.4.4 | ✅ | SCN-01, 05 (audit'li), 06, 07, 08, 11 |
+| Yetki değişikliği en geç bir sonraki istekte | ✅ | paylaşım, segment, rol ve süresi dolan segment aynı token ile sonraki istekte |
+| Audit log'a UPDATE/DELETE DB tarafından reddedilir | ✅ | P1'den beri `rls.int.test.ts` |
+| Yetki kontrollü listede p95 < 200 ms | ✅ | `docs/perf/p2-task-list.md`: Yönetici (ekip + kural + parent) p95 56 ms, sayımlı 78 ms |
+
+### Testler
+API entegrasyon **67/67** (+15), DB 17/17, birim testleri yeşil (authz'a kapsam ve rol atama testleri), perf yeşil, lint/typecheck temiz, kontrast/matris/katalog PASS.
+
+### Sonraki adım
+**P4b** — activity timeline, yorum + mention, dosya ekleri, bildirim temeli, audit okuma, delegasyon ve yetki talebi, matris yönetim API'leri.
+
+
 ## P3 — Faz 3: CRM nesneleri · 2026-11-20 · ✅ (CI PR'da çalışacak)
 
 ### Yapılanlar

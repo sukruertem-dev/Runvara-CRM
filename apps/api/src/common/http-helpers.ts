@@ -39,7 +39,7 @@ export class CursorCodec {
   }
 }
 
-const TRIGGER_CODES: readonly ErrorCode[] = ['ACCOUNT_HIERARCHY_CYCLE', 'DEPENDENCY_CYCLE', 'SUBTASK_DEPTH_EXCEEDED', 'SUBTASK_CYCLE', 'SUBTASK_MOVE_WITH_CHILDREN'];
+const TRIGGER_CODES: readonly ErrorCode[] = ['TEAM_HIERARCHY_CYCLE', 'ROLE_HIERARCHY_CYCLE', 'ACCOUNT_HIERARCHY_CYCLE', 'DEPENDENCY_CYCLE', 'SUBTASK_DEPTH_EXCEEDED', 'SUBTASK_CYCLE', 'SUBTASK_MOVE_WITH_CHILDREN'];
 
 /** Maps business-rule exceptions raised by database triggers (and FK/unique violations) to problems. */
 export function mapDbError(err: unknown): never {

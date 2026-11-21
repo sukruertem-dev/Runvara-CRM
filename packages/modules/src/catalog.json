@@ -194,7 +194,11 @@
           "/v1/stream",
           "/v1/me",
           "/v1/search",
-          "/v1/notes"
+          "/v1/notes",
+          "/v1/queues",
+          "/v1/users",
+          "/v1/sharing",
+          "/v1/field-policies"
         ]
       },
       "menu": [

@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
+import { canAssignRole } from '@flexa/authz';
 import type { ApiEnv } from '@flexa/config';
 import { AcceptInvitationRequest, CreateInvitationRequest, TokenRequest, type z } from '@flexa/contracts';
 import { and, desc, eq, isNull, one, schema, sql, type DbHandle } from '@flexa/db';
@@ -46,10 +47,16 @@ export class InvitationsController {
   @UseGuards(TenantGuard)
   async create(@CurrentTenant() t: TenantRequestContext, @Body(new ZodPipe(CreateInvitationRequest)) body: z.infer<typeof CreateInvitationRequest>, @Client() c: ClientInfo) {
     const d = authorize(t, 'users.invite');
-    // A04: a Manager may invite only into teams they manage, without exceeding their own rights.
-    // Teams arrive in P4; until then only tenant-wide (Admin) grants can invite.
-    if (d.grant.scope !== 'all') throw new ProblemError('MANAGER_LIMIT', 'team-scoped invitations require team management (P4)');
-    if (body.roleKey === 'admin' && !t.authz.roleKeys.includes('admin')) throw new ProblemError('MANAGER_LIMIT', 'cannot assign the Admin role');
+    // A04 constraints for team-scoped (Manager) invitations: into a managed team, a role within the
+    // inviter's own rights (no_escalation, no_admin_assignment) and only the inviter's segments.
+    const tenantWide = d.grant.scope === 'all';
+    if (!tenantWide && (!body.teamId || !t.access.managedTeamIds.includes(body.teamId))) {
+      throw new ProblemError('MANAGER_LIMIT', 'invite into a team you manage (teamId)');
+    }
+    if (!canAssignRole(t.authz.roleKeys, body.roleKey)) throw new ProblemError('MANAGER_LIMIT', `cannot assign the ${body.roleKey} role`);
+    const segments = body.segments ?? [...t.segments];
+    if (!tenantWide && segments.some((s) => !t.segments.includes(s))) throw new ProblemError('MANAGER_LIMIT', 'segments must be among your own');
+    if (segments.length === 0) throw new ProblemError('VALIDATION_FAILED', 'at least one segment is required');
     const token = randomToken();
     const inviter = await this.sessions.userSummary(t.principal.userId);
     const row = await this.db.withTenant(dbCtx(t), async (tx) => {
@@ -60,9 +67,9 @@ export class InvitationsController {
         .where(and(eq(schema.invitations.email, body.email), isNull(schema.invitations.acceptedAt), isNull(schema.invitations.revokedAt)));
       const inv = one(await tx.insert(schema.invitations).values({
         tenantId: t.tenant.id, email: body.email, roleKey: body.roleKey, tokenHash: sha256(token), invitedBy: t.principal.userId,
-        expiresAt: new Date(Date.now() + INVITATION_TTL_MS),
+        expiresAt: new Date(Date.now() + INVITATION_TTL_MS), segments, teamId: body.teamId ?? null,
       }).returning(), 'invitation');
-      await audit(tx, t.tenant.id, { action: 'user.invited', actorId: t.principal.userId, targetType: 'invitation', targetId: inv.id, ip: c.ip, details: { email: body.email, roleKey: body.roleKey } });
+      await audit(tx, t.tenant.id, { action: 'user.invited', actorId: t.principal.userId, targetType: 'invitation', targetId: inv.id, ip: c.ip, details: { email: body.email, roleKey: body.roleKey, segments, teamId: body.teamId ?? null } });
       return inv;
     });
     await this.mailer.send({
@@ -130,6 +137,15 @@ export class InvitationsController {
       const [role] = await tx.select({ id: schema.roles.id }).from(schema.roles).where(eq(schema.roles.key, inv.role_key));
       if (!role) throw new ProblemError('ROLE_UNKNOWN');
       await tx.insert(schema.userRoles).values({ tenantId: inv.tenant_id, userId, roleId: role.id, grantedBy: null }).onConflictDoNothing();
+      const [invRow] = await tx.select({ segments: schema.invitations.segments, teamId: schema.invitations.teamId, invitedBy: schema.invitations.invitedBy })
+        .from(schema.invitations).where(eq(schema.invitations.id, inv.invitation_id));
+      if (invRow) {
+        await tx.insert(schema.userSegmentGrants).values(invRow.segments.map((segment) => ({ tenantId: inv.tenant_id, userId, segment, grantedBy: invRow.invitedBy })))
+          .onConflictDoNothing();
+        if (invRow.teamId) {
+          await tx.insert(schema.teamMembers).values({ tenantId: inv.tenant_id, teamId: invRow.teamId, userId, role: 'member', addedBy: invRow.invitedBy }).onConflictDoNothing();
+        }
+      }
       await audit(tx, inv.tenant_id, { action: 'user.joined', actorId: userId, targetType: 'user', targetId: userId, ip: c.ip, details: { invitationId: inv.invitation_id, roleKey: inv.role_key } });
     });
     return { tenantId: inv.tenant_id, userCreated: created };

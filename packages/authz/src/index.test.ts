@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { can, defaultEnabledPolicies, grantsFor, PROTECTED_PERMISSIONS, recordScope, SYSTEM_ROLES, type AuthzContext } from './index';
+import { can, canAssignRole, defaultEnabledPolicies, scopeCovers, grantsFor, PROTECTED_PERMISSIONS, recordScope, SYSTEM_ROLES, type AuthzContext } from './index';
 
 const ctx = (roleKeys: string[], modules: string[] = ['core'], policies: string[] = []): AuthzContext => ({
   tenantId: '00000000-0000-0000-0000-000000000001',
@@ -62,16 +62,17 @@ describe('can() — tenant-level actions from permission-matrix.yaml', () => {
   });
 });
 
-describe('recordScope (P2 slice of ADR-0004)', () => {
-  it('maps Matrix A A08/A10 to scopes, fail-closed for team/queue until P4', () => {
+describe('recordScope (ADR-0004 §2)', () => {
+  it('maps Matrix A A08–A13 to the union of granted scopes', () => {
     expect(recordScope(ctx(['admin']), 'read', 'core.task')).toEqual({ kind: 'all' });
     expect(recordScope(ctx(['analyst']), 'read', 'core.task')).toEqual({ kind: 'all' });
     expect(recordScope(ctx(['analyst']), 'update', 'core.task')).toEqual({ kind: 'none' });
-    expect(recordScope(ctx(['manager']), 'read', 'core.task')).toEqual({ kind: 'own' });
-    expect(recordScope(ctx(['sales_rep']), 'update', 'core.task')).toEqual({ kind: 'own' });
-    expect(recordScope(ctx(['call_agent']), 'read', 'core.task')).toEqual({ kind: 'own' });
+    expect(recordScope(ctx(['manager']), 'read', 'core.task')).toEqual({ kind: 'scoped', own: false, queue: false, team: true });
+    expect(recordScope(ctx(['sales_rep']), 'update', 'core.task')).toEqual({ kind: 'scoped', own: true, queue: false, team: false });
+    expect(recordScope(ctx(['call_agent']), 'read', 'core.task')).toEqual({ kind: 'scoped', own: true, queue: true, team: false });
     expect(recordScope(ctx(['sales_rep']), 'archive', 'core.task')).toEqual({ kind: 'none' });
-    expect(recordScope(ctx(['manager']), 'archive', 'core.task')).toEqual({ kind: 'own' });
+    expect(recordScope(ctx(['manager']), 'archive', 'core.task')).toEqual({ kind: 'scoped', own: false, queue: false, team: true });
+    expect(recordScope(ctx(['sales_rep', 'manager']), 'update', 'core.task')).toEqual({ kind: 'scoped', own: true, queue: false, team: true });
     expect(recordScope(ctx(['admin']), 'purge', 'core.task')).toEqual({ kind: 'all' });
     expect(recordScope(ctx([]), 'read', 'core.task')).toEqual({ kind: 'none' });
     expect(recordScope(ctx(['sales_rep', 'admin']), 'read', 'core.task')).toEqual({ kind: 'all' });
@@ -79,11 +80,29 @@ describe('recordScope (P2 slice of ADR-0004)', () => {
 
   it('honours resource-narrowed grants and the module gate', () => {
     // A09: call_agent may create leads and contacts only.
-    expect(recordScope(ctx(['call_agent'], ['core', 'crm']), 'create', 'crm.lead')).toEqual({ kind: 'own' });
-    expect(recordScope(ctx(['call_agent'], ['core', 'crm']), 'create', 'crm.contact')).toEqual({ kind: 'own' });
+    expect(recordScope(ctx(['call_agent'], ['core', 'crm']), 'create', 'crm.lead')).toEqual({ kind: 'scoped', own: true, queue: false, team: false });
+    expect(recordScope(ctx(['call_agent'], ['core', 'crm']), 'create', 'crm.contact')).toEqual({ kind: 'scoped', own: true, queue: false, team: false });
     expect(recordScope(ctx(['call_agent'], ['core', 'crm']), 'create', 'crm.opportunity')).toEqual({ kind: 'none' });
     expect(recordScope(ctx(['call_agent']), 'create', 'core.task')).toEqual({ kind: 'none' });
-    expect(recordScope(ctx(['sales_rep'], ['core', 'crm']), 'create', 'crm.opportunity')).toEqual({ kind: 'own' });
+    expect(recordScope(ctx(['sales_rep'], ['core', 'crm']), 'create', 'crm.opportunity')).toEqual({ kind: 'scoped', own: true, queue: false, team: false });
     expect(recordScope({ ...ctx(['admin']), enabledModules: new Set(['core']) }, 'read', 'crm.account')).toEqual({ kind: 'none' });
+  });
+});
+
+describe('role assignment limits (A04 no_escalation / no_admin_assignment)', () => {
+  it('orders scopes with queue and team incomparable', () => {
+    expect(scopeCovers('team', 'own')).toBe(true);
+    expect(scopeCovers('team', 'queue')).toBe(false);
+    expect(scopeCovers('own', 'team')).toBe(false);
+    expect(scopeCovers('all', 'segment')).toBe(true);
+  });
+  it('a manager may assign the sales rep role only; Admin may assign anything', () => {
+    expect(canAssignRole(['manager'], 'sales_rep')).toBe(true);
+    expect(canAssignRole(['manager'], 'call_agent')).toBe(false); // queue scope is not covered by team
+    expect(canAssignRole(['manager'], 'analyst')).toBe(false); // read-all exceeds team scope
+    expect(canAssignRole(['manager'], 'manager')).toBe(true);
+    expect(canAssignRole(['manager'], 'admin')).toBe(false);
+    expect(canAssignRole(['admin'], 'admin')).toBe(true);
+    expect(canAssignRole(['sales_rep'], 'sales_rep')).toBe(true);
   });
 });
