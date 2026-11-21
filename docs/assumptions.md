@@ -68,3 +68,7 @@
 | B30 | Davet edilen kullanıcının segmentleri | Varsayılan: davet edenin etkin segmentleri; Admin istediğini seçer, Yönetici yalnızca kendi segmentlerinden | ADR-0010, A04/A05 |
 | B31 | Rol hiyerarşisi | Sistem rolleri düz başlar; Admin bir rolü diğerinin altına koyabilir (`PUT /v1/roles/{id}/parent`). Üst rol, alt rol sahiplerinin kayıtlarını okur/düzenler/arşivler (rolün o eylem izni varsa) | ADR-0004 §1 |
 | B32 | Ekip listesi | Ekip yapısı tüm üyelerce okunabilir (paylaşım seçicileri için); değiştirme `teams.manage` / `teams.members.manage` | permission-matrix.yaml A06 |
+| B33 | Yerel/test S3 | MinIO topluluk imajları artık herkese açık çekilemiyor; geliştirme ve testte S3 uyumlu **SeaweedFS** (`chrislusf/seaweedfs:3.80`). Üretimde herhangi bir S3 uyumlu depo (`S3_*` ortam değişkenleri) | ADR-0013 §2 |
+| B34 | Mention geri çekme | Kaldırılan mention'ın **okunmamış** bildirimi silinir (okunmuşlar geçmiş olarak kalır); yeniden anılırsa yeniden bildirilir | ADR-0017 §2.5 |
+| B35 | Delegasyon süresi | Yetki, süre dolduğu an bir sonraki istekte kalkar (`valid_until`); süre dolumunun ayrı audit satırı P5 zamanlanmış işiyle yazılır | A07, SCN-18 |
+| B36 | Matris düzenleme | Tenant'a özel değişiklik yalnızca sistem rollerinin hücrelerinde; değer gönderilen sürüme eşitse override silinir (matris en küçük farkla kalır); geri alma yeni sürüm olarak kaydedilir (geçmiş yeniden yazılmaz) | A03, AUTH-11 |

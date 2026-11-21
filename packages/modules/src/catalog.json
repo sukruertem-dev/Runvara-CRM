@@ -198,7 +198,12 @@
           "/v1/queues",
           "/v1/users",
           "/v1/sharing",
-          "/v1/field-policies"
+          "/v1/field-policies",
+          "/v1/comments",
+          "/v1/attachments",
+          "/v1/delegations",
+          "/v1/access-requests",
+          "/v1/authz"
         ]
       },
       "menu": [

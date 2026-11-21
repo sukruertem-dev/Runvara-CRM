@@ -13,6 +13,6 @@ const rows = [...m.matrix_a, ...m.matrix_ai].map((r) => ({ id: r.id, module: r.m
 mkdirSync(dirname(out), { recursive: true });
 writeFileSync(
   out,
-  `${JSON.stringify({ version: m.version, roles: Object.keys(m.roles), protected: m.protected_permissions, policies: m.policies, rows }, null, 2)}\n`,
+  `${JSON.stringify({ version: m.version, roles: Object.keys(m.roles), protected: m.protected_permissions, policies: m.policies, constraints: m.constraints, rows }, null, 2)}\n`,
 );
 process.stdout.write(`authz matrix: ${rows.length} rows → ${out}\n`);

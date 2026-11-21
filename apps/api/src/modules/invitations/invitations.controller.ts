@@ -53,7 +53,7 @@ export class InvitationsController {
     if (!tenantWide && (!body.teamId || !t.access.managedTeamIds.includes(body.teamId))) {
       throw new ProblemError('MANAGER_LIMIT', 'invite into a team you manage (teamId)');
     }
-    if (!canAssignRole(t.authz.roleKeys, body.roleKey)) throw new ProblemError('MANAGER_LIMIT', `cannot assign the ${body.roleKey} role`);
+    if (!canAssignRole(t.authz.roleKeys, body.roleKey, t.authz.overrides)) throw new ProblemError('MANAGER_LIMIT', `cannot assign the ${body.roleKey} role`);
     const segments = body.segments ?? [...t.segments];
     if (!tenantWide && segments.some((s) => !t.segments.includes(s))) throw new ProblemError('MANAGER_LIMIT', 'segments must be among your own');
     if (segments.length === 0) throw new ProblemError('VALIDATION_FAILED', 'at least one segment is required');

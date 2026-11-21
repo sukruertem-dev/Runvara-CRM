@@ -6,7 +6,7 @@ import { generateTotpCode, TokenSigner } from '@flexa/security';
 import { randomBytes } from 'node:crypto';
 import { Redis } from 'ioredis';
 import { createApp } from '../src/app';
-import type { Mailer } from '../src/infra/tokens';
+import type { ApiDeps, Mailer } from '../src/infra/tokens';
 
 /** Test double for the mail queue: records jobs so tests can read the links a user would receive. */
 export class CapturingMailer implements Mailer {
@@ -37,7 +37,7 @@ export interface Harness {
   close(): Promise<void>;
 }
 
-export async function startHarness(overrides: Record<string, string> = {}): Promise<Harness> {
+export async function startHarness(overrides: Record<string, string> = {}, deps: Pick<ApiDeps, 'scanner' | 'storage'> = {}): Promise<Harness> {
   const env = loadEnv(apiEnvSchema, {
     NODE_ENV: 'test',
     LOG_LEVEL: process.env.TEST_LOG_LEVEL ?? 'silent',
@@ -53,13 +53,17 @@ export async function startHarness(overrides: Record<string, string> = {}): Prom
     RATE_LIMIT_PER_MINUTE: '10000',
     AUTH_RATE_LIMIT_PER_MINUTE: '10000',
     OIDC_ALLOW_INSECURE_LOCALHOST: 'true',
+    S3_ENDPOINT: process.env.TEST_S3_ENDPOINT,
+    S3_BUCKET: 'flexa-test',
+    S3_ACCESS_KEY_ID: 'test',
+    S3_SECRET_ACCESS_KEY: 'test',
     ...overrides,
   });
   const db = createDb(env.DATABASE_URL, { max: 5 });
   const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
   await redis.flushall();
   const mailer = new CapturingMailer();
-  const app = await createApp({ env, db, redis, mailer });
+  const app = await createApp({ env, db, redis, mailer, ...deps });
   return {
     app, db, redis, mailer,
     close: async () => {

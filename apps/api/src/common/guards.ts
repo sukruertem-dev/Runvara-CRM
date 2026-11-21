@@ -88,6 +88,7 @@ export class TenantGuard implements CanActivate {
         authzVersion: loaded.membership.authzVersion,
         tenantAuthzEpoch: t.authzEpoch,
         enabledPolicies: defaultEnabledPolicies(),
+        overrides: loaded.overrides,
       },
       segments: effectiveSegments(loaded.grantedSegments, tenant.salesMode, req.headers['x-segment']),
       access: loaded.access,

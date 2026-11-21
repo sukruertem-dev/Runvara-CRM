@@ -39,6 +39,18 @@ export const apiEnvSchema = commonEnvSchema.extend({
   TRUST_PROXY: bool.default(false),
   /** Development/test only: lets OIDC discovery reach http://localhost identity providers. */
   OIDC_ALLOW_INSECURE_LOCALHOST: bool.default(false),
+  /** S3-compatible object storage for attachments (ADR-0013 §2). Without a bucket, attachment endpoints answer 503. */
+  S3_ENDPOINT: z.url().optional(),
+  /** Endpoint the browser uses for signed URLs when it differs from the internal one (e.g. Docker network). */
+  S3_PUBLIC_ENDPOINT: z.url().optional(),
+  S3_REGION: z.string().min(1).default('us-east-1'),
+  S3_BUCKET: z.string().regex(/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/).optional(),
+  S3_ACCESS_KEY_ID: z.string().min(1).optional(),
+  S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+  S3_FORCE_PATH_STYLE: bool.default(true),
+  /** clamd for the attachment scanning hook; without it files are marked `unscanned`, never `clean`. */
+  CLAMAV_HOST: z.string().min(1).optional(),
+  CLAMAV_PORT: z.coerce.number().int().min(1).max(65535).default(3310),
 }).refine((e) => !(e.NODE_ENV === 'production' && e.OIDC_ALLOW_INSECURE_LOCALHOST), {
   message: 'OIDC_ALLOW_INSECURE_LOCALHOST must be false in production',
   path: ['OIDC_ALLOW_INSECURE_LOCALHOST'],

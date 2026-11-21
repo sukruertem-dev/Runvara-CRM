@@ -8,7 +8,10 @@ import { sql, type Db, type DbHandle, type SQL } from '@flexa/db';
 import { resolveTransition, type Condition, type PostFunction, type Validator, type Workflow } from '@flexa/workflow';
 import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js';
 import type { CursorCodec } from '../../common/http-helpers';
+import { recordActivity, viewDiff } from '../../common/activity';
 import { audit } from '../../common/audit';
+import { notify } from '../../common/notify';
+import { randomUUID } from 'node:crypto';
 import { mapDbError } from '../../common/http-helpers';
 import { keysetPage, parseFields, pickFields, type ListQuery } from '../../common/keyset-list';
 import { ProblemError } from '../../common/problem';
@@ -259,6 +262,8 @@ export class CrmService {
     }
     for (const p of points) await this.insertPoint(tx, t, type as 'account' | 'contact' | 'lead', id, p);
     if (accountLink) await this.setAccountRole(tx, t, id, accountLink.id, accountLink.role, accountLink.isPrimary);
+    await recordActivity(tx, t, { type, id, kind: 'created' });
+    if (typeof cols.owner_user_id === 'string' && cols.owner_user_id !== me) await this.assigned(tx, t, type, id, cols.owner_user_id);
     return id;
   }
 
@@ -376,6 +381,20 @@ export class CrmService {
     } catch (e) {
       writeError(e);
     }
+    // Timeline: the field diff in API terms (masked per reader on the way out), plus an assignment event.
+    const vc = await crmViewContext(tx, type);
+    const afterRows = await tx.execute<CrmRow>(sql`${def.select} WHERE t.id = ${row.id}`);
+    const after = afterRows.rows[0] ?? row;
+    await recordActivity(tx, t, { type, id: row.id, kind: 'field_changed', diff: viewDiff(def.view(row, vc), def.view(after, vc)) });
+    if (typeof cols.owner_user_id === 'string' && cols.owner_user_id !== row.owner_user_id && cols.owner_user_id !== me) {
+      await this.assigned(tx, t, type, row.id, cols.owner_user_id);
+    }
+  }
+
+  /** Assignment to another user: timeline event + in-app notification for the new owner. */
+  private async assigned(tx: Db, t: TenantRequestContext, type: CrmType, id: string, ownerUserId: string): Promise<void> {
+    await recordActivity(tx, t, { type, id, kind: 'assigned', data: { ownerUserId } });
+    await notify(tx, t, { users: [ownerUserId], kind: 'assigned', sourceType: 'assignment', sourceId: randomUUID(), recordType: type, recordId: id });
   }
 
   async remove(t: TenantRequestContext, type: CrmType, id: string, version: number): Promise<void> {
@@ -385,6 +404,7 @@ export class CrmService {
       await assertCan(tx, t, def.shape, row.id, 'archive');
       if (row.version !== version) throw new ProblemError('PRECONDITION_FAILED', `the ${type} was changed by someone else`, { currentVersion: row.version });
       await tx.execute(sql`UPDATE ${ident(def.table)} SET deleted_at = now(), version = version + 1, updated_by = ${t.principal.userId} WHERE id = ${id}`);
+      await recordActivity(tx, t, { type, id, kind: 'deleted' });
     });
   }
 
@@ -394,7 +414,10 @@ export class CrmService {
       const row = await readCrmRow(tx, t, def, id, { includeDeleted: true, forUpdate: true });
       await assertCan(tx, t, def.shape, row.id, 'archive');
       if (row.merged_into) throw new ProblemError('CONFLICT', 'a merged record cannot be restored');
-      if (row.deleted_at) await tx.execute(sql`UPDATE ${ident(def.table)} SET deleted_at = NULL, version = version + 1, updated_by = ${t.principal.userId} WHERE id = ${id}`);
+      if (row.deleted_at) {
+        await tx.execute(sql`UPDATE ${ident(def.table)} SET deleted_at = NULL, version = version + 1, updated_by = ${t.principal.userId} WHERE id = ${id}`);
+        await recordActivity(tx, t, { type, id, kind: 'restored' });
+      }
       return this.view(tx, t, type, id);
     });
   }
@@ -448,6 +471,7 @@ export class CrmService {
       if (k === 'priority' && type === 'case' && typeof v === 'number') sets.push(sql`priority = ${v}`);
     }
     await tx.execute(sql`UPDATE ${ident(def.table)} SET ${sql.join(sets, sql`, `)} WHERE id = ${id}`);
+    await recordActivity(tx, t, { type, id, kind: 'status_changed', diff: { status: { from: row.s_key, to: to.key } }, data: { transition: result.transition.key } });
   }
 
   async workflowFor(tx: Db, resourceType: 'lead' | 'opportunity' | 'case', workflowId: string | null): Promise<WorkflowInfo> {
