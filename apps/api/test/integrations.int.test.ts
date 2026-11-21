@@ -321,6 +321,7 @@ async function openStream(token: string, lastEventId?: string) {
   return {
     status: res.status,
     contentType: res.headers.get('content-type'),
+    cacheControl: res.headers.get('cache-control') ?? '',
     events,
     close: () => { ctrl.abort(); },
     async until(pred: (e: SseEvent) => boolean, ms = 5000): Promise<SseEvent> {
@@ -342,12 +343,14 @@ describe('server-sent events (ADR-0007)', () => {
     const s = await openStream(rep.c.accessToken!);
     expect(s.status).toBe(200);
     expect(s.contentType).toMatch(/text\/event-stream/);
+    expect(s.cacheControl).toContain('no-transform');
 
     const hidden = ok(await admin.post('/v1/accounts', { name: 'Yöneticinin', segments: ['b2b'] }), 201);
     const own = ok(await rep.c.post('/v1/accounts', { name: 'Temsilcinin', segments: ['b2b'] }), 201);
     await drain();
     const seen = await s.until((e) => e.event === 'account.created' && (e.data.resource as Json).id === own.id);
-    expect(seen.data).toMatchObject({ type: 'account.created', resource: { type: 'account', id: own.id } });
+    // The actor lets a client tell its own edits from someone else's (P6a conflict notice).
+    expect(seen.data).toMatchObject({ type: 'account.created', resource: { type: 'account', id: own.id }, actor: { type: 'user', id: rep.userId } });
     expect(s.events.some((e) => JSON.stringify(e.data).includes(String(hidden.id)))).toBe(false);
 
     const doc = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Bak ' }, { type: 'mention', attrs: { kind: 'user', id: rep.userId } }] }] };

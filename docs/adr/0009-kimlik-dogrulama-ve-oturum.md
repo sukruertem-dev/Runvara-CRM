@@ -33,3 +33,12 @@ Ayrı kimlik tablosu, ayrı alan adı ve ayrı çerez; tenant oturumu ile karı�
 ## Sonuçlar
 - (+) Kısa ömürlü JWT + sürüm kontrolü ile hem durumsuz doğrulama hem anında yetki geçersiz kılma.
 - (−) Her istekte `memberships.authz_version` için tek satırlık PK okuması (Redis'te 2 sn mikro önbellek ile maliyet düşürülür; "bir sonraki istek" garantisi için iptal anında önbellek anahtarı silinir).
+
+## P6a uygulama notu: rotasyonda kaybolan yanıt (B52)
+- **Sorun:** Tam sayfa yüklemesi refresh çerezini döndürür. Yanıt tarayıcıya ulaşmadan sayfadan çıkılırsa (yaklaşık 100 ms'lik pencere), bir sonraki yükleme eski belirteci sunar. Sıkı yeniden kullanım kuralı bu durumda kullanıcının oturumunu kapatır. P6a'nın uçtan uca testleri bunu yakaladı.
+- **Karar:** Döndürülmüş bir belirteç **30 sn içinde** bir kez daha sunulur ve halefi **hiç kullanılmamışsa**, halef tüketilir (`consumed_by_grace = true`) ve yeni bir belirteç verilir; oturum sürer.
+- **Hırsızlık tespiti korunur, en fazla bir adım gecikir:**
+  - Gerçek sahip elindeki halefi sunduğunda o belirteç kullanılmış sayılır ve aile iptal edilir.
+  - `consumed_by_grace` ile tüketilmiş bir belirteç tanıma alamaz. Böylece iki taraf sırayla yenileme yaparak çalınmış bir aileyi açık tutamaz.
+  - Halef kullanılmışsa ya da 30 sn geçmişse eski kural aynen geçerlidir: aile hemen iptal edilir.
+- **Kanıt:** `auth.int.test.ts` "survives a lost refresh response…", "rotates, detects reuse…".

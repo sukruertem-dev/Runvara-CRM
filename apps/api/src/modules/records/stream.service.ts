@@ -50,7 +50,8 @@ export class StreamService implements OnApplicationShutdown {
     const sub = this.ensureSubscriber();
     // Subscribed before the headers go out: a client that has the response misses no later event.
     await sub.subscribe(realtimeChannel(t.tenant.id));
-    res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
+    // no-transform: compressing proxies (the web app's /api rewrite) must not buffer the stream (P6a finding).
+    res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store, no-transform', connection: 'keep-alive', 'x-accel-buffering': 'no' });
     res.write('retry: 3000\n\n');
     let set = this.byTenant.get(t.tenant.id);
     if (!set) {
@@ -130,7 +131,14 @@ export class StreamService implements OnApplicationShutdown {
     if (conn.res.writableEnded || !(await this.visible(conn, event))) return;
     const data = event.type.startsWith('notification.')
       ? { type: event.type, notificationIds: event.payload.notificationIds ?? [] }
-      : { type: event.type, resource: event.resource ? { type: event.resource.type, id: event.resource.id } : null, changedFields: event.payload.changedFields ?? undefined, occurredAt: event.occurredAt };
+      : {
+          type: event.type,
+          resource: event.resource ? { type: event.resource.type, id: event.resource.id } : null,
+          changedFields: event.payload.changedFields ?? undefined,
+          // Who acted, so a client can tell its own edits from someone else's (the timeline shows the same).
+          actor: { type: event.actor.type, id: event.actor.type === 'user' ? event.actor.id : null },
+          occurredAt: event.occurredAt,
+        };
     conn.res.write(`id: ${event.id}\nevent: ${event.type}\ndata: ${JSON.stringify(data)}\n\n`);
   }
 

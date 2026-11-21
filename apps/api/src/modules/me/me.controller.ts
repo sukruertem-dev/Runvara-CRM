@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Post, UseGuards } from '@nestjs/common';
-import { can } from '@flexa/authz';
-import { TotpConfirmRequest, type z } from '@flexa/contracts';
+import { can, recordScope, type RecordAction, type RecordResource } from '@flexa/authz';
+import { TotpConfirmRequest, UI_CAPABILITIES, type z } from '@flexa/contracts';
 import { eq, schema, type DbHandle } from '@flexa/db';
 import { MODULES } from '@flexa/modules';
 import { decrypt, encrypt, generateRecoveryCodes, generateTotpSecret, totpUri, verifyTotp, type KeyRing } from '@flexa/security';
@@ -11,6 +11,24 @@ import { Client, CurrentPrincipal, CurrentTenant, type ClientInfo, type Principa
 import { ZodPipe } from '../../common/zod.pipe';
 import { DB, KEYRING } from '../../infra/tokens';
 import { SessionService } from '../auth/session.service';
+
+/** Task capabilities map onto the generic record permissions (`*record*.<action>` on core.task). */
+const TASK_CAPABILITY: Partial<Record<(typeof UI_CAPABILITIES)[number], RecordAction>> = {
+  'task.create': 'create',
+  'task.update': 'update',
+  'task.delete': 'archive',
+  'task.bulk': 'bulk',
+};
+
+const RECORD_PERMISSION = /^(core\.task|crm\.(?:account|contact|lead|opportunity|case))\.(read|create|update|archive|purge|reassign|bulk)$/;
+
+/** A menu entry's permission: record permissions (`core.task.read`) resolve through the record scope of the
+ *  generic `*record*` grants (any scope counts); everything else through `can()` in read mode. */
+function menuPermissionHeld(t: TenantRequestContext, perm: string): boolean {
+  const m = RECORD_PERMISSION.exec(perm);
+  if (m?.[1] && m[2]) return recordScope(t.authz, m[2] as RecordAction, m[1] as RecordResource).kind !== 'none';
+  return can(t.authz, perm, 'read').allow;
+}
 
 @Controller('v1/me')
 export class MeController {
@@ -35,10 +53,21 @@ export class MeController {
     const menu = enabled.flatMap((m) =>
       m.menu
         .filter((item) => !item.salesModes || item.salesModes.includes(t.tenant.salesMode))
-        .filter((item) => item.requires.some((perm) => can(t.authz, perm, 'read').allow))
+        .filter((item) => item.requires.some((perm) => menuPermissionHeld(t, perm)))
         .map((item) => ({ id: item.id, module: m.id, labelKey: item.labelKey, path: item.path, icon: item.icon })),
     );
-    return { modules: enabled.map((m) => ({ id: m.id, displayNameKey: m.displayNameKey })), menu };
+    return {
+      modules: enabled.map((m) => ({ id: m.id, displayNameKey: m.displayNameKey })),
+      menu,
+      roles: [...t.authz.roleKeys],
+      segments: [...t.availableSegments],
+      salesMode: t.tenant.salesMode,
+      capabilities: UI_CAPABILITIES.filter((cap) => {
+        const taskAction = TASK_CAPABILITY[cap];
+        if (taskAction) return recordScope(t.authz, taskAction, 'core.task').kind !== 'none';
+        return can(t.authz, cap, cap.endsWith('.read') ? 'read' : 'full').allow;
+      }),
+    };
   }
 
   @Post('mfa/totp/setup')

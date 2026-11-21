@@ -2,15 +2,15 @@
 
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
-import { request, type RecoveryCodes, type TotpSetup } from '../../../lib/api';
-import { t } from '../../../lib/i18n';
-import { useAction } from '../../../lib/use-action';
-import { useRequireSession } from '../../../lib/use-session';
-import { AppShell } from '../../_components/app-shell';
-import { Alert, Field, FormMessage, SubmitButton } from '../../_components/ui';
+import { request, type RecoveryCodes, type TotpSetup } from '../../../../lib/api';
+import { t } from '../../../../lib/i18n';
+import { useAction } from '../../../../lib/use-action';
+import { useApp } from '../../../../lib/app-context';
+import { PageContainer } from '../../../_components/app-shell';
+import { Alert, Field, FormMessage, SubmitButton } from '../../../_components/ui';
 
 export default function SecurityPage() {
-  const { me } = useRequireSession();
+  const { me } = useApp();
   const [enabledOverride, setEnabledOverride] = useState<boolean | null>(null);
   const [setup, setSetup] = useState<TotpSetup | null>(null);
   const [codes, setCodes] = useState<string[] | null>(null);
@@ -21,14 +21,6 @@ export default function SecurityPage() {
   const confirm = useAction();
   const disable = useAction();
 
-  if (!me) {
-    return (
-      <main className="page">
-        <h1 className="sr-only">{t('security.title')}</h1>
-        <p role="status">{t('common.loading')}</p>
-      </main>
-    );
-  }
 
   const enabled = enabledOverride ?? me.user.mfaEnabled;
 
@@ -73,7 +65,7 @@ export default function SecurityPage() {
   }
 
   return (
-    <AppShell me={me}>
+    <PageContainer>
       <h1>{t('security.title')}</h1>
       <section className="card" aria-labelledby="mfa-h">
         <h2 id="mfa-h">{t('security.mfa.heading')}</h2>
@@ -99,7 +91,7 @@ export default function SecurityPage() {
             <p>{t('security.mfa.on')}</p>
             <h3>{t('security.mfa.disable.heading')}</h3>
             <p className="muted">{t('security.mfa.disable.lead')}</p>
-            <form onSubmit={onDisable} noValidate aria-busy={disable.pending}>
+            <form method="post" onSubmit={onDisable} noValidate aria-busy={disable.pending}>
               <FormMessage message={disable.errors.form} />
               <Field label={t('mfa.code')} name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required value={code} onChange={(e) => { setCode(e.target.value); }} />
               <SubmitButton pending={disable.pending} block={false}>
@@ -128,7 +120,7 @@ export default function SecurityPage() {
                 <p>
                   <code data-testid="totp-uri">{setup.otpauthUri}</code>
                 </p>
-                <form onSubmit={onConfirm} noValidate aria-busy={confirm.pending}>
+                <form method="post" onSubmit={onConfirm} noValidate aria-busy={confirm.pending}>
                   <FormMessage message={confirm.errors.form} />
                   <Field label={t('mfa.code')} name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required value={code} onChange={(e) => { setCode(e.target.value); }} />
                   <SubmitButton pending={confirm.pending} block={false}>
@@ -150,6 +142,6 @@ export default function SecurityPage() {
       <p className="links">
         <Link href="/">{t('security.back')}</Link>
       </p>
-    </AppShell>
+    </PageContainer>
   );
 }

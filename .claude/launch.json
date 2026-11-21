@@ -4,8 +4,32 @@
     {
       "name": "web-dev",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@flexa/web", "exec", "next", "dev", "-p", "3007"],
+      "runtimeArgs": [
+        "--filter",
+        "@flexa/web",
+        "exec",
+        "next",
+        "dev",
+        "-p",
+        "3007"
+      ],
       "port": 3007
+    },
+    {
+      "name": "storybook",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@flexa/ui",
+        "exec",
+        "storybook",
+        "dev",
+        "-p",
+        "6006",
+        "--ci",
+        "--no-open"
+      ],
+      "port": 6006
     }
   ]
 }

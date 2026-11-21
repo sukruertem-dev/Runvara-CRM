@@ -1,12 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ApiError, request, type ModuleList, type ModuleToggle } from '../../../lib/api';
-import { messageForCode } from '../../../lib/errors';
-import { moduleLabel, t } from '../../../lib/i18n';
-import { isAdmin, useRequireSession } from '../../../lib/use-session';
-import { AppShell } from '../../_components/app-shell';
-import { Alert } from '../../_components/ui';
+import { ApiError, request, type ModuleList, type ModuleToggle } from '../../../../lib/api';
+import { messageForCode } from '../../../../lib/errors';
+import { moduleLabel, t } from '../../../../lib/i18n';
+import { isAdminRole as isAdmin, useApp } from '../../../../lib/app-context';
+import { PageContainer } from '../../../_components/app-shell';
+import { Alert } from '../../../_components/ui';
 
 type ModuleState = ModuleList['data'][number];
 
@@ -19,7 +19,7 @@ function asGroups(value: unknown): string[][] {
 }
 
 export default function ModulesPage() {
-  const { me } = useRequireSession();
+  const { me } = useApp();
   const [modules, setModules] = useState<ModuleState[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -36,24 +36,16 @@ export default function ModulesPage() {
   }, []);
 
   useEffect(() => {
-    if (me && isAdmin(me)) void load();
+    if (isAdmin(me)) void load();
   }, [me, load]);
 
-  if (!me) {
-    return (
-      <main className="page">
-        <h1 className="sr-only">{t('mod.title')}</h1>
-        <p role="status">{t('common.loading')}</p>
-      </main>
-    );
-  }
 
   if (!isAdmin(me)) {
     return (
-      <AppShell me={me}>
+      <PageContainer>
         <h1>{t('mod.title')}</h1>
         <Alert kind="error">{t('inv.noAccess')}</Alert>
-      </AppShell>
+      </PageContainer>
     );
   }
 
@@ -83,7 +75,7 @@ export default function ModulesPage() {
   const confirmModule = confirmFor ? modules.find((m) => m.id === confirmFor.id) : undefined;
 
   return (
-    <AppShell me={me}>
+    <PageContainer>
       <h1>{t('mod.title')}</h1>
       <p className="muted">{t('mod.lead')}</p>
       {error ? (
@@ -156,6 +148,6 @@ export default function ModulesPage() {
           })}
         </ul>
       </section>
-    </AppShell>
+    </PageContainer>
   );
 }

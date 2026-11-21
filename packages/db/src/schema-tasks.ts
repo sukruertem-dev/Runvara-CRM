@@ -65,6 +65,7 @@ export const statuses = pgTable('statuses', {
   colorToken: text('color_token').notNull(),
   position: text('position').notNull(),
   isInitial: boolean('is_initial').notNull(),
+  wipLimit: integer('wip_limit'),
   createdAt: ts('created_at').notNull().defaultNow(),
 });
 

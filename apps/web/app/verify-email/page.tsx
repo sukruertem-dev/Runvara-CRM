@@ -63,7 +63,7 @@ function VerifyInner() {
         <>
           {state === 'expired' ? <Alert kind="error">{t('verify.expired')}</Alert> : null}
           {resent ? <Alert kind="success">{t('verify.resent')}</Alert> : null}
-          <form onSubmit={onResend} noValidate aria-busy={pending}>
+          <form method="post" onSubmit={onResend} noValidate aria-busy={pending}>
             <FormMessage message={errors.form} />
             <Field label={t('common.email')} name="email" type="email" autoComplete="email" required value={email} onChange={(e) => { setEmail(e.target.value); }} error={errors.fields.email} />
             <SubmitButton pending={pending}>{t('verify.resend')}</SubmitButton>

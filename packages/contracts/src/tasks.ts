@@ -138,7 +138,7 @@ export const TransitionView = z
   .object({ id: Uuid, key: z.string(), label: LabelI18n, fromStatusId: Uuid.nullable(), toStatusId: Uuid, conditions: z.array(z.unknown()), validators: z.array(z.unknown()), postFunctions: z.array(z.unknown()) })
   .openapi('TransitionView');
 export const WorkflowView = z
-  .object({ id: Uuid, key: z.string(), name: z.string(), resourceType: z.string(), isDefault: z.boolean(), statuses: z.array(StatusView.extend({ isInitial: z.boolean(), position: z.string() })), transitions: z.array(TransitionView) })
+  .object({ id: Uuid, key: z.string(), name: z.string(), resourceType: z.string(), isDefault: z.boolean(), statuses: z.array(StatusView.extend({ isInitial: z.boolean(), position: z.string(), wipLimit: z.number().int().nullable() })), transitions: z.array(TransitionView) })
   .openapi('WorkflowView');
 export const WorkflowListResponse = z.object({ data: z.array(WorkflowView) }).openapi('WorkflowListResponse');
 
@@ -163,7 +163,7 @@ export const WorkflowCreate = z
   .object({
     key: Key,
     name: z.string().trim().min(1).max(120),
-    statuses: z.array(z.object({ key: Key, label: LabelI18n, category: z.enum(['open', 'in_progress', 'closed']), colorToken: z.string().regex(/^[a-z][a-z0-9-]{1,31}$/).default('text-secondary'), isInitial: z.boolean().default(false) })).min(2).max(30),
+    statuses: z.array(z.object({ key: Key, label: LabelI18n, category: z.enum(['open', 'in_progress', 'closed']), colorToken: z.string().regex(/^[a-z][a-z0-9-]{1,31}$/).default('text-secondary'), isInitial: z.boolean().default(false), wipLimit: z.number().int().min(1).max(1000).nullable().default(null) })).min(2).max(30),
     transitions: z.array(z.object({ key: Key, label: LabelI18n.default({}), from: Key.nullable(), to: Key, conditions: z.array(ConditionInput).max(10).default([]), validators: z.array(ValidatorInput).max(10).default([]), postFunctions: z.array(PostFunctionInput).max(10).default([]) })).min(1).max(100),
   })
   .strict()

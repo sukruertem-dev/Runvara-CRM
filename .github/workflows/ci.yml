@@ -26,6 +26,8 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      - name: Storybook (component documentation must build)
+        run: pnpm --filter @flexa/ui build-storybook
       - name: 'Integration tests (Testcontainers: PostgreSQL 18 + Redis 7 + SeaweedFS)'
         run: pnpm test:int
 

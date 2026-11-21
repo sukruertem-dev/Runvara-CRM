@@ -83,6 +83,7 @@ export async function buildTenantContext(db: DbHandle, principal: Principal & { 
       overrides: loaded.overrides,
     },
     segments: effectiveSegments(loaded.grantedSegments, tenant.salesMode, segmentHeader),
+    availableSegments: effectiveSegments(loaded.grantedSegments, tenant.salesMode, undefined),
     access: loaded.access,
   };
 }

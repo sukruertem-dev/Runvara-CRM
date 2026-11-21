@@ -1,6 +1,6 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, UseGuards, type Type } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, UseGuards, type Type } from '@nestjs/common';
 import {
-  FieldPolicySet, QueueCreate, RoleParentSet, ShareCreate, SharingDefaultsSet, SharingRuleCreate, TeamCreate, TeamMemberSet, TeamPatch,
+  DirectoryUsersQuery, FieldPolicySet, QueueCreate, RoleParentSet, ShareCreate, SharingDefaultsSet, SharingRuleCreate, TeamCreate, TeamMemberSet, TeamPatch,
   UserRolesSet, UserSegmentsSet, type z,
 } from '@flexa/contracts';
 import { TenantGuard } from '../../common/guards';
@@ -66,6 +66,11 @@ export class AccessAdminController {
   }
 
   // users
+  @Get('directory/users')
+  directory(@CurrentTenant() t: TenantRequestContext, @Query(new ZodPipe(DirectoryUsersQuery)) q: z.infer<typeof DirectoryUsersQuery>) {
+    return this.svc.directory(t, q);
+  }
+
   @Get('users')
   users(@CurrentTenant() t: TenantRequestContext) {
     return this.svc.listUsers(t);

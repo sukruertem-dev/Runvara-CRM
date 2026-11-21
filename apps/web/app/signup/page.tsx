@@ -43,7 +43,7 @@ export default function SignupPage() {
 
   return (
     <AuthLayout title={t('signup.title')} lead={t('signup.lead')}>
-      <form onSubmit={onSubmit} noValidate aria-busy={pending}>
+      <form method="post" onSubmit={onSubmit} noValidate aria-busy={pending}>
         <FormMessage message={errors.form} />
         <Field label={t('signup.displayName')} name="displayName" autoComplete="name" required value={displayName} onChange={(e) => { setDisplayName(e.target.value); }} error={errors.fields.displayName} />
         <Field label={t('common.email')} name="email" type="email" autoComplete="email" required value={email} onChange={(e) => { setEmail(e.target.value); }} error={errors.fields.email} />

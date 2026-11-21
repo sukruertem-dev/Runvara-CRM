@@ -42,7 +42,9 @@ async function login(page: Page, acc: Account): Promise<void> {
 }
 
 async function logout(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Çıkış' }).click();
+  // Sign-out lives in the user menu of the app shell (P6a).
+  await page.getByRole('button', { name: /^Kullanıcı menüsü/ }).click();
+  await page.getByRole('menuitem', { name: 'Çıkış yap' }).click();
   await expect(page).toHaveURL(/\/login$/);
 }
 

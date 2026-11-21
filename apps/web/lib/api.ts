@@ -79,6 +79,17 @@ export function hasAccessToken(): boolean {
   return accessToken !== null;
 }
 
+export function getAccessToken(): string | null {
+  return accessToken;
+}
+
+/** Segment switcher (ADR-0010 §6): sent as X-Segment on every tenant request; the API only narrows with it. */
+let segment: 'b2b' | 'b2c' | null = null;
+
+export function setSegmentHeader(value: 'b2b' | 'b2c' | null): void {
+  segment = value;
+}
+
 function readCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
   for (const part of document.cookie.split(';')) {
@@ -107,9 +118,24 @@ async function toApiError(res: Response): Promise<ApiError> {
 async function send(path: string, init: RequestInit): Promise<Response> {
   try {
     return await fetch(`${API_BASE}${path}`, { credentials: 'same-origin', ...init });
-  } catch {
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') throw err;
     throw new ApiError(0, { code: 'NETWORK', status: 0 });
   }
+}
+
+/** Raw authenticated fetch for streams (SSE). Refreshes once on 401. */
+export async function openStream(path: string, headers: Record<string, string>, signal: AbortSignal): Promise<Response> {
+  const build = (): RequestInit => ({
+    method: 'GET',
+    headers: { accept: 'text/event-stream', ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}), ...headers },
+    signal,
+    cache: 'no-store',
+  });
+  let res = await send(path, build());
+  if (res.status === 401 && (await refreshSession())) res = await send(path, build());
+  if (!res.ok) throw await toApiError(res);
+  return res;
 }
 
 /** Rotates the refresh cookie and stores the new access token. Concurrent callers share one request. */
@@ -137,6 +163,11 @@ export function refreshSession(): Promise<boolean> {
 export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
+  /** Optimistic concurrency: the record version the client edited (ETag, ADR-0012). */
+  ifMatch?: number | string;
+  /** Retry-safe writes (ADR-0023). */
+  idempotencyKey?: string;
+  signal?: AbortSignal;
   /** Send the Authorization header when a token exists (default true). */
   auth?: boolean;
   /** Send the CSRF header (refresh-cookie endpoints such as logout). */
@@ -147,14 +178,30 @@ export interface RequestOptions {
 
 const RETRY_CODES = new Set(['TOKEN_EXPIRED', 'UNAUTHENTICATED']);
 
+export interface ApiResult<T> {
+  data: T;
+  /** Parsed `ETag` (record version) when the API sent one. */
+  version: number | null;
+}
+
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, auth = true, csrf = false, retry = true } = options;
+  return (await requestWithMeta<T>(path, options)).data;
+}
+
+export async function requestWithMeta<T>(path: string, options: RequestOptions = {}): Promise<ApiResult<T>> {
+  const { method = 'GET', body, auth = true, csrf = false, retry = true, ifMatch, idempotencyKey, signal } = options;
   const build = (): RequestInit => {
     const headers: Record<string, string> = { accept: 'application/json' };
     if (body !== undefined) headers['content-type'] = 'application/json';
     if (auth && accessToken) headers.authorization = `Bearer ${accessToken}`;
+    if (auth && segment) headers['x-segment'] = segment;
     if (csrf) Object.assign(headers, csrfHeaders());
-    return body === undefined ? { method, headers } : { method, headers, body: JSON.stringify(body) };
+    if (ifMatch !== undefined) headers['if-match'] = `"${String(ifMatch)}"`;
+    if (idempotencyKey) headers['idempotency-key'] = idempotencyKey;
+    const init: RequestInit = { method, headers };
+    if (body !== undefined) init.body = JSON.stringify(body);
+    if (signal) init.signal = signal;
+    return init;
   };
 
   let res = await send(path, build());
@@ -165,8 +212,11 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     }
   }
   if (!res.ok) throw await toApiError(res);
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  const etag = res.headers.get('etag');
+  const parsed = etag ? Number(etag.replace(/^W\//, '').replaceAll('"', '')) : NaN;
+  const version = Number.isFinite(parsed) ? parsed : null;
+  if (res.status === 204) return { data: undefined as T, version };
+  return { data: (await res.json()) as T, version };
 }
 
 /** Tries to resume a session from the refresh cookie. Returns true when an access token is available. */

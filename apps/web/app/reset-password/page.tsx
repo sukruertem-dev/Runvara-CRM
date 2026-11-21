@@ -29,7 +29,7 @@ function ResetInner() {
   return (
     <AuthLayout title={t('reset.title')}>
       {!token ? <Alert kind="error">{t('reset.noToken')}</Alert> : null}
-      <form onSubmit={onSubmit} noValidate aria-busy={pending}>
+      <form method="post" onSubmit={onSubmit} noValidate aria-busy={pending}>
         <FormMessage message={errors.form} />
         <Field label={t('reset.password')} name="password" type="password" autoComplete="new-password" required value={password} onChange={(e) => { setPassword(e.target.value); }} hint={t('password.hint')} error={errors.fields.password} />
         <Field label={t('reset.confirm')} name="confirm" type="password" autoComplete="new-password" required value={confirm} onChange={(e) => { setConfirm(e.target.value); }} error={errors.fields.confirm} />

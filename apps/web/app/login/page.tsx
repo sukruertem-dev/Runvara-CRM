@@ -30,7 +30,7 @@ export default function LoginPage() {
 
   return (
     <AuthLayout title={t('login.title')} lead={t('login.lead')}>
-      <form onSubmit={onSubmit} noValidate aria-busy={pending}>
+      <form method="post" onSubmit={onSubmit} noValidate aria-busy={pending}>
         <FormMessage message={errors.form} />
         <Field label={t('common.email')} name="email" type="email" autoComplete="username" required value={email} onChange={(e) => { setEmail(e.target.value); }} />
         <Field label={t('common.password')} name="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => { setPassword(e.target.value); }} />

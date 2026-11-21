@@ -74,7 +74,7 @@ function InviteInner() {
           </dl>
           <FormMessage message={errors.form} />
           {!preview.accountExists ? (
-            <form onSubmit={onCreate} noValidate aria-busy={pending}>
+            <form method="post" onSubmit={onCreate} noValidate aria-busy={pending}>
               <Field label={t('invite.displayName')} name="displayName" autoComplete="name" required value={displayName} onChange={(e) => { setDisplayName(e.target.value); }} error={errors.fields.displayName} />
               <Field label={t('common.password')} name="password" type="password" autoComplete="new-password" required value={password} onChange={(e) => { setPassword(e.target.value); }} hint={t('password.hint')} error={errors.fields.password} />
               <SubmitButton pending={pending}>{t('invite.createAccount')}</SubmitButton>

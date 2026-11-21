@@ -5,9 +5,11 @@ const apiUrl = process.env.API_INTERNAL_URL ?? 'http://localhost:4000';
 
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  // React Refresh evaluates modules in development only; production keeps eval blocked.
+  `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data:",
+  "font-src 'self' data:",
   "connect-src 'self'",
   "frame-ancestors 'none'",
   "base-uri 'self'",
@@ -18,6 +20,7 @@ const config: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: path.join(__dirname, '../..'),
   poweredByHeader: false,
+  transpilePackages: ['@flexa/ui'],
   rewrites() {
     return Promise.resolve([{ source: '/api/:path*', destination: `${apiUrl}/:path*` }]);
   },

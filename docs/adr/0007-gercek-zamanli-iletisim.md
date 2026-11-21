@@ -29,3 +29,8 @@
 - Yük asgaridir: olay türü, kayıt referansı, değişen alan adları. Bildirimlerde yalnızca kimlikler gider; içerik REST'ten, okuma anında yetkiyle gelir.
 - `Last-Event-ID`: son 72 saatin outbox olayları aynı süzgeçle yeniden oynatılır. Kimlik bilinmiyorsa, eskiyse ya da 500'den fazla olay kaçmışsa `resync.required` gönderilir (istemci listeyi yeniden çeker). 20 sn'de bir `keep-alive` yorumu.
 - Yayın en az bir kez ve en iyi çabayla yapılır; istemci olayı "bir şey değişti" işareti sayar. Teslim bağlantı başına sıralıdır; bir kullanıcının yavaş yetki kontrolü diğerini geciktirmez. Abonelik yanıt başlıkları gönderilmeden önce yapılır (yanıtı alan istemci sonraki olayı kaçırmaz).
+
+## P6a uygulama notu
+- Akış yanıtı `Cache-Control: no-store, no-transform` taşır. Web uygulamasının `/api` vekili (Next.js) yanıtları sıkıştırır; `no-transform` olmadan sıkıştırma SSE'yi tamponlar ve olaylar istemciye ulaşmaz (P6a'da bulundu).
+- Kayıt olayları `actor: { type, id }` taşır (`id` yalnızca kullanıcı aktörde). İstemci kendi değişikliğini başkasınınkinden ayırıp "kayıt güncellendi" uyarısı gösterir; aynı bilgi timeline'da da görünür.
+- Tarayıcı istemcisi `EventSource` yerine `fetch` akışı kullanır, çünkü erişim belirteci bellekte tutulur ve `Authorization` başlığıyla gider. `Last-Event-ID` ile yeniden bağlanır, 1–30 sn arası artan ve rastgele dağıtılmış bekleme uygular.

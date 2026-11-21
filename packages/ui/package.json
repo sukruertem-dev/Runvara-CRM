@@ -2,12 +2,58 @@
   "name": "@flexa/ui",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "exports": {
+    ".": "./src/index.ts",
     "./tokens.css": "./dist/tokens.css",
-    "./tokens.json": "./tokens.json"
+    "./theme.css": "./dist/theme.css",
+    "./tokens.json": "./tokens.json",
+    "./styles.css": "./src/styles.css"
   },
   "scripts": {
     "build": "node scripts/build-tokens.mjs",
-    "test": "node ../../scripts/contrast-report.mjs"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src .storybook",
+    "test": "node ../../scripts/contrast-report.mjs && vitest run",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build -o storybook-static --quiet"
+  },
+  "peerDependencies": {
+    "react": "19.1.10",
+    "react-dom": "19.1.10"
+  },
+  "dependencies": {
+    "@tiptap/extension-placeholder": "3.35.0",
+    "@tiptap/pm": "3.35.0",
+    "@tiptap/react": "3.35.0",
+    "@tiptap/starter-kit": "3.35.0",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "cmdk": "1.1.1",
+    "lucide-react": "1.77.0",
+    "motion": "14.14.0",
+    "radix-ui": "1.8.1",
+    "react-day-picker": "9.14.0",
+    "tailwind-merge": "3.7.1"
+  },
+  "devDependencies": {
+    "@storybook/addon-a11y": "10.6.8",
+    "@storybook/addon-docs": "10.6.8",
+    "@storybook/react-vite": "10.6.8",
+    "@tailwindcss/vite": "4.3.5",
+    "@testing-library/jest-dom": "6.10.0",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.13",
+    "@types/react": "19.1.17",
+    "@types/react-dom": "19.1.11",
+    "@vitejs/plugin-react": "5.2.0",
+    "axe-core": "4.14.1",
+    "jsdom": "26.1.0",
+    "react": "19.1.10",
+    "react-dom": "19.1.10",
+    "storybook": "10.6.8",
+    "tailwindcss": "4.3.5",
+    "vite": "7.3.8",
+    "vitest": "3.2.7"
   }
 }

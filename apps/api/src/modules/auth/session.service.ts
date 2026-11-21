@@ -9,6 +9,9 @@ import { ProblemError } from '../../common/problem';
 import type { ClientInfo } from '../../common/request-context';
 import { DB, ENV, SIGNER } from '../../infra/tokens';
 
+/** A rotated refresh token is accepted once more within this window if its successor was never used (B52). */
+const REFRESH_REUSE_GRACE_MS = 30_000;
+
 export interface TenantSummaryRow {
   id: string;
   slug: string;
@@ -110,6 +113,28 @@ export class SessionService {
     const row = await this.findToken(presented);
     if (!row) throw new ProblemError('REFRESH_INVALID');
     this.assertCsrf(req, row.family_id);
+    if (row.used_at && !row.session_revoked && row.expires_at.getTime() > Date.now() && Date.now() - new Date(row.used_at).getTime() <= REFRESH_REUSE_GRACE_MS) {
+      // The response carrying the successor may never have reached the browser (the page was left mid-request).
+      // If the successor is still unused, rotate it instead: the session survives, and if this was a thief the
+      // legitimate holder's next refresh presents the now-used successor and revokes the family (ADR-0009 note).
+      const next = randomToken();
+      const recovered = await this.db.withUser(row.user_id, async (tx) => {
+        const succ = await tx.execute<{ id: string }>(sql`
+          UPDATE refresh_tokens SET used_at = now(), consumed_by_grace = true
+          WHERE id = (SELECT replaced_by FROM refresh_tokens WHERE id = ${row.token_id} AND NOT consumed_by_grace) AND used_at IS NULL
+          RETURNING id`);
+        const successor = succ.rows[0];
+        if (!successor) return false;
+        const n = one(await tx.insert(schema.refreshTokens).values({ sessionId: row.session_id, userId: row.user_id, familyId: row.family_id, tokenHash: sha256(next), expiresAt: this.refreshExpiry() }).returning({ id: schema.refreshTokens.id }), 'refresh token');
+        await tx.update(schema.refreshTokens).set({ replacedBy: n.id }).where(eq(schema.refreshTokens.id, successor.id));
+        return true;
+      });
+      if (recovered) {
+        this.setCookies(reply, next, row.family_id);
+        const tenants = row.session_tenant_id ? await this.listTenants(row.user_id) : [];
+        return this.accessFor(row.user_id, row.session_id, tenants.find((t) => t.id === row.session_tenant_id) ?? null, row.session_amr, row.family_id);
+      }
+    }
     if (row.used_at) {
       // A rotated token was presented again: the family is compromised → revoke the whole session.
       await this.revokeSession(row.user_id, row.session_id, 'refresh_reuse');

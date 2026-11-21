@@ -13,3 +13,4 @@ test-results/
 blob-report/
 .DS_Store
 *.log
+storybook-static/

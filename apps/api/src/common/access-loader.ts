@@ -101,6 +101,7 @@ export async function contextForUser(tx: Db, t: TenantRequestContext, userId: st
     tenant: t.tenant,
     authz: { ...t.authz, userId, roleKeys: row.role_keys ?? [], authzVersion: row.authz_version, overrides: loaded.overrides },
     segments: loaded.grantedSegments.filter((s) => mode.includes(s)),
+    availableSegments: loaded.grantedSegments.filter((s) => mode.includes(s)),
     access: loaded.access,
   };
 }

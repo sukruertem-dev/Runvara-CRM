@@ -38,6 +38,20 @@ export const UserAccessView = z
   })
   .openapi('UserAccessView');
 export const UserListResponse = z.object({ data: z.array(UserAccessView) }).openapi('UserListResponse');
+/** People picker (assignee, owner display): active members' names only — no e-mail, roles or segments (B48). */
+export const DirectoryUser = z.object({ id: Uuid, displayName: z.string() }).openapi('DirectoryUser');
+export const DirectoryUsersResponse = z.object({ data: z.array(DirectoryUser) }).openapi('DirectoryUsersResponse');
+export const DirectoryUsersQuery = z
+  .object({
+    q: z.string().trim().max(100).optional(),
+    ids: z
+      .string()
+      .optional()
+      .transform((v) => (v ? v.split(',').filter(Boolean) : undefined))
+      .pipe(z.array(Uuid).max(100).optional()),
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+  })
+  .strict();
 export const UserSegmentsSet = z
   .object({
     segments: z.array(z.object({ segment: Segment, validUntil: z.iso.datetime({ offset: true }).nullable().default(null) }).strict()).max(2),

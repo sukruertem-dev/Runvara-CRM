@@ -1,6 +1,8 @@
 /** Minimal i18n: Turkish is the default UI language, English mirrors the same keys. */
 
-const tr = {
+import { appEn, appTr } from './messages-app';
+
+const baseTr = {
   'brand.name': 'Flexa',
   'brand.tagline': 'İşini Tek Platformda Yönet',
   'common.loading': 'Yükleniyor…',
@@ -191,9 +193,11 @@ const tr = {
   'reason.contains_email': 'Parola e-posta adresinizi içermemeli.',
 } as const;
 
+const tr = { ...baseTr, ...appTr };
+
 export type MessageKey = keyof typeof tr;
 
-const en: Record<MessageKey, string> = {
+const baseEn: Record<keyof typeof baseTr, string> = {
   'brand.name': 'Flexa',
   'brand.tagline': 'Run your business on one platform',
   'common.loading': 'Loading…',
@@ -383,6 +387,8 @@ const en: Record<MessageKey, string> = {
   'reason.too_common': 'This password is too common; choose a more unique one.',
   'reason.contains_email': 'The password must not contain your e-mail address.',
 };
+
+const en: Record<MessageKey, string> = { ...baseEn, ...appEn };
 
 export type Locale = 'tr' | 'en';
 

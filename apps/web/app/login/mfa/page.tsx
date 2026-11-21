@@ -50,7 +50,7 @@ export default function MfaPage() {
           {t('mfa.missing')} <Link href="/login">{t('login.submit')}</Link>
         </Alert>
       ) : null}
-      <form onSubmit={onSubmit} noValidate aria-busy={pending}>
+      <form method="post" onSubmit={onSubmit} noValidate aria-busy={pending}>
         <FormMessage message={errors.form} />
         {recovery ? (
           <Field key="recovery" label={t('mfa.recoveryCode')} name="recoveryCode" autoComplete="off" autoFocus required value={recoveryCode} onChange={(e) => { setRecoveryCode(e.target.value); }} />

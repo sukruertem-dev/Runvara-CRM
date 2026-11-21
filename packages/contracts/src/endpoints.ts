@@ -138,6 +138,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   { method: 'put', path: '/v1/queues/{id}/members/{userId}', summary: 'Add a queue member', tag: 'queues', auth: 'tenant', responses: { 200: A.QueueView }, errors: [401, 403, 404] },
   { method: 'delete', path: '/v1/queues/{id}/members/{userId}', summary: 'Remove a queue member', tag: 'queues', auth: 'tenant', responses: { 204: null }, errors: [401, 403, 404] },
   { method: 'get', path: '/v1/users', summary: 'Members with roles, segments and teams', tag: 'users', auth: 'tenant', responses: { 200: A.UserListResponse }, errors: [401, 403] },
+  { method: 'get', path: '/v1/directory/users', summary: 'Active members by name (?q=, ?ids=) for people pickers', tag: 'users', auth: 'tenant', responses: { 200: A.DirectoryUsersResponse }, errors: [400, 401] },
   { method: 'get', path: '/v1/users/{id}/access', summary: 'One member’s roles, segments and teams', tag: 'users', auth: 'tenant', responses: { 200: A.UserAccessView }, errors: [401, 403, 404] },
   { method: 'put', path: '/v1/users/{id}/segments', summary: 'Set a member’s segment grants (A05)', tag: 'users', auth: 'tenant', body: A.UserSegmentsSet, responses: { 200: A.UserAccessView }, errors: [400, 401, 403, 404] },
   { method: 'put', path: '/v1/users/{id}/roles', summary: 'Set a member’s roles (Admin, A04)', tag: 'users', auth: 'tenant', body: A.UserRolesSet, responses: { 200: A.UserAccessView }, errors: [400, 401, 403, 404, 409] },

@@ -1,13 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { ApiError, request, type Invitation, type InvitationList } from '../../../lib/api';
-import { messageForCode } from '../../../lib/errors';
-import { roleLabel, t, type MessageKey } from '../../../lib/i18n';
-import { useAction } from '../../../lib/use-action';
-import { isAdmin, useRequireSession } from '../../../lib/use-session';
-import { AppShell } from '../../_components/app-shell';
-import { Alert, Field, FormMessage, SelectField, SubmitButton } from '../../_components/ui';
+import { ApiError, request, type Invitation, type InvitationList } from '../../../../lib/api';
+import { messageForCode } from '../../../../lib/errors';
+import { roleLabel, t, type MessageKey } from '../../../../lib/i18n';
+import { useAction } from '../../../../lib/use-action';
+import { isAdminRole as isAdmin, useApp } from '../../../../lib/app-context';
+import { PageContainer } from '../../../_components/app-shell';
+import { Alert, Field, FormMessage, SelectField, SubmitButton } from '../../../_components/ui';
 
 const ROLES = ['admin', 'manager', 'sales_rep', 'call_agent', 'analyst'] as const;
 
@@ -19,7 +19,7 @@ function statusKey(inv: Invitation): MessageKey {
 }
 
 export default function InvitationsPage() {
-  const { me } = useRequireSession();
+  const { me } = useApp();
   const [items, setItems] = useState<Invitation[]>([]);
   const [email, setEmail] = useState('');
   const [roleKey, setRoleKey] = useState<string>('manager');
@@ -38,24 +38,16 @@ export default function InvitationsPage() {
   }, []);
 
   useEffect(() => {
-    if (me && isAdmin(me)) void load();
+    if (isAdmin(me)) void load();
   }, [me, load]);
 
-  if (!me) {
-    return (
-      <main className="page">
-        <h1 className="sr-only">{t('inv.title')}</h1>
-        <p role="status">{t('common.loading')}</p>
-      </main>
-    );
-  }
 
   if (!isAdmin(me)) {
     return (
-      <AppShell me={me}>
+      <PageContainer>
         <h1>{t('inv.title')}</h1>
         <Alert kind="error">{t('inv.noAccess')}</Alert>
-      </AppShell>
+      </PageContainer>
     );
   }
 
@@ -78,12 +70,12 @@ export default function InvitationsPage() {
   }
 
   return (
-    <AppShell me={me}>
+    <PageContainer>
       <h1>{t('inv.title')}</h1>
       <section className="card" aria-labelledby="inv-new" style={{ marginBottom: '1rem' }}>
         <h2 id="inv-new">{t('inv.form.heading')}</h2>
         {sent ? <Alert kind="success">{t('inv.sent')}</Alert> : null}
-        <form onSubmit={onSubmit} noValidate aria-busy={create.pending}>
+        <form method="post" onSubmit={onSubmit} noValidate aria-busy={create.pending}>
           <FormMessage message={create.errors.form} />
           <Field label={t('inv.email')} name="email" type="email" autoComplete="off" required value={email} onChange={(e) => { setEmail(e.target.value); }} error={create.errors.fields.email} />
           <SelectField label={t('inv.role')} name="roleKey" value={roleKey} onChange={(e) => { setRoleKey(e.target.value); }}>
@@ -146,6 +138,6 @@ export default function InvitationsPage() {
           </div>
         )}
       </section>
-    </AppShell>
+    </PageContainer>
   );
 }
