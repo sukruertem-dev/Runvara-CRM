@@ -1,6 +1,7 @@
 /** Minimal i18n: Turkish is the default UI language, English mirrors the same keys. */
 
 import { appEn, appTr } from './messages-app';
+import { viewsEn, viewsTr } from './messages-views';
 
 const baseTr = {
   'brand.name': 'Flexa',
@@ -193,7 +194,7 @@ const baseTr = {
   'reason.contains_email': 'Parola e-posta adresinizi içermemeli.',
 } as const;
 
-const tr = { ...baseTr, ...appTr };
+const tr = { ...baseTr, ...appTr, ...viewsTr };
 
 export type MessageKey = keyof typeof tr;
 
@@ -388,7 +389,7 @@ const baseEn: Record<keyof typeof baseTr, string> = {
   'reason.contains_email': 'The password must not contain your e-mail address.',
 };
 
-const en: Record<MessageKey, string> = { ...baseEn, ...appEn };
+const en: Record<MessageKey, string> = { ...baseEn, ...appEn, ...viewsEn };
 
 export type Locale = 'tr' | 'en';
 

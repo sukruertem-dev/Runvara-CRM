@@ -131,6 +131,12 @@ describe('SLA (ADR-0020)', () => {
     expect(events.map((e) => e.type)).toEqual(['sla.warning', 'sla.breached']);
     const notes = (ok(await admin.get('/v1/notifications')).data as Json[]).filter((n) => n.kind === 'automation');
     expect(notes.map((n) => n.message)).toEqual(['SLA aşıldı']);
+
+    // Dashboard summary (P6b): worst state per readable record.
+    ok(await admin.post('/v1/cases', { subject: 'Yeni', channel: 'email', segment: 'b2c' }), 201);
+    await drain();
+    expect(ok(await admin.get('/v1/sla/summary?recordType=case'))).toEqual({ recordType: 'case', breached: 1, running: 1, paused: 0, met: 0 });
+    expect((await admin.get('/v1/sla/summary?recordType=nope')).status).toBe(400);
   });
 });
 

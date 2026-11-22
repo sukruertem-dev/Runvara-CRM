@@ -6,6 +6,7 @@ import * as A from './authz';
 import * as R from './records';
 import * as U from './automation';
 import * as I from './integrations';
+import * as V from './views';
 
 export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 export type AuthMode = 'none' | 'access' | 'tenant' | 'refresh_cookie';
@@ -247,6 +248,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   { method: 'get', path: '/v1/sla/policies', summary: 'SLA policies', tag: 'sla', auth: 'tenant', responses: { 200: I.SlaPolicyListResponse }, errors: [401, 403, 404] },
   { method: 'post', path: '/v1/sla/policies', summary: 'Create an SLA policy', tag: 'sla', auth: 'tenant', body: I.SlaPolicyCreate, responses: { 201: I.SlaPolicyView }, errors: [400, 401, 403, 404, 409, 422] },
   { method: 'delete', path: '/v1/sla/policies/{id}', summary: 'Disable an SLA policy (timers keep running to their end)', tag: 'sla', auth: 'tenant', responses: { 204: null }, errors: [401, 403, 404] },
+  { method: 'get', path: '/v1/sla/summary', summary: 'Readable records with SLA clocks by worst state (?recordType=case|task|lead)', tag: 'sla', auth: 'tenant', responses: { 200: V.SlaSummary }, errors: [400, 401, 404] },
   { method: 'get', path: '/v1/sla/timers', summary: 'SLA clocks of a record (?recordType=&recordId=)', tag: 'sla', auth: 'tenant', responses: { 200: I.SlaTimerListResponse }, errors: [400, 401, 404] },
   { method: 'get', path: '/v1/webhooks', summary: 'Webhook subscriptions', tag: 'webhooks', auth: 'tenant', responses: { 200: I.WebhookListResponse }, errors: [401, 403, 404] },
   { method: 'post', path: '/v1/webhooks', summary: 'Subscribe a URL to events (secret returned once)', tag: 'webhooks', auth: 'tenant', body: I.WebhookCreate, responses: { 201: I.WebhookView }, errors: [400, 401, 403, 404, 409, 422] },
@@ -258,5 +260,18 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   { method: 'get', path: '/v1/api-keys', summary: 'API keys (never the secret part)', tag: 'api-keys', auth: 'tenant', responses: { 200: I.ApiKeyListResponse }, errors: [401, 403, 404] },
   { method: 'post', path: '/v1/api-keys', summary: 'Create an API key (shown once; acts with your rights within its scopes)', tag: 'api-keys', auth: 'tenant', body: I.ApiKeyCreate, responses: { 201: I.ApiKeyView }, errors: [400, 401, 403, 404, 409] },
   { method: 'post', path: '/v1/api-keys/{id}/revoke', summary: 'Revoke an API key', tag: 'api-keys', auth: 'tenant', responses: { 200: I.ApiKeyView }, errors: [401, 403, 404] },
+  { method: 'get', path: '/v1/tasks/aggregate', summary: 'Grouped count/sum over the task list (?q=, ?groupBy=, ?metric=count|sum:<field>, ?interval=)', tag: 'tasks', auth: 'tenant', responses: { 200: V.AggregateResponse }, errors: [400, 401] },
+  { method: 'get', path: '/v1/accounts/aggregate', summary: 'Grouped count/sum over the accounts list', tag: 'accounts', auth: 'tenant', responses: { 200: V.AggregateResponse }, errors: [400, 401, 403, 404] },
+  { method: 'get', path: '/v1/contacts/aggregate', summary: 'Grouped count/sum over the contacts list', tag: 'contacts', auth: 'tenant', responses: { 200: V.AggregateResponse }, errors: [400, 401, 403, 404] },
+  { method: 'get', path: '/v1/leads/aggregate', summary: 'Grouped count/sum over the leads list', tag: 'leads', auth: 'tenant', responses: { 200: V.AggregateResponse }, errors: [400, 401, 403, 404] },
+  { method: 'get', path: '/v1/opportunities/aggregate', summary: 'Grouped count/sum over the opportunities list', tag: 'opportunities', auth: 'tenant', responses: { 200: V.AggregateResponse }, errors: [400, 401, 403, 404] },
+  { method: 'get', path: '/v1/cases/aggregate', summary: 'Grouped count/sum over the cases list', tag: 'cases', auth: 'tenant', responses: { 200: V.AggregateResponse }, errors: [400, 401, 403, 404] },
+  { method: 'get', path: '/v1/task-dependencies', summary: 'Dependency edges among the given readable tasks (?ids=, up to 500)', tag: 'tasks', auth: 'tenant', responses: { 200: V.DependencyEdgesResponse }, errors: [400, 401] },
+  { method: 'get', path: '/v1/views', summary: 'Saved views of a resource: own and workspace (?resource=)', tag: 'views', auth: 'tenant', responses: { 200: V.SavedViewListResponse }, errors: [400, 401] },
+  { method: 'post', path: '/v1/views', summary: 'Save a view (workspace visibility needs tenant.config.manage)', tag: 'views', auth: 'tenant', body: V.SavedViewCreate, responses: { 201: V.SavedView }, errors: [400, 401, 403, 409] },
+  { method: 'patch', path: '/v1/views/{id}', summary: 'Change an own view (If-Match)', tag: 'views', auth: 'tenant', body: V.SavedViewPatch, responses: { 200: V.SavedView }, errors: [400, 401, 403, 404, 409, 412] },
+  { method: 'delete', path: '/v1/views/{id}', summary: 'Delete an own view', tag: 'views', auth: 'tenant', responses: { 204: null }, errors: [401, 404] },
+  { method: 'get', path: '/v1/me/dashboard', summary: 'Personal dashboard layout (default layout when none is saved)', tag: 'me', auth: 'tenant', responses: { 200: V.DashboardLayout }, errors: [401] },
+  { method: 'put', path: '/v1/me/dashboard', summary: 'Save the personal dashboard layout', tag: 'me', auth: 'tenant', body: V.DashboardLayout, responses: { 200: V.DashboardLayout }, errors: [400, 401] },
   { method: 'get', path: '/v1/stream', summary: 'Server-sent events: record changes and notifications the caller may see (Last-Event-ID replay)', tag: 'stream', auth: 'tenant', responses: { 200: null }, errors: [401] },
 ];

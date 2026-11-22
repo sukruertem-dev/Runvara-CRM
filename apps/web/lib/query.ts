@@ -30,8 +30,14 @@ export const qk = {
 };
 
 /** Resource type in stream events → query key prefixes it affects. */
+const crm = (type: string) => (id: string): QueryKey[] => [['records', type, 'list'], ['records', type, 'detail', id], ['records', type, 'part', id], ['aggregate', type]];
 const PREFIXES: Record<string, (id: string) => QueryKey[]> = {
-  task: (id) => [qk.taskLists, qk.task(id), ['tasks', 'part', id], ['tasks', 'search']],
+  task: (id) => [qk.taskLists, qk.task(id), ['tasks', 'part', id], ['tasks', 'search'], ['aggregate', 'task'], ['tasks', 'deps']],
+  account: crm('account'),
+  contact: crm('contact'),
+  lead: crm('lead'),
+  opportunity: crm('opportunity'),
+  case: crm('case'),
 };
 
 const pending = new Map<string, QueryKey>();

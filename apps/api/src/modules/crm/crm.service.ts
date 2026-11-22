@@ -13,7 +13,7 @@ import { audit } from '../../common/audit';
 import { notify } from '../../common/notify';
 import { randomUUID } from 'node:crypto';
 import { mapDbError } from '../../common/http-helpers';
-import { keysetPage, parseFields, pickFields, type ListQuery } from '../../common/keyset-list';
+import { aggregate, keysetPage, parseFields, pickFields, type AggregateQuery, type ListQuery } from '../../common/keyset-list';
 import { ProblemError } from '../../common/problem';
 import { dbCtx, type Segment, type TenantRequestContext } from '../../common/request-context';
 import { DB, ENV } from '../../infra/tokens';
@@ -106,6 +106,20 @@ export class CrmService {
   }
 
   // ------------------------------------------------------------------ read
+  /** Grouped counts/sums over what the list would return (pipeline totals, dashboards). */
+  async aggregate(t: TenantRequestContext, type: CrmType, query: AggregateQuery) {
+    const def = CRM[type];
+    if (crmScope(t, def, 'read').kind === 'none') throw new ProblemError('FORBIDDEN');
+    return this.db.withTenant(dbCtx(t), async (tx) => {
+      const vc = await crmViewContext(tx, type);
+      return aggregate(tx, t, {
+        from: def.from,
+        base: [sql`t.deleted_at IS NULL`, await recordPredicate(tx, t, def.shape, 'read')],
+        registry: maskRegistry(t, type, crmRegistry(def, vc.defs), def.viewFieldOf),
+      }, query);
+    });
+  }
+
   async list(t: TenantRequestContext, type: CrmType, query: ListQuery) {
     const def = CRM[type];
     if (crmScope(t, def, 'read').kind === 'none') throw new ProblemError('FORBIDDEN');

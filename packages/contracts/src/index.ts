@@ -10,3 +10,4 @@ export * from './automation';
 export * from './integrations';
 export { buildOpenApiDocument } from './openapi';
 export { z } from 'zod';
+export * from './views';

@@ -48,3 +48,27 @@
 | 10 bin satırlık listede akıcı kaydırma | bileşen testi: 10 bin satırda DOM'daki satır sayısı < 60; E2E: tohumlanmış 10 bin görevde kaydırma sonunda son satır |
 | Açık/koyu tema ve mobil | E2E: iki tema + 375 px görünümde yatay taşma yok; ekran görüntüsü regresyonu P6c'de |
 | Bileşenler belgeli | `build-storybook` CI'da; bileşen testleri (Vitest + axe) |
+
+## 7. P6b — görünümler (`feat/p6b-views`)
+- **API:**
+  - `GET /v1/{tasks|accounts|contacts|leads|opportunities|cases}/aggregate`: liste motorunun FROM'u, kayıt kapsamı ve RQL süzgeciyle aynı kümede `count` / `sum:<sayı alanı>`, bir alana göre gruplama (tarih alanlarında `day|week|month`, tenant saat diliminde). Gizli alan gruplanamaz ve toplanamaz.
+  - `GET /v1/task-dependencies?ids=`: iki ucu da okunabilir bağımlılık kenarları (Gantt).
+  - `saved_views` (kişisel / çalışma alanı; sorgu ve sıralama kayıtta derlenerek doğrulanır), `user_dashboards` (kullanıcı başına yerleşim), `GET /v1/sla/summary` (okunabilir kayıtların SLA durumu).
+- **Filtre çubuğu:** alan, işleç ve değer önerileri (`/v1/rql/fields`); API doğrulaması ve hata konumu; Enter ile uygulanır. Kayıtlı görünümler menüsü: uygula, kaydet, sil, bağlantıyı kopyala. Filtre URL'de olduğu için bağlantı paylaşılabilir.
+- **Takvim** (ay/hafta/gün): bitiş tarihine göre. Fare, dokunma ya da Space + oklar + Space ile başka güne taşıma; saat korunur, başlangıç aynı miktarda kayar.
+- **Gantt:** başlangıç → bitiş çubukları, bağımlılık okları, kritik yol (bağımlılık DAG'ında süreye göre en uzun zincir). Sürükleyerek taşıma ve sağ kenardan uzatma; klavyede ←/→ ile bir gün kaydırma, Shift ile süre değiştirme.
+- **CRM:** firma, kişi, aday, fırsat ve talep listeleri (sunucu sıralaması, filtre çubuğu, kayıtlı görünümler). Kayıt sayfası: alanlar satır içi düzenlenir (If-Match), açıklama, yorumlar, etkinlik, ilişkili kayıtlar, durum geçişi, canlı değişiklik uyarısı.
+- **Pipeline** (`/crm?type=opportunity&view=pipeline`, `/sales/b2b`): aşama sütunları; API'den toplam ve olasılığa göre ağırlıklı tutar; sürükle-bırak ve klavyeyle aşama geçişi.
+- **Gösterge paneli** (ana sayfa): KPI'lar (açık, bana atanan, gecikmiş, SLA ihlali), duruma ve önceliğe göre görevler, son 14 gün açılan ve kapanan, fırsat hunisi. Düzenleme kipinde sürükle-bırak ya da klavyeyle sıralama, düğmelerle boyutlama, bileşen ekleme ve kaldırma; yerleşim kullanıcıya kaydedilir.
+
+## 8. Kabul kriterleri ↔ testler (P6b)
+| Kriter | Test |
+|---|---|
+| Sorgu dili için otomatik tamamlamalı filtre çubuğu | E2E `views.spec.ts` "RQL": öneri seçilir, geçersiz sorgu konumla bildirilir ve uygulanmaz |
+| Kayıtlı görünümler ve paylaşılabilir bağlantı | aynı E2E: görünüm kaydedilir, bağlantı yeni oturumda aynı süzgeci açar; `views.int.test.ts` (kişisel/çalışma alanı, yalnızca sahibi değiştirir, doğrulama, If-Match) |
+| Takvim: sürükleyerek tarih değiştirme | E2E: klavyeyle bir gün ileri; API'de bitiş saati korunur |
+| Gantt: bağımlılık okları, süre ayarı, kritik yol | E2E: ok ve kritik yol vurgusu; klavyeyle bir gün kaydırma; `views.int.test.ts` bağımlılık kenarları yetkiye uyar |
+| Pipeline: aşama toplamları, sürükle-bırak | E2E: aşama toplamı API'den; klavyeyle aşama geçişi; `views.int.test.ts` toplama ve FLS |
+| Kayıt detay: satır içi düzenleme, timeline, ilişkili kayıtlar | E2E: firma sayfası, ilişkili kişi ve fırsat, alan düzenleme |
+| Dashboard: sürüklenebilir/yeniden boyutlanır widget'lar | E2E: KPI'lar gerçek sayılarla; kaldırma ve genişletme yeniden yüklemeden sonra korunur; `views.int.test.ts` varsayılan yerleşim ve kapalı modül bileşenleri |
+| Erişilebilirlik | E2E: filtre, takvim, Gantt, CRM listesi ve detayı, pipeline, pano için axe |

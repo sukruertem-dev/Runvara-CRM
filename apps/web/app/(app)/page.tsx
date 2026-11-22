@@ -1,13 +1,12 @@
 'use client';
 
-import { Button, ModuleIcon, RoleBadge, SegmentBadge, Skeleton } from '@flexa/ui';
-import { ArrowRight, Plus } from 'lucide-react';
-import Link from 'next/link';
+import { Button, RoleBadge, SegmentBadge } from '@flexa/ui';
+import { Plus } from 'lucide-react';
 import { useApp } from '../../lib/app-context';
-import { moduleLabel, roleLabel, t } from '../../lib/i18n';
+import { roleLabel, t } from '../../lib/i18n';
 import { PageContainer } from '../_components/app-shell';
-import { menuLabel } from '../_components/shell/sidebar';
 import { useShell } from '../_components/shell/shell-context';
+import { Dashboard } from './_dashboard/dashboard';
 
 export default function HomePage() {
   const { me, tenant, nav, can } = useApp();
@@ -38,41 +37,7 @@ export default function HomePage() {
         ) : null}
       </div>
 
-      {/* Bento: menu entries as cards, sized by importance (§10.5.1 §3). */}
-      <section aria-labelledby="modules-h">
-        <h2 id="modules-h" className="mb-3 font-display text-lg font-bold">
-          {t('home.modules')}
-        </h2>
-        {!nav ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <Skeleton className="h-28" />
-            <Skeleton className="h-28" />
-            <Skeleton className="h-28" />
-          </div>
-        ) : nav.menu.length === 0 ? (
-          <p className="text-sm text-fg-muted">{t('home.modules.empty')}</p>
-        ) : (
-          <ul className="m-0 grid list-none gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3">
-            {nav.menu.map((item, i) => (
-              <li key={item.id} className={i === 0 ? 'sm:col-span-2' : undefined}>
-                <Link
-                  href={item.path}
-                  className="group flex h-full flex-col gap-3 rounded-card border border-line bg-surface p-4 text-fg no-underline shadow-card transition-colors hover:border-line-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                >
-                  <span className="inline-flex size-9 items-center justify-center rounded-btn bg-accent-soft text-fg">
-                    <ModuleIcon name={item.icon} size={18} />
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <span className="font-display text-base font-bold">{menuLabel(item)}</span>
-                    <ArrowRight aria-hidden size={16} className="text-fg-muted transition-transform group-hover:translate-x-0.5" />
-                  </span>
-                  <span className="text-xs text-fg-muted">{moduleLabel(item.module)}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <Dashboard />
     </PageContainer>
   );
 }

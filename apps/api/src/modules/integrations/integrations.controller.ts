@@ -48,6 +48,11 @@ export class IntegrationsController {
     await this.sla.disablePolicy(t, id, c.ip);
   }
 
+  @Get('sla/summary')
+  slaSummary(@CurrentTenant() t: TenantRequestContext, @Query('recordType') recordType: string | undefined) {
+    return this.sla.summary(t, recordType);
+  }
+
   @Get('sla/timers')
   timers(@CurrentTenant() t: TenantRequestContext, @Query('recordType') recordType: string | undefined, @Query('recordId') recordId: string | undefined) {
     return this.sla.timers(t, recordType, recordId);

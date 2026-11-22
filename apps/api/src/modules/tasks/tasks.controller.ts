@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Headers, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
 import {
   DependencyCreate,
+  DependencyEdgesQuery,
   TaskBulkRequest,
   TaskCreate,
   TaskMoveRequest,
@@ -15,6 +16,7 @@ import { etag, requireIfMatch } from '../../common/http-helpers';
 import { ProblemError } from '../../common/problem';
 import { CurrentTenant, type TenantRequestContext } from '../../common/request-context';
 import { ZodPipe } from '../../common/zod.pipe';
+import type { AggregateQuery } from '../../common/keyset-list';
 import { TaskListService, type ListQuery } from './task-list.service';
 import { TasksService } from './tasks.service';
 
@@ -36,6 +38,16 @@ export class TasksController {
   @Get('tasks')
   listTasks(@CurrentTenant() t: TenantRequestContext, @Query() q: ListQuery) {
     return this.list.list(t, q);
+  }
+
+  @Get('task-dependencies')
+  dependencyEdges(@CurrentTenant() t: TenantRequestContext, @Query(new ZodPipe(DependencyEdgesQuery)) q: z.infer<typeof DependencyEdgesQuery>) {
+    return this.list.dependencyEdges(t, q.ids);
+  }
+
+  @Get('tasks/aggregate')
+  aggregateTasks(@CurrentTenant() t: TenantRequestContext, @Query() q: AggregateQuery) {
+    return this.list.aggregate(t, q);
   }
 
   @Post('tasks')

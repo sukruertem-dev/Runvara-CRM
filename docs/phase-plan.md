@@ -16,7 +16,7 @@
 | **P5a** ✅ | F5 (olay yolu + kurallar) | Outbox + relay + tüketici, kural motoru, idempotency, döngü koruması, retry/DLQ/replay, atama politikaları, kaos testi | Bildirim, çağrı ve satış olayları buna dayanır |
 | **P5b** ✅ | F5 (dış dünya) | SLA motoru, webhook'lar, API anahtarları + `Idempotency-Key`, SSE, e-posta özeti | `docs/p5-plan.md` |
 | **P6a** ✅ | F6 (çekirdek) + G9 tasarım sistemi | Token → Tailwind teması, bileşen kütüphanesi + Storybook, kabuk (modüle duyarlı menü, tenant/segment değiştirici, rol rozeti, bildirim merkezi, bağlantı göstergesi), komut paleti + kısayollar, görev listesi / Kanban / tablo, görev detayı, geri alma, canlı güncelleme | `docs/p6-plan.md` |
-| **P6b** | F6 (görünümler) | Takvim, Gantt, opportunity pipeline, CRM kayıt listeleri ve detayı, dashboard, kayıtlı görünümler + RQL filtre çubuğu | `docs/p6-plan.md` |
+| **P6b** ✅ | F6 (görünümler) | Takvim, Gantt, opportunity pipeline, CRM kayıt listeleri ve detayı, dashboard, kayıtlı görünümler + RQL filtre çubuğu | `docs/p6-plan.md` |
 | **P6c** | F6 (ayarlar) | Workflow editörü, custom field, rol/izin matrisi, otomasyon kural oluşturucu, webhook/API anahtarı, SLA/takvim ekranları; Lighthouse + ekran görüntüsü regresyonu | `docs/p6-plan.md` |
 | **P7** | G1-kalan | Yapılandırma motoru (katman, şema, sürüm, diff, geri al), blueprint'ler, marka, plan/kota, gürültülü komşu, SSO (SAML), operatör konsolu, tenant dışa aktarma/silme + **ekranları** | Onboarding sihirbazı için gerekli |
 | **P8** | G3 + G6 | Ekip, ürün/fiyat, onay motoru, hedef; mention editörü + anlık bildirim (p95 < 2 sn) + **ekranları** | Satış ve çağrı modüllerinin ortak bağımlılığı |
