@@ -81,7 +81,9 @@ describe('TOTP second factor (Faz 1: kayıt → giriş → 2FA → tenant seçim
     expect(setup.body.otpauthUri).toMatch(/^otpauth:\/\/totp\//);
     const bad = await c.post('/v1/me/mfa/totp/confirm', { code: '000000' === generateTotpCode(secret) ? '111111' : '000000' });
     expect(bad.status).toBe(401);
-    const confirm = await c.post('/v1/me/mfa/totp/confirm', { code: generateTotpCode(secret) });
+    // One code, used twice below: generating it again could cross a 30 s step and yield a new, valid code.
+    const enrolCode = generateTotpCode(secret);
+    const confirm = await c.post('/v1/me/mfa/totp/confirm', { code: enrolCode });
     expect(confirm.status).toBe(200);
     const recovery = confirm.body.recoveryCodes as string[];
     expect(recovery).toHaveLength(10);
@@ -91,7 +93,7 @@ describe('TOTP second factor (Faz 1: kayıt → giriş → 2FA → tenant seçim
     expect(step1.body).toMatchObject({ next: 'mfa' });
     expect(step1.body.accessToken).toBeUndefined();
     // The code used during enrolment is spent: replay is refused.
-    const replay = await c2.post('/v1/auth/mfa/verify', { mfaToken: step1.body.mfaToken, code: generateTotpCode(secret) });
+    const replay = await c2.post('/v1/auth/mfa/verify', { mfaToken: step1.body.mfaToken, code: enrolCode });
     expect(replay.status).toBe(401);
     const viaRecovery = await c2.post('/v1/auth/mfa/verify', { mfaToken: step1.body.mfaToken, recoveryCode: recovery[0] });
     expect(viaRecovery.status).toBe(200);
