@@ -90,7 +90,8 @@ async function main() {
     for (const p of PAGES) {
       if (!p.auth) await context.clearCookies();
       const scores = { performance: [], accessibility: [] };
-      let lcp = [];
+      const lcp = [];
+      const tbt = [];
       for (let run = 0; run < RUNS; run++) {
         const r = await lighthouse(`${BASE}${p.path}`, {
           port: PORT, output: 'html', logLevel: 'error', onlyCategories: ['performance', 'accessibility'], disableStorageReset: true,
@@ -99,6 +100,7 @@ async function main() {
         scores.performance.push(r.lhr.categories.performance.score ?? 0);
         scores.accessibility.push(r.lhr.categories.accessibility.score ?? 0);
         lcp.push(r.lhr.audits['largest-contentful-paint']?.numericValue ?? 0);
+        tbt.push(r.lhr.audits['total-blocking-time']?.numericValue ?? 0);
         if (run === RUNS - 1) writeFileSync(join(OUT, `${p.name}.html`), r.report);
         const finalUrl = r.lhr.finalDisplayedUrl ?? '';
         if (p.auth && finalUrl.includes('/login')) throw new Error(`${p.path} redirected to login: the session was lost`);
@@ -108,7 +110,11 @@ async function main() {
       const ok = perf >= THRESHOLDS.performance && a11y >= THRESHOLDS.accessibility;
       if (!ok) failed = true;
       rows.push(`| ${p.path} | ${Math.round(perf * 100)} | ${Math.round(a11y * 100)} | ${Math.round(median(lcp))} ms | ${ok ? 'PASS' : 'FAIL'} |`);
-      console.log(`${ok ? 'PASS' : 'FAIL'} ${p.path}: performance ${Math.round(perf * 100)}, accessibility ${Math.round(a11y * 100)}, LCP ${Math.round(median(lcp))} ms`);
+      const line = `${p.path}: performance ${Math.round(perf * 100)}, accessibility ${Math.round(a11y * 100)}, LCP ${Math.round(median(lcp))} ms, TBT ${Math.round(median(tbt))} ms`;
+      console.log(`${ok ? 'PASS' : 'FAIL'} ${line}`);
+      // On GitHub Actions each result is also an annotation: readable on the run page and through the API
+      // without signing in, unlike the step log.
+      if (process.env.GITHUB_ACTIONS) console.log(`::${ok ? 'notice' : 'error'} title=Lighthouse ${p.name}::${line}`);
     }
   } finally {
     await context.close();
@@ -130,5 +136,6 @@ async function main() {
 
 main().catch((e) => {
   console.error(e);
+  if (process.env.GITHUB_ACTIONS) console.log(`::error title=Lighthouse::${String(e instanceof Error ? e.message : e).split('\n')[0] ?? ''}`);
   process.exit(1);
 });
