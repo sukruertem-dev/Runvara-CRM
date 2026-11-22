@@ -27,10 +27,19 @@ export async function api<T = Record<string, unknown>>(method: string, path: str
   if (opts.ifMatch !== undefined) headers['if-match'] = `"${String(opts.ifMatch)}"`;
   const init: RequestInit = { method, headers };
   if (opts.body !== undefined) init.body = JSON.stringify(opts.body);
-  const res = await fetch(`${API}${path}`, init);
-  const text = await res.text();
-  if (!res.ok) throw new Error(`${method} ${path} → ${String(res.status)} ${text}`);
-  return (text ? JSON.parse(text) : {}) as T;
+  // A stack with the default per-IP limits (20 auth requests a minute) can throttle a fast run, where every
+  // account comes from one machine: wait as the API asks and try again.
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`${API}${path}`, init);
+    const text = await res.text();
+    if (res.status === 429 && attempt < 3) {
+      const wait = Number(res.headers.get('retry-after') ?? '20');
+      await new Promise((resolve) => setTimeout(resolve, (Number.isFinite(wait) ? wait + 1 : 21) * 1000));
+      continue;
+    }
+    if (!res.ok) throw new Error(`${method} ${path} → ${String(res.status)} ${text}`);
+    return (text ? JSON.parse(text) : {}) as T;
+  }
 }
 
 export interface Workspace {

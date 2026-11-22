@@ -59,6 +59,9 @@ jobs:
             *.cache-to=type=gha,scope=flexa-e2e,mode=max
       - name: Start the stack from scratch
         run: docker compose up --wait --wait-timeout 600
+        # All E2E traffic comes from this one runner (one IP): per-IP limits sized for real users would throttle
+        # the suite itself. Rate limiting is verified by the API integration tests.
+        env: { RATE_LIMIT_PER_MINUTE: '20000', AUTH_RATE_LIMIT_PER_MINUTE: '2000' }
       - run: pnpm install --frozen-lockfile --filter @flexa/web...
       - run: pnpm --filter @flexa/web exec playwright install --with-deps chromium
       - run: pnpm e2e

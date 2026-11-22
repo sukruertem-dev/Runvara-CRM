@@ -97,7 +97,9 @@ test('takvim ve Gantt: klavyeyle tarih değiştirme, bağımlılıklar ve kritik
   await page.keyboard.press('Space');
   await expect(page.locator('[aria-live]').filter({ hasText: 'Tasarım' })).toBeVisible();
   await page.keyboard.press('ArrowRight');
-  await expect(page.locator('[aria-live]').filter({ hasText: /Tasarım .* taşındı/ })).toBeVisible();
+  // The announcement must name the next day: the original day is also announced on pick-up.
+  const target = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long' }).format(day(2));
+  await expect(page.locator('[aria-live]').filter({ hasText: `Tasarım ${target} tarihine taşındı` })).toBeVisible();
   await page.keyboard.press('Space');
   await expect(page.locator(`[data-day="${ymd(day(2))}"]`).getByText('Tasarım')).toBeVisible();
   await expect
@@ -151,7 +153,8 @@ test('CRM: liste, kayıt sayfası ve pipeline', async ({ page }) => {
   await page.keyboard.press('Space');
   await expect(page.locator('[aria-live]').filter({ hasText: 'Filo sözleşmesi' })).toBeVisible();
   await page.keyboard.press('ArrowRight');
-  await expect(page.locator('[aria-live]').filter({ hasText: /taşındı/ })).toBeVisible();
+  // The announcement must name the next stage: "moved to Potansiyel" is also announced on pick-up.
+  await expect(page.locator('[aria-live]').filter({ hasText: /Nitelendirme aşamasına taşındı/ })).toBeVisible();
   await page.keyboard.press('Space');
   await expect.poll(async () => (await api<{ status: { key: string } }>('GET', `/v1/opportunities/${opp.id}`, { token: ws.token })).status.key).not.toBe(opp.status.key);
 });

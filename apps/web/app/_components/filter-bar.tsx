@@ -2,7 +2,7 @@
 
 import { Button, cn, focusRing } from '@flexa/ui';
 import { CircleAlert, Filter, X } from 'lucide-react';
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { t } from '../../lib/i18n';
 import { useRqlFields, validateRql, type Resource, type RqlField } from '../../lib/records';
 
@@ -56,6 +56,17 @@ export function FilterBar({ resource, value, onChange, className }: { resource: 
   const [error, setError] = useState<{ message: string; position?: number } | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const listId = useId();
+  /** Caret to restore after an accepted suggestion re-renders the input. */
+  const pendingCaret = useRef<number | null>(null);
+
+  // Right after the commit, before the next key event is handled: a fast typist's next character must land
+  // after the inserted suggestion (an animation-frame callback could run after it and move the caret back).
+  useLayoutEffect(() => {
+    const pos = pendingCaret.current;
+    if (pos === null) return;
+    pendingCaret.current = null;
+    input.current?.setSelectionRange(pos, pos);
+  }, [text]);
 
   useEffect(() => {
     setText(value);
@@ -112,12 +123,31 @@ export function FilterBar({ resource, value, onChange, className }: { resource: 
   function accept(s: Suggestion): void {
     const next = text.slice(0, ctx.start) + s.insert + text.slice(caret);
     const pos = ctx.start + s.insert.length;
+    pendingCaret.current = pos;
     setText(next);
     setCaret(pos);
     setActive(0);
-    window.requestAnimationFrame(() => {
-      input.current?.setSelectionRange(pos, pos);
-    });
+  }
+
+  /** Enter applies the query only once the API has accepted exactly this text (live validation is debounced). */
+  function apply(): void {
+    const q = text.trim();
+    if (!q) {
+      setOpen(false);
+      onChange('');
+      return;
+    }
+    validateRql(resource, q)
+      .then((r) => {
+        if (r.ok) {
+          setError(null);
+          setOpen(false);
+          onChange(q);
+        } else if (r.error) {
+          setError({ message: r.error.message, ...(r.error.position === undefined ? {} : { position: r.error.position }) });
+        }
+      })
+      .catch(() => undefined);
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>): void {
@@ -136,10 +166,7 @@ export function FilterBar({ resource, value, onChange, className }: { resource: 
       }
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (!error) {
-        setOpen(false);
-        onChange(text.trim());
-      }
+      apply();
     } else if (e.key === 'Escape') {
       if (open) setOpen(false);
       else {
@@ -203,7 +230,7 @@ export function FilterBar({ resource, value, onChange, className }: { resource: 
           </button>
         ) : null}
         {dirty ? (
-          <Button size="sm" className="h-6 px-2 text-xs" disabled={Boolean(error)} onClick={() => { onChange(text.trim()); }}>
+          <Button size="sm" className="h-6 px-2 text-xs" disabled={Boolean(error)} onClick={apply}>
             {t('filter.apply')}
           </Button>
         ) : null}

@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  MeasuringStrategy,
   DndContext,
   DragOverlay,
   KeyboardSensor,
@@ -31,6 +32,8 @@ import { t } from '../../../../lib/i18n';
 import { rk, useAggregate, usePipelines, useRecordList, type Pipeline, type RecordPage } from '../../../../lib/records';
 import { statusLabel, useDirectory } from '../../../../lib/tasks';
 import { money, recordName, type CrmRecord } from './columns';
+
+const MEASURING = { droppable: { strategy: MeasuringStrategy.BeforeDragging } };
 
 type Stage = Pipeline['stages'][number];
 
@@ -184,7 +187,8 @@ export function PipelineBoard({ q }: { q: string }) {
     const ids = stageIds.current;
     const cur = context.over?.id ? String(context.over.id) : ((rowsRef.current.find((x) => x.id === context.active?.id)?.['status'] as { id?: string } | undefined)?.id ?? '');
     const next = ids[Math.max(0, Math.min(ids.length - 1, ids.indexOf(cur) + d))];
-    const rect = next ? context.droppableRects.get(next) : undefined;
+    // Right after pick-up dnd-kit may not have measured the columns yet; read the target from the DOM then.
+    const rect = next ? (context.droppableRects.get(next) ?? context.droppableContainers.get(next)?.node.current?.getBoundingClientRect()) : undefined;
     return rect ? { x: rect.left + 8, y: rect.top + 8 } : undefined;
   });
   const sensors = useSensors(
@@ -218,6 +222,8 @@ export function PipelineBoard({ q }: { q: string }) {
     <DndContext
       sensors={sensors}
       collisionDetection={collision}
+      // Measure the drop targets before the drag starts: a key press right after pick-up must find them.
+      measuring={MEASURING}
       onDragStart={(e) => { setActiveId(e.active.id); }}
       onDragEnd={onDragEnd}
       onDragCancel={() => { setActiveId(null); }}
