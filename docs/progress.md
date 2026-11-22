@@ -31,14 +31,14 @@
 ### Kabul kriterleri (P6c ve Faz 6)
 `docs/p6-plan.md` §10 tablosundaki tüm satırlar ✅. Bununla Faz 6'nın bütün kabul kriterleri karşılandı.
 
-Lighthouse sonuçları (mobil profil, 3 koşu medyanı); erişilebilirlik hepsinde 100:
+Lighthouse sonuçları (CI #29, mobil profil, 3 koşu medyanı); erişilebilirlik hepsinde 100:
 
 | Sayfa | Performans |
 |---|---|
-| `/` | 94 |
-| `/tasks` | 99 |
-| `/crm` | 97 |
-| `/settings/workflows` | 97 |
+| `/` | 92 |
+| `/tasks` | 97 |
+| `/crm` | 98 |
+| `/settings/workflows` | 100 |
 | `/login` | 100 |
 
 ### Testler
@@ -47,6 +47,14 @@ Lighthouse sonuçları (mobil profil, 3 koşu medyanı); erişilebilirlik hepsin
 - **E2E 19/19** (+6: `settings.spec.ts`, axe dahil).
 - Görsel regresyon 16/16.
 - Birim testleri, lint ve typecheck temiz; Storybook derleniyor; kontrast, matris ve katalog kontrolleri PASS.
+
+### CI'da bulunan ve düzeltilenler
+- **E2E hız sınırı:** bütün E2E trafiği tek IP'den geldiği için giriş uçlarının IP başına 20/dk sınırına takılıyordu. Compose sınırları ortam değişkeninden alıyor (varsayılanlar aynı); CI E2E yığını yüksek sınırla başlıyor, E2E yardımcısı 429'da `Retry-After` kadar bekliyor.
+- **Filtre çubuğu (P6b):** öneri seçildikten sonra hızlı yazımda imleç geride kalıyordu; Enter doğrulanmamış sorguyu uygulayabiliyordu. İmleç artık çizimle eşzamanlı ayarlanıyor, Enter ve Uygula önce doğruluyor.
+- **Klavyeyle sürükle-bırak:** Kanban, takvim ve pipeline'da bırakma alanları sürüklemeden önce ölçülüyor; kaldırır kaldırmaz basılan ok tuşu artık kaybolmuyor.
+- **Kararsız testler:** 100 bin kenarlı döngü kontrolünün süre ölçümü ayrı CI adımında; 2FA testi kodu yeniden üretmek yerine aynı kodu kullanıyor.
+- **Gösterge paneli performansı (CI'da 88–89):** sürükle-bırak yalnızca düzenleme kipinde yükleniyor; oturum açılışındaki ilk büyük çizim `startTransition` ile parçalara bölünüyor.
+- Lighthouse sonuçları CI'da annotation olarak yazılıyor; günlüklere girmeden okunabiliyor.
 
 ### Notlar
 - Bu makinede Lighthouse puanı Docker yükü yüzünden koşudan koşuya oynuyor; giriş sayfası tek koşuda 80 ile 99 arasında ölçüldü. CI bu yüzden 3 koşunun medyanını alıyor (B59).
