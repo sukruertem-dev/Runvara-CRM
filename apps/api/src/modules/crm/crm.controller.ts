@@ -3,7 +3,7 @@ import { AccountRoleSet, ContactPointInput, LeadConvertRequest, MergeRequest, No
 import type { FastifyReply } from 'fastify';
 import { TenantGuard } from '../../common/guards';
 import { etag, requireIfMatch } from '../../common/http-helpers';
-import type { ListQuery } from '../../common/keyset-list';
+import type { AggregateQuery, ListQuery } from '../../common/keyset-list';
 import { ProblemError } from '../../common/problem';
 import { Client, CurrentTenant, type ClientInfo, type TenantRequestContext } from '../../common/request-context';
 import { ZodPipe } from '../../common/zod.pipe';
@@ -32,6 +32,11 @@ function recordController(path: string, type: CrmType): Type {
     @Get()
     list(@CurrentTenant() t: TenantRequestContext, @Query() q: ListQuery) {
       return this.crm.list(t, type, q);
+    }
+
+    @Get('aggregate')
+    aggregate(@CurrentTenant() t: TenantRequestContext, @Query() q: AggregateQuery) {
+      return this.crm.aggregate(t, type, q);
     }
 
     @Post()

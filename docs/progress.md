@@ -1,5 +1,33 @@
 # İlerleme
 
+## P6b — Faz 6: görünümler · 2026-11-22 · ✅ (CI PR'da çalışacak)
+
+### Yapılanlar
+- **API:**
+  - `GET /v1/{tasks|accounts|contacts|leads|opportunities|cases}/aggregate`: liste ile aynı kapsam, RQL ve maskeli alan kayıt defteri; `count` / `sum:<alan>`; tarihlerde gün/hafta/ay (B54).
+  - `GET /v1/task-dependencies?ids=`: iki ucu da okunabilir kenarlar.
+  - `0009_views.sql`: `saved_views` (kişisel / çalışma alanı, RLS ile yalnızca sahibi yazar) ve `user_dashboards`. `GET/POST/PATCH/DELETE /v1/views`, `GET/PUT /v1/me/dashboard`.
+  - `GET /v1/sla/summary` (B56).
+- **RQL filtre çubuğu:** alan, işleç ve değer önerileri; API doğrulaması ve hata konumu. **Kayıtlı görünümler:** uygula, kaydet (çalışma alanına yayımlamak `tenant.config.manage`, B53), sil, bağlantıyı kopyala; filtre URL'de, bağlantı paylaşılabilir.
+- **Takvim** (ay/hafta/gün) ve **Gantt** (bağımlılık okları, kritik yol, sürükleyerek taşıma ve uzatma, klavyeyle gün kaydırma; B55).
+- **CRM:** beş nesnenin listesi (sunucu sıralaması, filtre, görünümler) ve kayıt sayfası (satır içi düzenleme, açıklama, yorum, etkinlik, ilişkili kayıtlar, durum geçişi, canlı değişiklik uyarısı).
+- **Pipeline** (`/crm?type=opportunity&view=pipeline`, `/sales/b2b`): aşama toplamları API'den, ağırlıklı tutar, sürükle-bırak ve klavyeyle aşama geçişi.
+- **Gösterge paneli** (ana sayfa): KPI'lar, durum ve öncelik grafikleri, 14 günlük açılan/kapanan, fırsat hunisi, SLA. Düzenleme kipinde sıralama, boyutlama, ekleme ve kaldırma; yerleşim kullanıcıya kaydedilir.
+- Yorum ve etkinlik paneli görev ve CRM sayfalarında ortak bileşen.
+- **Bulunan ve düzeltilen:** iyimser güncellemeler önbelleği değiştirmeden önce süren sorguların iptalini bekliyordu. Yük altında Kanban taşıması 368 ms sürdü (hedef < 100 ms). Değişiklik artık aynı karede uygulanıyor, iptalden sonra yeniden uygulanıyor.
+
+### Kabul kriterleri (P6b)
+`docs/p6-plan.md` §8 tablosundaki tüm satırlar ✅: E2E `views.spec.ts` (4 senaryo, axe dahil) ve `views.int.test.ts`.
+
+### Testler
+API entegrasyon **100/100** (+4: `views.int.test.ts`, SLA özeti), DB 18/18, bileşen 11/11, **E2E 13/13** (üretim web imajına karşı), birim/lint/typecheck temiz, Storybook derleniyor, kontrast/matris/katalog PASS.
+
+### Yerel ortam notu
+API imajını Compose'da `migrate` servisi derler (`docker compose build api` hiçbir şey yapmaz). Bu makinede `0008_ui.sql`, P6a'da uygulandıktan sonra değiştiği için yerel veritabanı elle hizalandı. Temiz kurulumlar ve CI etkilenmez.
+
+### Sonraki adım
+**P6c** — ayar ekranları: workflow editörü, custom field yöneticisi, rol/izin matrisi, otomasyon kural oluşturucu, webhook ve API anahtarı, SLA ve takvim; Lighthouse ve ekran görüntüsü regresyonu CI'da.
+
 ## P6a — Faz 6: arayüz çekirdeği ve tasarım sistemi · 2026-11-21 · ✅ (CI PR'da çalışacak)
 
 > Faz 6 üç adıma bölündü (`docs/p6-plan.md`): **P6a** tasarım sistemi + kabuk + görev görünümleri (bu adım), **P6b** takvim / Gantt / pipeline / CRM ekranları / dashboard / kayıtlı görünümler, **P6c** ayar ekranları + Lighthouse ve ekran görüntüsü regresyonu.

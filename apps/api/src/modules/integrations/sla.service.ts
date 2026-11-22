@@ -155,6 +155,31 @@ export class SlaService {
     });
   }
 
+  /**
+   * Dashboard summary: records of a type with an SLA clock, by worst state (breached > running > paused > met),
+   * counting only records the caller may read (P6b dashboard).
+   */
+  async summary(t: TenantRequestContext, recordType: string | undefined) {
+    const type = (recordType ?? 'case') as ShareType;
+    if (!SLA_TYPES.has(type)) throw new ProblemError('VALIDATION_FAILED', 'recordType must be case, task or lead');
+    return this.db.withTenant(dbCtx(t), async (tx) => {
+      const pred = type === 'task' ? await taskReadPredicate(tx, t) : await recordPredicate(tx, t, shapeOf(type), 'read');
+      const r = await tx.execute<{ state: string; n: number }>(sql`
+        WITH worst AS (
+          SELECT st.record_id,
+                 (array_agg(st.state ORDER BY array_position(ARRAY['breached', 'running', 'paused', 'met'], st.state)))[1] AS state
+          FROM sla_timers st
+          WHERE st.record_type = ${type}
+            AND st.record_id IN (SELECT t.id FROM ${shapeOf(type).from} WHERE t.deleted_at IS NULL AND ${pred})
+          GROUP BY st.record_id
+        )
+        SELECT state, count(*)::int AS n FROM worst GROUP BY state`);
+      const counts = { breached: 0, running: 0, paused: 0, met: 0 };
+      for (const row of r.rows) if (row.state in counts) counts[row.state as keyof typeof counts] = row.n;
+      return { recordType: type, ...counts };
+    });
+  }
+
   // ------------------------------------------------------------------ event consumer
   /** Starts, pauses, resumes and meets clocks. Idempotent per event (processed_events). */
   async process(event: DomainEvent): Promise<void> {

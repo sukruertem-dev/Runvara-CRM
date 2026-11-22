@@ -174,3 +174,78 @@ function greater(k: SortKey, v: unknown): SQL | null {
   const op = sql.raw(k.dir === 'asc' ? '>' : '<');
   return k.nullable ? sql`((${k.expr}) IS NULL OR (${k.expr}) ${op} ${v})` : sql`(${k.expr}) ${op} ${v}`;
 }
+
+// ---------------------------------------------------------------- aggregation (dashboards, pipeline totals)
+export interface AggregateQuery {
+  q?: string;
+  groupBy?: string;
+  /** `count` or `sum:<number field>`. */
+  metric?: string;
+  /** For datetime/date groupings: `day` (default), `week` or `month`, in the tenant's time zone. */
+  interval?: string;
+}
+
+const GROUPABLE: ReadonlySet<string> = new Set(['text', 'enum', 'user', 'uuid', 'number', 'bool', 'date', 'datetime']);
+const INTERVALS: ReadonlySet<string> = new Set(['day', 'week', 'month']);
+const MAX_GROUPS = 200;
+
+/**
+ * Counts (and optionally sums) the rows a list would return — same FROM, same always-on predicates (soft delete,
+ * record scope) and the same RQL filter — grouped by one registry field. Hidden fields are absent from the
+ * registry, so they can be neither grouped nor summed (UNKNOWN_FIELD).
+ */
+export async function aggregate(
+  tx: Db,
+  t: TenantRequestContext,
+  spec: Pick<ListSpec, 'from' | 'base' | 'registry'>,
+  query: AggregateQuery,
+): Promise<{ data: { key: string | null; count: number; sum?: string }[]; total: number }> {
+  const field = (name: string): NonNullable<FieldRegistry[string]> => {
+    const def = Object.prototype.hasOwnProperty.call(spec.registry, name) ? spec.registry[name] : undefined;
+    if (!def) throw new ProblemError('UNKNOWN_FIELD', `unknown field "${name}"`);
+    return def;
+  };
+  let where: SQL | null;
+  try {
+    where = compileQuery(query.q ?? '', spec.registry, { userId: t.principal.userId, timezone: t.tenant.timezone, now: new Date() }).where;
+  } catch (e) {
+    return rqlProblem(e);
+  }
+  const filters = [...spec.base, ...(where ? [sql`(${where})`] : [])];
+
+  let keyExpr: SQL = sql`NULL::text`;
+  if (query.groupBy) {
+    const def = field(query.groupBy);
+    if (!GROUPABLE.has(def.type)) throw new ProblemError('VALIDATION_FAILED', `cannot group by "${query.groupBy}"`);
+    if (def.type === 'datetime' || def.type === 'date') {
+      const interval = query.interval ?? 'day';
+      if (!INTERVALS.has(interval)) throw new ProblemError('VALIDATION_FAILED', 'interval must be day, week or month');
+      // `interval` is one of three literals checked above; the time zone is bound as a parameter.
+      keyExpr = def.type === 'datetime'
+        ? sql`to_char(date_trunc(${interval}, (${def.sql}) AT TIME ZONE ${t.tenant.timezone}), 'YYYY-MM-DD')`
+        : sql`to_char(date_trunc(${interval}, (${def.sql})::timestamp), 'YYYY-MM-DD')`;
+    } else {
+      keyExpr = sql`(${def.sql})::text`;
+    }
+  }
+
+  const metric = query.metric ?? 'count';
+  let sumExpr: SQL | null = null;
+  if (metric !== 'count') {
+    const m = /^sum:([A-Za-z_][\w.]*)$/.exec(metric);
+    if (!m?.[1]) throw new ProblemError('VALIDATION_FAILED', 'metric must be count or sum:<number field>');
+    const def = field(m[1]);
+    if (def.type !== 'number') throw new ProblemError('VALIDATION_FAILED', `"${m[1]}" is not a number field`);
+    sumExpr = def.sql;
+  }
+
+  const r = await tx.execute<{ key: string | null; n: number; s: string | null }>(sql`
+    SELECT ${keyExpr} AS key, count(*)::int AS n, ${sumExpr ? sql`coalesce(sum(${sumExpr}), 0)::text` : sql`NULL::text`} AS s
+    FROM ${spec.from}
+    WHERE ${sql.join(filters, sql` AND `)}
+    GROUP BY 1
+    ORDER BY 2 DESC, 1
+    LIMIT ${MAX_GROUPS}`);
+  const data = r.rows.map((row) => ({ key: row.key, count: row.n, ...(sumExpr ? { sum: row.s ?? '0' } : {}) }));
+  return { data, total: data.reduce((n, g) => n + g.count, 0) };
+}

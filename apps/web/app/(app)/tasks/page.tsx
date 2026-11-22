@@ -10,7 +10,7 @@ import {
   Switch,
   SegmentedControl,
 } from '@flexa/ui';
-import { CheckSquare, KanbanSquare, List, Plus, Search, Table2 } from 'lucide-react';
+import { CalendarDays, ChartGantt, CheckSquare, KanbanSquare, List, Plus, Search, Table2 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../../lib/app-context';
@@ -20,12 +20,17 @@ import { t } from '../../../lib/i18n';
 import { DEFAULT_FILTERS, useDirectory, useTaskList, useTaskWorkflow, type TaskFilters, type TaskScope } from '../../../lib/tasks';
 import { useShell } from '../../_components/shell/shell-context';
 import { BulkBar } from './_parts/bulk-bar';
+import { FilterBar } from '../../_components/filter-bar';
+import { ViewsMenu } from '../../_components/views-menu';
+import type { View as SavedView } from '../../../lib/records';
 import { BoardView, type Swimlane } from './_views/board-view';
+import { CalendarView } from './_views/calendar-view';
+import { GanttView } from './_views/gantt-view';
 import { ListView, type SelectionApi } from './_views/list-view';
 import { TableView, type TableGroup } from './_views/table-view';
 
-type View = 'list' | 'board' | 'table';
-const VIEWS: View[] = ['list', 'board', 'table'];
+type View = 'list' | 'board' | 'table' | 'calendar' | 'gantt';
+const VIEWS: View[] = ['list', 'board', 'table', 'calendar', 'gantt'];
 
 /** Filters and view live in the URL, so a filtered view is a shareable link. */
 function useUrlState() {
@@ -38,6 +43,7 @@ function useUrlState() {
     openOnly: sp.get('open') === '1',
     search: sp.get('q') ?? '',
     sort: sp.get('sort') ?? DEFAULT_FILTERS.sort,
+    rql: sp.get('rql') ?? '',
   };
   const swimlane: Swimlane = sp.get('lane') === 'assignee' || sp.get('lane') === 'priority' ? (sp.get('lane') as Swimlane) : 'none';
   const group: TableGroup = (['status', 'assignee', 'priority'] as TableGroup[]).includes(sp.get('group') as TableGroup) ? (sp.get('group') as TableGroup) : 'none';
@@ -54,7 +60,7 @@ function useUrlState() {
     },
     [sp, router, pathname],
   );
-  return { view, filters, swimlane, group, update };
+  return { view, filters, swimlane, group, update, savedViewId: sp.get('sv') };
 }
 
 interface Selection extends SelectionApi {
@@ -102,7 +108,7 @@ function useSelection(): Selection {
 function TasksPageInner() {
   const { can } = useApp();
   const { setNewTaskOpen } = useShell();
-  const { view, filters, swimlane, group, update } = useUrlState();
+  const { view, filters, swimlane, group, update, savedViewId } = useUrlState();
   const { workflow, isLoading: wfLoading } = useTaskWorkflow();
   const list = useTaskList(filters);
   const names = useDirectory(useMemo(() => list.tasks.map((x) => x.assigneeUserId), [list.tasks]));
@@ -136,12 +142,31 @@ function TasksPageInner() {
     { key: '1', handler: () => { update({ view: null }); } },
     { key: '2', handler: () => { update({ view: 'board' }); } },
     { key: '3', handler: () => { update({ view: 'table' }); } },
+    { key: '4', handler: () => { update({ view: 'calendar' }); } },
+    { key: '5', handler: () => { update({ view: 'gantt' }); } },
     { key: 'f', handler: () => searchRef.current?.focus() },
     { key: 'Escape', when: () => selection.selected.size > 0, handler: () => { selection.clear(); } },
   ]);
 
   const selectedTasks = list.tasks.filter((x) => selection.selected.has(x.id));
-  const filtered = filters.scope !== 'all' || filters.openOnly || filters.search !== '';
+  const filtered = filters.scope !== 'all' || filters.openOnly || filters.search !== '' || filters.rql !== '';
+  const dated = view === 'calendar' || view === 'gantt';
+
+  /** A saved view replaces the advanced filter, sort and view options (quick filters are cleared). */
+  function applyView(v: SavedView): void {
+    const cfg = v.config;
+    update({
+      sv: v.id,
+      rql: v.query || null,
+      sort: v.sort,
+      view: v.viewType === 'list' || v.viewType === 'pipeline' ? null : v.viewType,
+      lane: typeof cfg['lane'] === 'string' ? cfg['lane'] : null,
+      group: typeof cfg['group'] === 'string' ? cfg['group'] : null,
+      scope: null,
+      open: null,
+      q: null,
+    });
+  }
   const loading = list.isLoading || wfLoading;
   const loadMore = useCallback(() => {
     void list.fetchNextPage();
@@ -174,7 +199,20 @@ function TasksPageInner() {
             { value: 'list', label: t('tasks.view.list'), icon: <List aria-hidden size={14} /> },
             { value: 'board', label: t('tasks.view.board'), icon: <KanbanSquare aria-hidden size={14} /> },
             { value: 'table', label: t('tasks.view.table'), icon: <Table2 aria-hidden size={14} /> },
+            { value: 'calendar', label: t('tasks.view.calendar'), icon: <CalendarDays aria-hidden size={14} /> },
+            { value: 'gantt', label: t('tasks.view.gantt'), icon: <ChartGantt aria-hidden size={14} /> },
           ]}
+        />
+        <ViewsMenu
+          resource="task"
+          activeId={savedViewId}
+          onApply={applyView}
+          current={{
+            viewType: view,
+            query: filters.rql,
+            sort: filters.sort === DEFAULT_FILTERS.sort ? null : filters.sort,
+            config: { ...(swimlane !== 'none' ? { lane: swimlane } : {}), ...(group !== 'none' ? { group } : {}) },
+          }}
         />
         <span className="hidden flex-1 md:block" />
         <div className="relative w-full sm:w-56">
@@ -234,7 +272,23 @@ function TasksPageInner() {
         ) : null}
       </div>
 
-      {list.error ? (
+      <div className="flex items-start gap-2 border-b border-line px-4 py-2 md:px-6">
+        <FilterBar
+          resource="task"
+          value={filters.rql}
+          onChange={(q) => {
+            update({ rql: q || null, sv: null });
+          }}
+        />
+      </div>
+
+      {dated ? (
+        view === 'calendar' ? (
+          <CalendarView filters={filters} editable={editable} />
+        ) : (
+          <GanttView filters={filters} editable={editable} />
+        )
+      ) : list.error ? (
         <ErrorState title={t('common.loadError')} description={t('common.loadErrorBody')} retryLabel={t('common.retry')} onRetry={() => void list.refetch()} />
       ) : loading ? (
         <div className="flex flex-col gap-2 p-4 md:px-6" aria-busy="true">

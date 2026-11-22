@@ -36,9 +36,11 @@ export interface TaskFilters {
   openOnly: boolean;
   search: string;
   sort: string;
+  /** Advanced RQL from the filter bar (or a saved view), ANDed with the quick filters. */
+  rql: string;
 }
 
-export const DEFAULT_FILTERS: TaskFilters = { scope: 'all', openOnly: false, search: '', sort: 'position' };
+export const DEFAULT_FILTERS: TaskFilters = { scope: 'all', openOnly: false, search: '', sort: 'position', rql: '' };
 
 /** RQL string literal (ADR-0008 lexer escapes). */
 export function rqlString(value: string): string {
@@ -52,6 +54,7 @@ export function filtersToRql(f: TaskFilters): string {
   if (f.openOnly) parts.push('statusCategory != closed');
   const term = f.search.trim();
   if (term) parts.push(`title ~ ${rqlString(term)}`);
+  if (f.rql.trim()) parts.push(`(${f.rql.trim()})`);
   return parts.join(' AND ');
 }
 
@@ -150,6 +153,15 @@ export function removeTasksFromCache(qc: QueryClient, ids: ReadonlySet<string>):
   );
 }
 
+/**
+ * Applies an optimistic change in the same tick (the UI updates before any await), then cancels in-flight task
+ * queries so a late response cannot overwrite it, and applies the change again in case a cancel reverted it.
+ */
+function optimistic(qc: QueryClient, apply: () => void): void {
+  apply();
+  void qc.cancelQueries({ queryKey: ['tasks'] }).then(apply);
+}
+
 function snapshot(qc: QueryClient) {
   return qc.getQueriesData<ListData | Task>({ queryKey: ['tasks'] });
 }
@@ -179,10 +191,11 @@ export function useUpdateTask() {
   return useMutation({
     mutationFn: ({ task, patch }: { task: Task; patch: TaskPatchBody }) =>
       request<Task>(`/v1/tasks/${task.id}`, { method: 'PATCH', body: patch, ifMatch: task.version ?? 0 }),
-    onMutate: async ({ task, patch }) => {
-      await qc.cancelQueries({ queryKey: ['tasks'] });
+    onMutate: ({ task, patch }) => {
       const snap = snapshot(qc);
-      patchTaskInCache(qc, task.id, (t) => ({ ...t, ...patch }));
+      optimistic(qc, () => {
+        patchTaskInCache(qc, task.id, (t) => ({ ...t, ...patch }));
+      });
       return { snap };
     },
     onError: (_e, _v, ctx) => {
@@ -215,15 +228,16 @@ export function useMoveTask() {
         method: 'POST',
         body: { beforeId, afterId, ...(task.status?.id === toStatus.id ? {} : { toStatusId: toStatus.id }) },
       }),
-    onMutate: async ({ task, toStatus, beforeId, afterId }) => {
-      await qc.cancelQueries({ queryKey: ['tasks'] });
+    onMutate: ({ task, toStatus, beforeId, afterId }) => {
       const snap = snapshot(qc);
       const position = optimisticPosition(qc, beforeId, afterId);
-      patchTaskInCache(qc, task.id, (t) => ({
-        ...t,
-        status: { id: toStatus.id, key: toStatus.key, category: toStatus.category, label: toStatus.label, colorToken: toStatus.colorToken },
-        ...(position ? { position } : {}),
-      }));
+      optimistic(qc, () => {
+        patchTaskInCache(qc, task.id, (t) => ({
+          ...t,
+          status: { id: toStatus.id, key: toStatus.key, category: toStatus.category, label: toStatus.label, colorToken: toStatus.colorToken },
+          ...(position ? { position } : {}),
+        }));
+      });
       return { snap };
     },
     onError: (_e, _v, ctx) => {
@@ -290,10 +304,11 @@ export function useDeleteTasks() {
       });
       return results;
     },
-    onMutate: async (tasks) => {
-      await qc.cancelQueries({ queryKey: ['tasks'] });
+    onMutate: (tasks) => {
       const snap = snapshot(qc);
-      removeTasksFromCache(qc, new Set(tasks.map((t) => t.id)));
+      optimistic(qc, () => {
+        removeTasksFromCache(qc, new Set(tasks.map((t) => t.id)));
+      });
       return { snap };
     },
     onSettled: (results, _e, _v, ctx) => {
@@ -324,10 +339,11 @@ export function useBulkUpdate() {
   return useMutation({
     mutationFn: ({ ids, patch }: { ids: string[]; patch: BulkPatch }) =>
       request<BulkResult>('/v1/tasks/bulk', { method: 'POST', body: { ids, patch }, idempotencyKey: crypto.randomUUID() }),
-    onMutate: async ({ ids, patch }) => {
-      await qc.cancelQueries({ queryKey: ['tasks'] });
+    onMutate: ({ ids, patch }) => {
       const snap = snapshot(qc);
-      for (const id of ids) patchTaskInCache(qc, id, (t) => ({ ...t, ...patch }));
+      optimistic(qc, () => {
+        for (const id of ids) patchTaskInCache(qc, id, (t) => ({ ...t, ...patch }));
+      });
       return { snap };
     },
     onError: (_e, _v, ctx) => {
@@ -356,4 +372,21 @@ export async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (it
 export function statusLabel(label: Record<string, string> | undefined, locale = 'tr'): string {
   if (!label) return '';
   return label[locale] ?? label['tr'] ?? label['en'] ?? Object.values(label)[0] ?? '';
+}
+
+/** Dependency edges among the listed tasks (Gantt arrows, critical path). */
+export function useDependencyEdges(ids: readonly string[], enabled = true) {
+  const key = [...ids].sort().join(',');
+  return useQuery({
+    queryKey: ['tasks', 'deps', key],
+    queryFn: async () => {
+      const all: { blockerId: string; blockedId: string }[] = [];
+      const list = key.split(',').filter(Boolean);
+      for (let i = 0; i < list.length; i += 500) {
+        all.push(...(await request<{ data: { blockerId: string; blockedId: string }[] }>(`/v1/task-dependencies?ids=${list.slice(i, i + 500).join(',')}`)).data);
+      }
+      return all;
+    },
+    enabled: enabled && key.length > 0,
+  });
 }

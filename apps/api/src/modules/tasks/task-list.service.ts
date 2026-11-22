@@ -3,7 +3,8 @@ import type { ApiEnv } from '@flexa/config';
 import { sql, type DbHandle, type SQL } from '@flexa/db';
 import { createHash } from 'node:crypto';
 import { CursorCodec } from '../../common/http-helpers';
-import { keysetPage, parseFields, pickFields, type ListQuery } from '../../common/keyset-list';
+import { aggregate, keysetPage, parseFields, pickFields, type AggregateQuery, type ListQuery } from '../../common/keyset-list';
+import { uuidArray } from '../../common/record-access';
 import { dbCtx, type TenantRequestContext } from '../../common/request-context';
 import { DB, ENV } from '../../infra/tokens';
 import { taskRegistry } from './task-fields';
@@ -31,6 +32,33 @@ export class TaskListService {
     private readonly tasks: TasksService,
   ) {
     this.cursors = cursorCodec(env);
+  }
+
+  /** Dependency edges among the given tasks, both ends readable by the caller (Gantt arrows, critical path). */
+  async dependencyEdges(t: TenantRequestContext, ids: string[]) {
+    return this.db.withTenant(dbCtx(t), async (tx) => {
+      const r = await tx.execute<{ blocker_id: string; blocked_id: string }>(sql`
+        WITH visible AS (
+          SELECT t.id FROM tasks t JOIN statuses s ON s.tenant_id = t.tenant_id AND s.id = t.status_id
+          WHERE t.id = ANY(${uuidArray(ids)}) AND t.deleted_at IS NULL AND ${await taskReadPredicate(tx, t)}
+        )
+        SELECT d.blocker_id, d.blocked_id FROM task_dependencies d
+        WHERE d.blocker_id IN (SELECT id FROM visible) AND d.blocked_id IN (SELECT id FROM visible)
+        ORDER BY d.blocked_id, d.blocker_id`);
+      return { data: r.rows.map((x) => ({ blockerId: x.blocker_id, blockedId: x.blocked_id })) };
+    });
+  }
+
+  /** Grouped counts/sums over exactly what the task list would return (dashboards, P6b). */
+  async aggregate(t: TenantRequestContext, query: AggregateQuery) {
+    return this.db.withTenant(dbCtx(t), async (tx) => {
+      const vc = await this.tasks.viewContext(tx);
+      return aggregate(tx, t, {
+        from: sql`tasks t JOIN statuses s ON s.tenant_id = t.tenant_id AND s.id = t.status_id`,
+        base: [sql`t.deleted_at IS NULL`, await taskReadPredicate(tx, t)],
+        registry: taskRegistry(vc.defs),
+      }, query);
+    });
   }
 
   /** Task list; `extra` adds fixed predicates (e.g. related record) on alias `t`. */
