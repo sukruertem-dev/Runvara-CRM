@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, startTransition, useContext, useEffect, useState, type ReactNode } from 'react';
 import { ApiError, bootstrapSession, request, type Me, type Navigation, type Tenant } from './api';
 import { qk } from './query';
 
@@ -40,7 +40,11 @@ export function useAppSession(): SessionState {
           router.replace('/select-tenant');
           return;
         }
-        setState({ status: 'ready', me });
+        // The first full render (shell + page) is large: as a transition React renders it in slices and keeps
+        // the main thread responsive (the loading skeleton stays until it commits).
+        startTransition(() => {
+          setState({ status: 'ready', me });
+        });
       } catch (err) {
         if (err instanceof ApiError && err.status === 401) router.replace('/login');
       }
