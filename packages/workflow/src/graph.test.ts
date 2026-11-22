@@ -90,21 +90,13 @@ describe('wouldCreateCycle', () => {
     );
   });
 
-  it('checks a 100k-edge chain in under a second', () => {
+  // The time budget for this size is measured in graph.perf.test.ts (`pnpm test:perf`), which CI runs on its
+  // own: here every package's tests share the runner, and a wall-clock bound would measure that load.
+  it('finds the cycle closed by an edge across a 100k-edge chain', () => {
     const edges: Edge[] = [];
     const n = 100_000;
     for (let i = 0; i < n; i++) edges.push([`n${String(i)}`, `n${String(i + 1)}`]);
-    const cycle = wouldCreateCycle(edges, [`n${String(n)}`, 'n0']); // also warms up the JIT
-    expect(cycle).toHaveLength(n + 2);
+    expect(wouldCreateCycle(edges, [`n${String(n)}`, 'n0'])).toHaveLength(n + 2);
     expect(wouldCreateCycle(edges, ['n0', `n${String(n)}`])).toBeNull();
-    // Best of three: CI runs every package's tests at once on a small runner, so a single cold sample measures
-    // the machine's load rather than this linear-time check (~70 ms on a developer machine).
-    let best = Infinity;
-    for (let i = 0; i < 3; i++) {
-      const t0 = performance.now();
-      wouldCreateCycle(edges, [`n${String(n)}`, 'n0']);
-      best = Math.min(best, performance.now() - t0);
-    }
-    expect(best).toBeLessThan(1000);
   });
 });

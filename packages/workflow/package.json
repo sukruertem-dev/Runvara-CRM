@@ -9,7 +9,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:perf": "vitest run --config vitest.perf.config.ts"
   },
   "dependencies": {
     "fractional-indexing": "3.4.0"

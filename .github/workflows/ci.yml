@@ -26,6 +26,9 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      # Timing budgets run alone: inside `pnpm test` every package's suite shares the runner's CPU.
+      - name: Performance budget (100k-edge dependency cycle check < 1 s)
+        run: pnpm --filter @flexa/workflow test:perf
       - name: Storybook (component documentation must build)
         run: pnpm --filter @flexa/ui build-storybook
       - name: 'Integration tests (Testcontainers: PostgreSQL 18 + Redis 7 + SeaweedFS)'
