@@ -236,6 +236,20 @@ export class AccessAdminService {
     return this.db.withTenant(dbCtx(t), async (tx) => ({ data: (await this.access(tx, scope === 'all' ? null : t.access.managedMemberIds)).map(this.accessView) }));
   }
 
+  /** Names of active members for people pickers; every member may read it (B48). */
+  async directory(t: TenantRequestContext, q: { q?: string | undefined; ids?: string[] | undefined; limit: number }) {
+    const term = q.q ? `%${q.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%` : null;
+    return this.db.withTenant(dbCtx(t), async (tx) => {
+      const r = await tx.execute<{ id: string; display_name: string }>(sql`
+        SELECT u.id, u.display_name FROM memberships m JOIN users u ON u.id = m.user_id
+        WHERE m.status = 'active'
+          ${q.ids ? sql`AND u.id = ANY(${uuidArray(q.ids)})` : sql``}
+          ${term ? sql`AND u.display_name ILIKE ${term}` : sql``}
+        ORDER BY u.display_name, u.id LIMIT ${q.ids ? q.ids.length : q.limit}`);
+      return { data: r.rows.map((row) => ({ id: row.id, displayName: row.display_name })) };
+    });
+  }
+
   async userAccess(t: TenantRequestContext, userId: string) {
     const scope = this.userScope(t);
     if (scope === 'managed' && !t.access.managedMemberIds.includes(userId) && userId !== t.principal.userId) throw new ProblemError('NOT_FOUND');

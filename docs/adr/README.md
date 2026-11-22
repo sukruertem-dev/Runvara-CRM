@@ -27,4 +27,5 @@ Biçim: Bağlam → Karar → Alternatifler → Sonuçlar. Durum: Önerildi / Ka
 | [0021](0021-teklif-versiyonlama-ve-onay-motoru.md) | Teklif versiyonlama ve onay motoru | Önerildi | G3, G4 |
 | [0022](0022-ai-mimarisi.md) | AI asistan mimarisi (çerçeve) | Önerildi | G11 |
 | [0023](0023-idempotency-anahtari-ve-api-anahtarlari.md) | Idempotency-Key deposu (Redis) ve API anahtarları | Kabul edildi | Faz 5 |
-| 0023 | AI model seçimi | G11'de yazılacak | G11 |
+| [0024](0024-on-yuz-yigini-ve-tasarim-sistemi.md) | Ön yüz yığını ve tasarım sistemi | Kabul edildi | Faz 6, G9 |
+| 0025 | AI model seçimi | G11'de yazılacak | G11 |

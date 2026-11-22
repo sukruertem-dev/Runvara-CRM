@@ -33,6 +33,8 @@ export interface TenantRequestContext {
   /** Segments this request may see (ADR-0010 §6): the user's active grants ∩ the tenant's sales mode,
    *  optionally narrowed by the `X-Segment` header (the segment switcher only narrows). */
   segments: readonly Segment[];
+  /** The same before the switcher narrows it: what the segment switcher may offer. */
+  availableSegments: readonly Segment[];
   /** Teams, queues, hierarchy, sharing and field policies of the caller (record-access.ts). */
   access: AccessInfo;
   /** Set when an automation rule acts: events it causes continue the chain (ADR-0006 §3). */

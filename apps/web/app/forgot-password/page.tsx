@@ -25,7 +25,7 @@ export default function ForgotPasswordPage() {
       {done ? (
         <Alert kind="success">{t('forgot.done')}</Alert>
       ) : (
-        <form onSubmit={onSubmit} noValidate aria-busy={pending}>
+        <form method="post" onSubmit={onSubmit} noValidate aria-busy={pending}>
           <FormMessage message={errors.form} />
           <Field label={t('common.email')} name="email" type="email" autoComplete="email" required value={email} onChange={(e) => { setEmail(e.target.value); }} error={errors.fields.email} />
           <SubmitButton pending={pending}>{t('forgot.submit')}</SubmitButton>

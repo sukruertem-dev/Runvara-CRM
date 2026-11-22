@@ -114,6 +114,8 @@ describe('refresh rotation and session revocation', () => {
     expect(r1.status).toBe(200);
     expect(r1.body.tenant).toBeTruthy();
     expect((await c.get('/v1/tenant')).status).toBe(200);
+    // The legitimate client keeps rotating, so the successor of the stolen token is used.
+    expect((await c.post('/v1/auth/refresh', undefined, c.withCsrf())).status).toBe(200);
 
     const thief = new Client(h.app);
     thief.cookies = oldCookies;
@@ -122,6 +124,24 @@ describe('refresh rotation and session revocation', () => {
     expect(reuse.body.code).toBe('REFRESH_REUSED');
     // The legitimate session is gone as well (family compromised).
     expect((await c.get('/v1/me')).status).toBe(401);
+    expect((await c.post('/v1/auth/refresh', undefined, c.withCsrf())).status).toBe(401);
+  });
+
+  it('survives a lost refresh response, and still revokes when a replayed token races the real holder', async () => {
+    const { c } = await signupAndLogin(h);
+    const before = new Map(c.cookies);
+    // The browser sent the refresh but left the page before storing the rotated cookie.
+    const lost = new Client(h.app);
+    lost.cookies = new Map(before);
+    expect((await lost.post('/v1/auth/refresh', undefined, c.withCsrf())).status).toBe(200);
+    // Next page load presents the old token again: within the grace window and the successor is unused → OK.
+    const retry = await c.post('/v1/auth/refresh', undefined, c.withCsrf());
+    expect(retry.status).toBe(200);
+    expect((await c.get('/v1/tenant')).status).toBe(200);
+    // Whoever holds the abandoned successor presents a token consumed by the grace path → no second grace,
+    // the family is revoked (alternating holders cannot keep a stolen session alive).
+    const replay = await lost.post('/v1/auth/refresh', undefined, c.withCsrf());
+    expect(replay.body.code).toBe('REFRESH_REUSED');
     expect((await c.post('/v1/auth/refresh', undefined, c.withCsrf())).status).toBe(401);
   });
 

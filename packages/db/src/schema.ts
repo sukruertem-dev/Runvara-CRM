@@ -205,6 +205,7 @@ export const refreshTokens = pgTable('refresh_tokens', {
   expiresAt: ts('expires_at').notNull(),
   usedAt: ts('used_at'),
   replacedBy: uuid('replaced_by'),
+  consumedByGrace: boolean('consumed_by_grace').notNull().default(false),
 });
 
 export const emailTokens = pgTable('email_tokens', {

@@ -34,3 +34,11 @@ export async function waitForLink(to: string, subject: string, pathPrefix: strin
   }
   throw new Error(`No mail to ${to} with subject "${subject}" and link ${pathPrefix} within ${String(timeoutMs)} ms`);
 }
+
+/** The `token` query parameter of the first link in a matching mail (verification, invitation). */
+export async function waitForToken(to: string, subject: string, timeoutMs = 15_000): Promise<string> {
+  const link = await waitForLink(to, subject, '/', timeoutMs);
+  const token = new URL(link).searchParams.get('token');
+  if (!token) throw new Error(`mail to ${to} has no token link`);
+  return token;
+}

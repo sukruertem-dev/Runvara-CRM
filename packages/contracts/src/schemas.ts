@@ -82,10 +82,29 @@ export const TotpSetupResponse = z.object({ secret: z.string(), otpauthUri: z.st
 export const TotpConfirmRequest = z.object({ code: TotpCode }).openapi('TotpConfirmRequest');
 export const RecoveryCodesResponse = z.object({ recoveryCodes: z.array(z.string()) }).openapi('RecoveryCodesResponse');
 
+/** Permissions the shell asks about to show or hide global affordances (the API still decides every request). */
+export const UI_CAPABILITIES = [
+  // Record-level task actions: true when the user holds any scope for them (own, team, queue or all).
+  'task.create',
+  'task.update',
+  'task.delete',
+  'task.bulk',
+  'tenant.config.read',
+  'tenant.config.manage',
+  'tenant.modules.manage',
+  'users.manage',
+  'authz.matrix.read',
+] as const;
+
 export const NavigationResponse = z
   .object({
     modules: z.array(z.object({ id: z.string(), displayNameKey: z.string() })),
     menu: z.array(z.object({ id: z.string(), module: z.string(), labelKey: z.string(), path: z.string(), icon: z.string() })),
+    roles: z.array(z.string()),
+    /** Segments the switcher may offer: the user's active grants ∩ the tenant's sales mode (not narrowed by X-Segment). */
+    segments: z.array(z.enum(['b2b', 'b2c'])),
+    salesMode: z.enum(['b2b_only', 'b2c_only', 'both']),
+    capabilities: z.array(z.enum(UI_CAPABILITIES)),
   })
   .openapi('NavigationResponse');
 

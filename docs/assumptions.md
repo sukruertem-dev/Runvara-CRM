@@ -83,3 +83,8 @@
 | B45 | API anahtarı yetkisi | Anahtar oluşturanın güncel yetkisi ∩ anahtar kapsamı; anahtarla anahtar/matris/rol yönetimi yok; oluşturma ve iptal `tenant.config.manage` | ADR-0023 |
 | B46 | SSE yeniden oynatma | Son 72 saat ve en çok 500 olay; ötesi `resync.required` | ADR-0007 not |
 | B47 | E-posta özeti | 10 dakikadan eski okunmamış bildirimler, 5 dakikada bir, yalnızca `email` kanalını seçen kullanıcılara; bildirim başına en çok bir e-posta | ADR-0017 not |
+| B48 | Kişi rehberi | `GET /v1/directory/users` her üyeye açık; yalnızca etkin üyelerin kimliği ve görünen adı (e-posta, rol, segment yok). Atanan seçici ve ad gösterimi içindir | p6-plan §2 |
+| B49 | WIP limiti | Durum başına isteğe bağlı yumuşak sınır (`statuses.wip_limit`); aşılınca Kanban uyarır, taşıma engellenmez | p6-plan §4 |
+| B50 | Arayüz yetenekleri | `/v1/me/navigation.capabilities` yalnızca arayüzde gizleme içindir; her istek yine API'de yetkilendirilir. Görev yetenekleri kayıt kapsamından (`*record*` × `core.task`) hesaplanır | p6-plan §2 |
+| B51 | Kayıtlı arayüz tercihleri | Tema, yoğunluk, segment seçimi, menü daraltma, tablo sütunları ve son görüntülenenler tarayıcıda (`localStorage`) tutulur; sunucu tarafı kullanıcı tercihleri P7 yapılandırma motoruyla gelir | ADR-0024 |
+| B52 | Refresh rotasyonu ve yarıda kalan yanıt | Tam sayfa yüklemesi refresh çerezini döndürür; yanıt tarayıcıya ulaşmadan sayfadan çıkılırsa (≈100 ms pencere) bir sonraki yenileme eski belirteci sunar ve ADR-0009 gereği oturum kapanır. Karar (kullanıcı "en iyi kararı ver" dedi): 30 sn tanıma; halef hiç kullanılmamışsa ve sunulan belirteç tanımayla tüketilmemişse yeni belirteç verilir, aksi halde aile iptal edilir. Tespit korunur, en fazla bir adım gecikir | ADR-0009 not |

@@ -1,5 +1,48 @@
 # İlerleme
 
+## P6a — Faz 6: arayüz çekirdeği ve tasarım sistemi · 2026-11-21 · ✅ (CI PR'da çalışacak)
+
+> Faz 6 üç adıma bölündü (`docs/p6-plan.md`): **P6a** tasarım sistemi + kabuk + görev görünümleri (bu adım), **P6b** takvim / Gantt / pipeline / CRM ekranları / dashboard / kayıtlı görünümler, **P6c** ayar ekranları + Lighthouse ve ekran görüntüsü regresyonu.
+
+### Yapılanlar
+- **Tasarım sistemi (`packages/ui`, ADR-0024):** `tokens.json` → `tokens.css` + Tailwind v4 teması. Varsayılan Tailwind paleti silindi, token dışı renk derlenmez. Yeni token'lar: boşluk ızgarası, açılır katman gölgesi, karartma, yerleşim, yoğunluk (Rahat/Kompakt). Bileşenler Radix tabanlı (shadcn kalıbı): Button, Input/Field, Select, Combobox, Checkbox, Switch, Tabs, SegmentedControl, Dialog/Sheet, Popover, Tooltip, DropdownMenu, Toast (geri al eylemli), Badge (segment/rol/durum/öncelik; renk + ikon + metin), Avatar, DatePicker, Skeleton, EmptyState, ErrorState, Alert, Kbd, CommandDialog, RichTextEditor (Tiptap), ModuleIcon. **Storybook 10** (tema/yoğunluk araç çubuğu, a11y eklentisi; CI'da derlenir) ve **bileşen testleri** (Vitest + Testing Library + axe).
+- **Uygulama kabuğu:** tek oturum açılışı ve tek canlı akış için `(app)` düzeni (sayfa geçişinde kabuk yeniden kurulmaz). Modüle ve yetkiye duyarlı daraltılabilir yan menü; mobilde çekmece. Tenant değiştirici, segment değiştirici (yalnızca iki segmenti olana, `X-Segment` ile yalnızca daraltır), rol rozetleri, kullanıcı menüsü (tema, yoğunluk, güvenlik, çıkış). Bildirim zili ve merkezi ("Anıldım" filtresi, okunmamış kıvılcımı). Bağlantı kopması / çevrimdışı şeridi. Henüz ekranı olmayan modül menüleri için "sonraki sürümde" sayfası.
+- **Komut paleti ve kısayollar:** `Ctrl/⌘+K` ve `/` palet (gezinme, eylemler, son görüntülenenler, API'den canlı görev arama); `C` yeni görev, `J/K` + `Enter` + `X` listede, `1/2/3` görünüm, `?` yardım. Açık bir katman varken sayfa kısayolları susar.
+- **Görevler:** filtreler URL'de (paylaşılabilir bağlantı).
+  - **Liste:** sanal kaydırma, satır içi başlık/öncelik/durum, çoklu seçim (Shift aralık), toplu eylemler + geri al.
+  - **Kanban:** dnd-kit; fare, dokunma ve klavye; Türkçe ekran okuyucu duyuruları; iyimser taşıma; WIP limiti uyarısı; kulvarlar (kulvar değişince atanan/öncelik de değişir).
+  - **Tablo:** sütun göster/gizle, sunucu sıralaması, gruplama, sabit ilk sütunlar, sanal satırlar.
+  - **Detay:** alanlar, açıklama (Tiptap), yorumlar, etkinlik, alt görevler, bağımlılıklar. Başka kullanıcı değiştirince uyarı; `412` gelince çakışma iletişim kutusu; sil + 8 sn geri al.
+- **Canlı güncelleme:** `fetch` tabanlı SSE istemcisi; `Last-Event-ID` ile yeniden bağlanma, artan bekleme, `resync.required` gelince tam tazeleme; olaylar 300 ms'de toplanıp ilgili sorguları geçersiz kılar.
+- **API ekleri:** `/v1/me/navigation` artık `roles`, `segments` (switcher daraltmasından önce), `salesMode`, `capabilities` döndürüyor. `GET /v1/directory/users` (yalnızca ad, B48). `0008_ui.sql`: `statuses.wip_limit` (B49). SSE kayıt olaylarında `actor`.
+- **Bulunan ve düzeltilen hatalar:**
+  - **Görevler menüsü kimseye görünmüyordu (P1'den).** Menü `core.task.read` iznini `can()` ile soruyordu; görev izinleri kayıt düzeyindeki `*record*` izinleri olduğu için sonuç hep "yok"tu. Menü ve yetenekler artık kayıt kapsamından hesaplanıyor.
+  - **SSE web üzerinden hiç akmıyordu (P5b).** Next.js'in `/api` vekili akışı gzip ile tamponluyordu. Akış yanıtı artık `Cache-Control: no-transform`.
+  - **Parola adres çubuğuna düşebiliyordu (P1).** JavaScript yüklenmeden gönderilen formlar GET ile gidiyordu. Tüm formlar artık `method="post"`.
+  - **Testlerin yakaladığı P6a hataları (birleştirmeden önce düzeltildi):**
+    - Tablo görünümü bir sonraki yeniden çizimde (ör. mobil menü açılınca) sonsuz çizim döngüsüne giriyordu. Nedeni her çizimde yeni oluşturulan gruplama dizisiydi; dizi sabitlendi, genişletme otomatik sıfırlanmıyor.
+    - Kanban'da klavyeyle yan sütuna taşıma, kaynak sütunda birden çok kart varken aynı sütuna düşüyordu. Çarpışma algılaması artık fareyle işaretçinin altına, klavyeyle en çok örtüşen alana bakıyor.
+    - Erişilebilirlik: arama düğmesi ve kullanıcı menüsünün erişilebilir adı görünen metinle uyuşmuyordu; görünüm seçici sekme yerine radyo grubu oldu; listede geçersiz ARIA özniteliği kaldırıldı.
+  - **Sayfa yüklenirken başka sayfaya geçen kullanıcı oturumdan düşüyordu (P1).** Refresh rotasyonunda yanıt kaybolunca eski belirteç "yeniden kullanım" sayılıyordu. 30 sn'lik, tek adımlık tanıma eklendi; hırsızlık tespiti korunuyor (ADR-0009 notu, B52).
+  - **Geliştirme sunucusunda JavaScript çalışmıyordu.** CSP, React Refresh'in `eval` çağrısını engelliyordu; izin yalnızca geliştirme modunda açıldı.
+- Kararlar: ADR-0024, `assumptions.md` B48–B51.
+
+### Kabul kriterleri (P6a)
+| Kriter | Durum | Kanıt |
+|---|---|---|
+| Görünümler gerçek API'ye bağlı, yetkiye duyarlı | ✅ | E2E `tasks.spec.ts` "kabuk": kapalı modül menüde yok, açılınca görünür; temsilci Admin ayarlarını görmez; `ui-support.int.test.ts` (rol, segment, yetenek) |
+| Axe: ciddi/kritik ihlal yok; kritik akış yalnızca klavyeyle | ✅ | E2E: ana sayfa, palet, liste, Kanban, detay ve koyu tema axe denetimi; klavyeyle oluştur → Kanban'da taşı → detayda düzenle → sil ve geri al |
+| Kanban sürüklemesi sonrası UI < 100 ms (iyimser) | ✅ | E2E: taşıma isteği 1,5 sn tutulurken kart bırakmadan sonra yeni sütunda < 100 ms |
+| 10 bin satırlık listede akıcı kaydırma | ✅ | E2E: 10 000 görev (hacim verisi SQL ile; API'nin IP başına dakikada 600 istek sınırı yüzünden); sayfalar yüklenirken DOM'da < 80 satır |
+| Açık/koyu tema ve mobil | ✅ | E2E: koyu tema kalıcı; 375 px'te dört ekranda yatay taşma yok, yan menü çekmece. Ekran görüntüsü regresyonu P6c'de |
+| Bileşenler belgeli | ✅ | Storybook derlemesi CI'da; bileşen testleri |
+
+### Testler
+API entegrasyon **96/96** (+4: `ui-support.int.test.ts`, refresh tanıma), DB 18/18, bileşen testleri 11/11, **E2E 9/9** (`auth.spec.ts` + yeni `tasks.spec.ts`, üretim web imajına karşı), birim/lint/typecheck temiz, Storybook derleniyor, kontrast/matris/katalog PASS.
+
+### Sonraki adım
+**P6b** — takvim, Gantt/timeline, opportunity pipeline, CRM kayıt listeleri ve detayı, dashboard, kayıtlı görünümler + RQL filtre çubuğu.
+
 ## P5b — Faz 5: SLA, webhook, API anahtarı, SSE, e-posta özeti · 2026-11-21 · ✅ (CI PR'da çalışacak)
 
 ### Yapılanlar

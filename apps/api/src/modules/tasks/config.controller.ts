@@ -37,7 +37,7 @@ export class TaskConfigController {
         data: wfs.map((w) => ({
           id: w.id, key: w.key, name: w.name, resourceType: w.resourceType, isDefault: w.isDefault,
           statuses: st.filter((s) => s.workflowId === w.id).sort((a, b) => (a.position < b.position ? -1 : 1))
-            .map((s) => ({ id: s.id, key: s.key, category: s.category, label: s.labelI18n, colorToken: s.colorToken, isInitial: s.isInitial, position: s.position })),
+            .map((s) => ({ id: s.id, key: s.key, category: s.category, label: s.labelI18n, colorToken: s.colorToken, isInitial: s.isInitial, position: s.position, wipLimit: s.wipLimit })),
           transitions: tr.filter((x) => x.workflowId === w.id)
             .map((x) => ({ id: x.id, key: x.key, label: x.labelI18n, fromStatusId: x.fromStatusId, toStatusId: x.toStatusId, conditions: x.conditions, validators: x.validators, postFunctions: x.postFunctions })),
         })),
@@ -70,7 +70,7 @@ export class TaskConfigController {
         let pos: string | null = null;
         for (const s of body.statuses) {
           pos = keyBetween(pos, null);
-          await tx.insert(schema.statuses).values({ id: idOf(s.key), tenantId: t.tenant.id, workflowId: wf.id, key: s.key, labelI18n: s.label, category: s.category, colorToken: s.colorToken, position: pos, isInitial: s.isInitial });
+          await tx.insert(schema.statuses).values({ id: idOf(s.key), tenantId: t.tenant.id, workflowId: wf.id, key: s.key, labelI18n: s.label, category: s.category, colorToken: s.colorToken, position: pos, isInitial: s.isInitial, wipLimit: s.wipLimit });
         }
         for (const [i, x] of engine.transitions.entries()) {
           const src = body.transitions[i];
@@ -84,7 +84,7 @@ export class TaskConfigController {
         const transitions = await tx.select().from(schema.workflowTransitions).where(eq(schema.workflowTransitions.workflowId, wf.id));
         return {
           id: wf.id, key: wf.key, name: wf.name, resourceType: wf.resourceType, isDefault: wf.isDefault,
-          statuses: statuses.map((s) => ({ id: s.id, key: s.key, category: s.category, label: s.labelI18n, colorToken: s.colorToken, isInitial: s.isInitial, position: s.position })),
+          statuses: statuses.map((s) => ({ id: s.id, key: s.key, category: s.category, label: s.labelI18n, colorToken: s.colorToken, isInitial: s.isInitial, position: s.position, wipLimit: s.wipLimit })),
           transitions: transitions.map((x) => ({ id: x.id, key: x.key, label: x.labelI18n, fromStatusId: x.fromStatusId, toStatusId: x.toStatusId, conditions: x.conditions, validators: x.validators, postFunctions: x.postFunctions })),
         };
       } catch (e) {
