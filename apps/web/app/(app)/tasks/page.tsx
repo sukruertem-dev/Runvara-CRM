@@ -11,6 +11,7 @@ import {
   SegmentedControl,
 } from '@flexa/ui';
 import { CalendarDays, ChartGantt, CheckSquare, KanbanSquare, List, Plus, Search, Table2 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../../lib/app-context';
@@ -23,11 +24,16 @@ import { BulkBar } from './_parts/bulk-bar';
 import { FilterBar } from '../../_components/filter-bar';
 import { ViewsMenu } from '../../_components/views-menu';
 import type { View as SavedView } from '../../../lib/records';
-import { BoardView, type Swimlane } from './_views/board-view';
-import { CalendarView } from './_views/calendar-view';
-import { GanttView } from './_views/gantt-view';
+import type { Swimlane } from './_views/board-view';
 import { ListView, type SelectionApi } from './_views/list-view';
-import { TableView, type TableGroup } from './_views/table-view';
+import type { TableGroup } from './_views/table-view';
+
+// The list is the default view; the others (dnd-kit, TanStack Table, the calendar and Gantt) load when chosen.
+const viewLoading = () => <Skeleton className="m-4 h-64" />;
+const BoardView = dynamic(() => import('./_views/board-view').then((m) => m.BoardView), { ssr: false, loading: viewLoading });
+const CalendarView = dynamic(() => import('./_views/calendar-view').then((m) => m.CalendarView), { ssr: false, loading: viewLoading });
+const GanttView = dynamic(() => import('./_views/gantt-view').then((m) => m.GanttView), { ssr: false, loading: viewLoading });
+const TableView = dynamic(() => import('./_views/table-view').then((m) => m.TableView), { ssr: false, loading: viewLoading });
 
 type View = 'list' | 'board' | 'table' | 'calendar' | 'gantt';
 const VIEWS: View[] = ['list', 'board', 'table', 'calendar', 'gantt'];

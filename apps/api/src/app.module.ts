@@ -15,6 +15,7 @@ import { SsoController } from './modules/sso/sso.controller';
 import { ProvisioningService } from './modules/tenancy/provisioning.service';
 import { TenancyController } from './modules/tenancy/tenancy.controller';
 import { TaskConfigController } from './modules/tasks/config.controller';
+import { ConfigEditService } from './modules/tasks/config-edit.service';
 import { RqlController } from './modules/tasks/rql.controller';
 import { TaskListService } from './modules/tasks/task-list.service';
 import { TasksController } from './modules/tasks/tasks.controller';
@@ -73,6 +74,7 @@ export class AppModule {
         OidcService,
         TasksService,
         TaskListService,
+        ConfigEditService,
         CrmService,
         CrmOpsService,
         NotesService,

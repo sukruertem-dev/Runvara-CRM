@@ -1,5 +1,60 @@
 # İlerleme
 
+## P6c — Faz 6: ayar ekranları, Lighthouse, ekran görüntüsü regresyonu · 2026-11-22 · ✅ (CI PR'da çalışacak)
+
+### Yapılanlar
+- **API:**
+  - Workflow düzenleme: `POST /v1/workflows/{id}/preview` (kuru çalıştırma) ve `PUT /v1/workflows/{id}` (If-Match). Kaldırılan durumdaki kayıtlar eşlemeyle taşınır; eşleme yoksa 409 `WORKFLOW_STATUS_IN_USE`. Durum anahtarları değişmez. ADR-0026, ADR-0019'u kısmen değiştirir.
+  - Özel alan: `PATCH /v1/custom-fields/{id}` (etiket, zorunluluk, seçenekler, sıra) ve `POST …/restore`. Kullanılan seçenek silinemez (409 `CUSTOM_FIELD_OPTION_IN_USE`).
+  - `PATCH /v1/sla/policies/{id}`.
+  - Göç `0010_settings.sql` (sürüm sütunları). Arayüz yeteneği `authz.matrix.edit`.
+- **Ayarlar alanı** (`/settings`): yetkiye ve modüle duyarlı alt menü. Okuyabilen ama değiştiremeyen kullanıcı salt okuma görünümü alır.
+- **İş akışı editörü:**
+  - Durum diyagramı: kategori sütunları, eğri oklar, "her durumdan" geçişleri.
+  - Klavyeyle düzenlenen durum ve geçiş listeleri; koşul, doğrulayıcı ve son işlemler.
+  - Motor kuralları canlı uyarı olarak gösterilir. Kaydederken kuru çalıştırma ve gerekiyorsa eşleme iletişim kutusu.
+- **Diğer ayar ekranları:**
+  - **Özel alan yöneticisi.**
+  - **Rol/izin matrisi:** önizleme, not, sürüm geçmişi ve eski sürüme dönüş.
+  - **Otomasyon kural oluşturucu:** ne zaman → hangi kayıtlarda → ne yapılsın. Koşul RQL filtre çubuğuyla yazılır; çalıştırma günlüğü görünür.
+  - **Webhook ve API anahtarı:** gizli değerler bir kez gösterilir; teslimat geçmişi, yeniden gönderme, iptal.
+  - **SLA politikası ve çalışma takvimi:** gün başına birden çok aralık, tatiller.
+- **Performans:**
+  - `@flexa/ui` yan etkisiz işaretlendi ve `optimizePackageImports` açıldı.
+  - Komut paleti, yeni görev formu ve kısayol yardımı ilk açılışta yükleniyor.
+  - Kanban, takvim, Gantt, tablo ve pipeline seçildiklerinde yükleniyor.
+  - Oturum açık sayfalarda ilk yük ~400 kB'den ~225 kB'ye indi.
+- **CI'a eklenenler:**
+  - Lighthouse: `pnpm --filter @flexa/web lighthouse`.
+  - Ekran görüntüsü regresyonu: `pnpm --filter @flexa/web e2e:visual`. Sabit Playwright Linux imajında 16 temel görüntüyle çalışır.
+
+### Kabul kriterleri (P6c ve Faz 6)
+`docs/p6-plan.md` §10 tablosundaki tüm satırlar ✅. Bununla Faz 6'nın bütün kabul kriterleri karşılandı.
+
+Lighthouse sonuçları (mobil profil, 3 koşu medyanı); erişilebilirlik hepsinde 100:
+
+| Sayfa | Performans |
+|---|---|
+| `/` | 94 |
+| `/tasks` | 99 |
+| `/crm` | 97 |
+| `/settings/workflows` | 97 |
+| `/login` | 100 |
+
+### Testler
+- API entegrasyon **104/104** (+4: `settings.int.test.ts`).
+- DB 18/18.
+- **E2E 19/19** (+6: `settings.spec.ts`, axe dahil).
+- Görsel regresyon 16/16.
+- Birim testleri, lint ve typecheck temiz; Storybook derleniyor; kontrast, matris ve katalog kontrolleri PASS.
+
+### Notlar
+- Bu makinede Lighthouse puanı Docker yükü yüzünden koşudan koşuya oynuyor; giriş sayfası tek koşuda 80 ile 99 arasında ölçüldü. CI bu yüzden 3 koşunun medyanını alıyor (B59).
+- Ekran görüntüsü temelleri yalnızca `scripts/e2e-visual.mjs` ile üretilmeli. Windows veya macOS'ta doğrudan alınan görüntüler fontlar nedeniyle farklı çıkar.
+
+### Sonraki adım
+**P7**: yapılandırma motoru (G1'in kalanı); ayrıntı `docs/phase-plan.md`'de.
+
 ## P6b — Faz 6: görünümler · 2026-11-22 · ✅ (CI PR'da çalışacak)
 
 ### Yapılanlar

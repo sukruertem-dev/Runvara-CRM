@@ -29,3 +29,4 @@ Biçim: Bağlam → Karar → Alternatifler → Sonuçlar. Durum: Önerildi / Ka
 | [0023](0023-idempotency-anahtari-ve-api-anahtarlari.md) | Idempotency-Key deposu (Redis) ve API anahtarları | Kabul edildi | Faz 5 |
 | [0024](0024-on-yuz-yigini-ve-tasarim-sistemi.md) | Ön yüz yığını ve tasarım sistemi | Kabul edildi | Faz 6, G9 |
 | 0025 | AI model seçimi | G11'de yazılacak | G11 |
+| [0026](0026-workflow-duzenleme-yerinde-surum-ve-esleme.md) | Workflow düzenleme: yerinde sürüm ve durum eşleme | Kabul edildi | P6c (ADR-0019'u kısmen değiştirir) |

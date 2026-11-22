@@ -1,22 +1,24 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
-import { CustomFieldCreate, WorkflowCreate, type z } from '@flexa/contracts';
+import { Body, Controller, Get, Headers, HttpCode, Inject, Param, ParseUUIDPipe, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { CustomFieldCreate, CustomFieldPatch, WorkflowCreate, WorkflowUpdate, type z } from '@flexa/contracts';
 import { and, asc, eq, isNull, one, schema, type DbHandle } from '@flexa/db';
 import { FormulaError, assertNoCycles } from '@flexa/formula';
 import { keyBetween, validateWorkflow, type Workflow } from '@flexa/workflow';
 import { randomUUID } from 'node:crypto';
 import { audit } from '../../common/audit';
 import { authorize } from '../../common/authorize';
+import { requireIfMatch } from '../../common/http-helpers';
 import { TenantGuard } from '../../common/guards';
 import { isUniqueViolation, ProblemError } from '../../common/problem';
 import { Client, CurrentTenant, dbCtx, type ClientInfo, type TenantRequestContext } from '../../common/request-context';
 import { ZodPipe } from '../../common/zod.pipe';
 import { DB } from '../../infra/tokens';
+import { ConfigEditService } from './config-edit.service';
 import { compileDefFormula, loadFieldDefs, RESOURCE_TYPES, type FieldDefRow, type ResourceType } from './task-fields';
 
 type DefRow = FieldDefRow;
 const defView = (d: DefRow) => ({
   id: d.id, resourceType: d.resourceType, key: d.key, type: d.type, label: d.labelI18n, required: d.required, defaultValue: d.defaultValue ?? null,
-  options: d.options, relationTarget: d.relationTarget, formula: d.formula, indexed: d.indexed, archived: d.archivedAt !== null,
+  options: d.options, relationTarget: d.relationTarget, formula: d.formula, indexed: d.indexed, archived: d.archivedAt !== null, version: d.version,
 });
 
 /** Workflow and custom-field configuration (ADR-0018, ADR-0019). Reading needs only membership; changing it
@@ -24,7 +26,10 @@ const defView = (d: DefRow) => ({
 @Controller('v1')
 @UseGuards(TenantGuard)
 export class TaskConfigController {
-  constructor(@Inject(DB) private readonly db: DbHandle) {}
+  constructor(
+    @Inject(DB) private readonly db: DbHandle,
+    private readonly edit: ConfigEditService,
+  ) {}
 
   @Get('workflows')
   async workflows(@CurrentTenant() t: TenantRequestContext) {
@@ -35,7 +40,7 @@ export class TaskConfigController {
       const tr = await tx.select().from(schema.workflowTransitions);
       return {
         data: wfs.map((w) => ({
-          id: w.id, key: w.key, name: w.name, resourceType: w.resourceType, isDefault: w.isDefault,
+          id: w.id, key: w.key, name: w.name, resourceType: w.resourceType, isDefault: w.isDefault, version: w.version,
           statuses: st.filter((s) => s.workflowId === w.id).sort((a, b) => (a.position < b.position ? -1 : 1))
             .map((s) => ({ id: s.id, key: s.key, category: s.category, label: s.labelI18n, colorToken: s.colorToken, isInitial: s.isInitial, position: s.position, wipLimit: s.wipLimit })),
           transitions: tr.filter((x) => x.workflowId === w.id)
@@ -83,7 +88,7 @@ export class TaskConfigController {
         const statuses = await tx.select().from(schema.statuses).where(eq(schema.statuses.workflowId, wf.id));
         const transitions = await tx.select().from(schema.workflowTransitions).where(eq(schema.workflowTransitions.workflowId, wf.id));
         return {
-          id: wf.id, key: wf.key, name: wf.name, resourceType: wf.resourceType, isDefault: wf.isDefault,
+          id: wf.id, key: wf.key, name: wf.name, resourceType: wf.resourceType, isDefault: wf.isDefault, version: wf.version,
           statuses: statuses.map((s) => ({ id: s.id, key: s.key, category: s.category, label: s.labelI18n, colorToken: s.colorToken, isInitial: s.isInitial, position: s.position, wipLimit: s.wipLimit })),
           transitions: transitions.map((x) => ({ id: x.id, key: x.key, label: x.labelI18n, fromStatusId: x.fromStatusId, toStatusId: x.toStatusId, conditions: x.conditions, validators: x.validators, postFunctions: x.postFunctions })),
         };
@@ -92,6 +97,23 @@ export class TaskConfigController {
         throw e;
       }
     });
+  }
+
+  @Post('workflows/:id/preview')
+  @HttpCode(200)
+  previewWorkflow(@CurrentTenant() t: TenantRequestContext, @Param('id', new ParseUUIDPipe()) id: string, @Body(new ZodPipe(WorkflowUpdate)) body: z.infer<typeof WorkflowUpdate>) {
+    return this.edit.previewWorkflow(t, id, body);
+  }
+
+  @Put('workflows/:id')
+  updateWorkflow(
+    @CurrentTenant() t: TenantRequestContext,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Headers('if-match') ifMatch: string | undefined,
+    @Body(new ZodPipe(WorkflowUpdate)) body: z.infer<typeof WorkflowUpdate>,
+    @Client() c: ClientInfo,
+  ) {
+    return this.edit.updateWorkflow(t, id, requireIfMatch(ifMatch), body, c.ip);
   }
 
   @Get('custom-fields')
@@ -135,6 +157,23 @@ export class TaskConfigController {
         throw e;
       }
     });
+  }
+
+  @Patch('custom-fields/:id')
+  async patchCustomField(
+    @CurrentTenant() t: TenantRequestContext,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Headers('if-match') ifMatch: string | undefined,
+    @Body(new ZodPipe(CustomFieldPatch)) body: z.infer<typeof CustomFieldPatch>,
+    @Client() c: ClientInfo,
+  ) {
+    return defView(await this.edit.patchField(t, id, requireIfMatch(ifMatch), body, c.ip));
+  }
+
+  @Post('custom-fields/:id/restore')
+  @HttpCode(200)
+  async restoreCustomField(@CurrentTenant() t: TenantRequestContext, @Param('id', new ParseUUIDPipe()) id: string, @Client() c: ClientInfo) {
+    return defView(await this.edit.restoreField(t, id, c.ip));
   }
 
   @Post('custom-fields/:id/archive')

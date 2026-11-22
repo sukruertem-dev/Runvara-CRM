@@ -112,6 +112,7 @@ export const customFieldDefinitions = pgTable('custom_field_definitions', {
   indexed: boolean('indexed').notNull(),
   position: text('position').notNull(),
   archivedAt: ts('archived_at'),
+  version: integer('version').notNull().default(1),
   createdAt: ts('created_at').notNull().defaultNow(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });

@@ -14,3 +14,5 @@ blob-report/
 .DS_Store
 *.log
 storybook-static/
+lighthouse-report/
+test-results-visual/

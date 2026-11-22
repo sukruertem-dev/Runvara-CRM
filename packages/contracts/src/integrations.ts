@@ -51,9 +51,26 @@ export const SlaPolicyView = z
   .object({
     id: Uuid, name: z.string(), resourceType: z.string(), criteria: z.string(), position: z.number().int(), calendarId: Uuid,
     firstResponseMinutes: z.number().int().nullable(), resolutionMinutes: z.number().int().nullable(), warnPercent: z.number().int(),
-    pauseStatuses: z.array(z.string()), enabled: z.boolean(),
+    pauseStatuses: z.array(z.string()), enabled: z.boolean(), version: z.number().int(),
   })
   .openapi('SlaPolicyView');
+/** Changes a policy in place (If-Match). The resource type is fixed; running clocks keep the budget they started with. */
+export const SlaPolicyPatch = z
+  .object({
+    name: Name,
+    criteria: z.string().max(2000),
+    position: z.number().int().min(0).max(10_000),
+    calendarId: Uuid,
+    firstResponseMinutes: z.number().int().min(1).max(525_600).nullable(),
+    resolutionMinutes: z.number().int().min(1).max(525_600).nullable(),
+    warnPercent: z.number().int().min(1).max(99),
+    pauseStatuses: z.array(z.string().regex(/^[a-z][a-z0-9_]{1,47}$/)).max(20),
+    enabled: z.boolean(),
+  })
+  .partial()
+  .strict()
+  .refine((v) => Object.keys(v).length > 0, 'empty patch')
+  .openapi('SlaPolicyPatch');
 export const SlaPolicyListResponse = z.object({ data: z.array(SlaPolicyView) }).openapi('SlaPolicyListResponse');
 export const SlaTimerView = z
   .object({

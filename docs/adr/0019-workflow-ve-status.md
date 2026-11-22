@@ -4,7 +4,7 @@
 
 ## Karar
 - `statuses(tenant_id, resource_type, workflow_id, key, label_i18n, category ∈ {open, in_progress, closed}, color_token, position, is_initial)`. `is_closed` = `category = 'closed'` (türetilir, saklanmaz). Renk yalnızca token adı (`--success` vb.), hex değil.
-- `workflows(tenant_id, resource_type, key, version, segment NULL, published_at)`; bir kaynak tipinin aynı anda tek **yayımlanmış** sürümü; kayıtlar başladıkları sürüme bağlı kalır (`workflow_version`), yeni sürüm yayımlanınca eski durumlar eşleme tablosuyla taşınır (yayım sihirbazı, kuru çalıştırma).
+- `workflows(tenant_id, resource_type, key, version, segment NULL, published_at)`; bir kaynak tipinin aynı anda tek **yayımlanmış** sürümü; kayıtlar başladıkları sürüme bağlı kalır (`workflow_version`), yeni sürüm yayımlanınca eski durumlar eşleme tablosuyla taşınır (yayım sihirbazı, kuru çalıştırma). **ADR-0026 ile değişti:** kayıt başına sürüm yok; workflow yerinde düzenlenir, kaldırılan durumlardaki kayıtlar kuru çalıştırma + eşleme ile taşınır.
 - `workflow_transitions(workflow_id, from_status_id NULL (= herhangi), to_status_id, key, conditions jsonb, validators jsonb, post_functions jsonb, required_permission)`.
   - **conditions:** kim geçiş yapabilir (rol, izin, sahip mi, ekip üyesi mi) + kayıt koşulu (RQL alt kümesi, AST olarak saklanır).
   - **validators:** zorunlu alanlar, alan değer koşulu, alt görevlerin kapalı olması, ilişkili kayıt koşulu; başarısızlıkta 422 `WORKFLOW_VALIDATION_FAILED` + alan listesi.

@@ -34,7 +34,7 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     needs: checks
-    timeout-minutes: 40
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v5
@@ -60,6 +60,19 @@ jobs:
       - run: pnpm --filter @flexa/web exec playwright install --with-deps chromium
       - run: pnpm e2e
         env: { CI: 'true' }
+      # Baselines live in apps/web/e2e/__screenshots__ and are produced in the same pinned Linux image.
+      - name: Screenshot regression (light/dark, desktop/mobile)
+        run: pnpm --filter @flexa/web e2e:visual
+        env: { CI: 'true' }
+      - name: Lighthouse (production build, mobile profile)
+        run: pnpm --filter @flexa/web lighthouse
+        env: { LH_RUNS: '3' }
+      - if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: lighthouse-report
+          path: apps/web/lighthouse-report
+          if-no-files-found: ignore
       - if: failure()
         run: docker compose logs --no-color > compose.log
       - if: failure()
@@ -70,3 +83,4 @@ jobs:
             compose.log
             apps/web/playwright-report
             apps/web/test-results
+            apps/web/test-results-visual

@@ -1,7 +1,7 @@
 'use client';
 
 import { cn, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, focusRing, ModuleIcon, Tooltip } from '@flexa/ui';
-import { ChevronsUpDown, Home, PanelLeftClose, PanelLeftOpen, Puzzle, ShieldCheck, UserPlus } from 'lucide-react';
+import { ChevronsUpDown, Home, PanelLeftClose, PanelLeftOpen, Puzzle, Settings2, ShieldCheck, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -14,9 +14,9 @@ export function menuLabel(item: { id: string; labelKey: string }): string {
   return tOptional(`menu.${item.id}`) ?? item.labelKey;
 }
 
-function NavLink({ href, icon, label, collapsed, onNavigate, testId }: { href: string; icon: ReactNode; label: string; collapsed: boolean; onNavigate?: () => void; testId?: string }) {
+function NavLink({ href, icon, label, collapsed, onNavigate, testId, exact = false }: { href: string; icon: ReactNode; label: string; collapsed: boolean; onNavigate?: () => void; testId?: string; exact?: boolean }) {
   const pathname = usePathname();
-  const active = href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`);
+  const active = href === '/' || exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
   const link = (
     <Link
       href={href}
@@ -60,7 +60,7 @@ function TenantSwitcher({ collapsed }: { collapsed: boolean }) {
       <span className="block truncate text-sm font-semibold text-sidebar-text" data-testid="tenant-name">
         {current?.name}
       </span>
-      <span className="block truncate text-xs text-sidebar-muted">{current?.slug}</span>
+      <span className="block truncate text-xs text-sidebar-muted" data-testid="tenant-slug">{current?.slug}</span>
     </span>
   );
 
@@ -130,6 +130,9 @@ export function SidebarContent({ collapsed, onNavigate }: { collapsed: boolean; 
         ) : null}
         {can('tenant.modules.manage') ? (
           <NavLink href="/settings/modules" icon={<Puzzle aria-hidden size={iconSize} />} label={t('home.moduleSettings')} collapsed={collapsed} {...nav0} />
+        ) : null}
+        {can('tenant.config.read') || can('authz.matrix.read') ? (
+          <NavLink href="/settings" exact icon={<Settings2 aria-hidden size={iconSize} />} label={t('settings.title')} collapsed={collapsed} testId="nav-settings" {...nav0} />
         ) : null}
         {onNavigate ? null : (
           <button

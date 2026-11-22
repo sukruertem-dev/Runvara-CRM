@@ -94,6 +94,7 @@ export const UI_CAPABILITIES = [
   'tenant.modules.manage',
   'users.manage',
   'authz.matrix.read',
+  'authz.matrix.edit',
 ] as const;
 
 export const NavigationResponse = z

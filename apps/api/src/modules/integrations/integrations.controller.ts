@@ -1,7 +1,8 @@
 import { Body, Controller, Delete, Get, Headers, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
-import { ApiKeyCreate, BusinessCalendarInput, SlaPolicyCreate, WebhookCreate, WebhookPatch, type z } from '@flexa/contracts';
+import { ApiKeyCreate, BusinessCalendarInput, SlaPolicyCreate, SlaPolicyPatch, WebhookCreate, WebhookPatch, type z } from '@flexa/contracts';
 import type { FastifyReply } from 'fastify';
 import { TenantGuard } from '../../common/guards';
+import { requireIfMatch } from '../../common/http-helpers';
 import { Client, CurrentTenant, type ClientInfo, type TenantRequestContext } from '../../common/request-context';
 import { ZodPipe } from '../../common/zod.pipe';
 import { StreamService } from '../records/stream.service';
@@ -40,6 +41,17 @@ export class IntegrationsController {
   @Post('sla/policies')
   createPolicy(@CurrentTenant() t: TenantRequestContext, @Body(new ZodPipe(SlaPolicyCreate)) body: z.infer<typeof SlaPolicyCreate>, @Client() c: ClientInfo) {
     return this.sla.createPolicy(t, body, c.ip);
+  }
+
+  @Patch('sla/policies/:id')
+  patchPolicy(
+    @CurrentTenant() t: TenantRequestContext,
+    @Param('id', Id) id: string,
+    @Headers('if-match') ifMatch: string | undefined,
+    @Body(new ZodPipe(SlaPolicyPatch)) body: z.infer<typeof SlaPolicyPatch>,
+    @Client() c: ClientInfo,
+  ) {
+    return this.sla.patchPolicy(t, id, requireIfMatch(ifMatch), body, c.ip);
   }
 
   @Delete('sla/policies/:id')
