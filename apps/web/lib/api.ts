@@ -187,6 +187,27 @@ export interface RequestOptions {
 
 const RETRY_CODES = new Set(['TOKEN_EXPIRED', 'UNAUTHENTICATED']);
 
+const SUPPORT_EXIT_PATH = '/v1/operator/support/exit';
+let leavingSupport: Promise<void> | null = null;
+
+/** The workspace Admin ended (or the clock ran out on) the operator's support access: the operator's session
+ *  leaves support mode and returns to the console's request list (TEN-08). Concurrent callers share one exit. */
+function leaveEndedSupport(): void {
+  leavingSupport ??= (async () => {
+    try {
+      const res = await send(SUPPORT_EXIT_PATH, { method: 'POST', headers: { accept: 'application/json', ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}) } });
+      if (res.ok) accessToken = ((await res.json()) as Session).accessToken;
+    } finally {
+      if (typeof window !== 'undefined') window.location.assign('/operator/support');
+    }
+  })();
+}
+
+/** True for the 401 a request gets after support access ended; the client is already leaving support mode. */
+export function isSupportEnded(err: unknown): boolean {
+  return err instanceof ApiError && err.code === 'SUPPORT_ACCESS_ENDED';
+}
+
 export interface ApiResult<T> {
   data: T;
   /** Parsed `ETag` (record version) when the API sent one. */
@@ -220,7 +241,11 @@ export async function requestWithMeta<T>(path: string, options: RequestOptions =
       res = await send(path, build());
     }
   }
-  if (!res.ok) throw await toApiError(res);
+  if (!res.ok) {
+    const error = await toApiError(res);
+    if (error.status === 401 && isSupportEnded(error) && auth && path !== SUPPORT_EXIT_PATH) leaveEndedSupport();
+    throw error;
+  }
   const etag = res.headers.get('etag');
   const parsed = etag ? Number(etag.replace(/^W\//, '').replaceAll('"', '')) : NaN;
   const version = Number.isFinite(parsed) ? parsed : null;

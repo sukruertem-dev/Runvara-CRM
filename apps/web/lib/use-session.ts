@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ApiError, bootstrapSession, request, type Me } from './api';
+import { ApiError, bootstrapSession, isSupportEnded, request, type Me } from './api';
 
 /** Protected-page guard: resumes the session, loads /v1/me, redirects to /login on failure. */
 export function useRequireSession(): { me: Me | null } {
@@ -21,7 +21,7 @@ export function useRequireSession(): { me: Me | null } {
         const data = await request<Me>('/v1/me');
         if (!live.cancelled) setMe(data);
       } catch (err) {
-        if (err instanceof ApiError && err.status === 401) router.replace('/login');
+        if (err instanceof ApiError && err.status === 401 && !isSupportEnded(err)) router.replace('/login');
       }
     })();
     return () => {

@@ -6,6 +6,7 @@ import { sha256, type TokenSigner } from '@flexa/security';
 import type { FastifyRequest } from 'fastify';
 import { ProblemError } from './problem';
 import { loadAccess } from './access-loader';
+import { audit } from './audit';
 import { segmentsForSalesMode, type Principal, type Segment, type TenantInfo, type TenantRequestContext } from './request-context';
 import { DB, ENV, REDIS, SIGNER, type ApiEnv, type Redis } from '../infra/tokens';
 import { TenantRateLimiter } from '../modules/usage/rate-limit';
@@ -35,7 +36,14 @@ export async function enforceApiKeyRate(redis: Redis, principal: Principal): Pro
   if (n > principal.apiKey.rateLimitPerMinute) throw new ProblemError('RATE_LIMITED', 'API key rate limit exceeded');
 }
 
-export async function authenticate(req: FastifyRequest, signer: TokenSigner, db: DbHandle): Promise<Principal> {
+/** Paths a member of a workspace that is waiting for deletion may still use: see the state, cancel, export
+ *  (TEN-05: data portability is never blocked), and load the shell. */
+const PENDING_DELETION_ROUTES = new Set([
+  'GET /v1/tenant', 'GET /v1/me/navigation', 'GET /v1/config', 'GET /v1/tenant/deletion', 'POST /v1/tenant/deletion/cancel',
+  'GET /v1/tenant/exports', 'POST /v1/tenant/exports', 'GET /v1/tenant/exports/:id/download', 'GET /v1/stream',
+]);
+
+export async function authenticate(req: FastifyRequest, signer: TokenSigner, db: DbHandle, opts: { allowEndedSupport?: boolean } = {}): Promise<Principal> {
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) throw new ProblemError('UNAUTHENTICATED');
   const token = header.slice(7).trim();
@@ -48,13 +56,24 @@ export async function authenticate(req: FastifyRequest, signer: TokenSigner, db:
     tx.select({ id: schema.authSessions.id }).from(schema.authSessions)
       .where(and(eq(schema.authSessions.id, sid), isNull(schema.authSessions.revokedAt))));
   if (live.length === 0) throw new ProblemError('UNAUTHENTICATED', 'session revoked');
+  if (amr.includes('support')) {
+    // A support token is only as good as its grant: approved, not revoked, not expired, tenant active.
+    const g = (await db.withUser(sub, (tx) => tx.execute<{ grant_id: string; tenant_id: string; modules: string[]; valid_until: Date | string; active: boolean }>(
+      sql`SELECT grant_id, tenant_id, modules, valid_until, active FROM app.support_grant_for_session(${sid})`))).rows[0];
+    if (!g?.active || (tid !== null && g.tenant_id !== tid)) {
+      // Leaving a support session must work after the grant ended (revoked, expired, tenant suspended).
+      if (opts.allowEndedSupport) return { userId: sub, sessionId: sid, tenantId: null, amr };
+      throw new ProblemError('SUPPORT_ACCESS_ENDED');
+    }
+    return { userId: sub, sessionId: sid, tenantId: tid, amr, support: { grantId: g.grant_id, tenantId: g.tenant_id, modules: g.modules, validUntil: new Date(g.valid_until) } };
+  }
   return { userId: sub, sessionId: sid, tenantId: tid, amr };
 }
 
 /** The full authorization context of a member in a tenant, loaded from the database on every call (no cache:
  *  changes apply on the next request, G2). Used by TenantGuard and by background work that acts as a member
  *  (automation rules run as their owner). */
-export async function buildTenantContext(db: DbHandle, principal: Principal & { tenantId: string }, segmentHeader?: string | string[]): Promise<TenantRequestContext> {
+export async function buildTenantContext(db: DbHandle, principal: Principal & { tenantId: string }, segmentHeader?: string | string[], opts: { allowPendingDeletion?: boolean } = {}): Promise<TenantRequestContext> {
   const { tenantId } = principal;
   const loaded = await db.withTenant({ tenantId, userId: principal.userId }, async (tx) => {
     const [membership] = await tx.select().from(schema.memberships).where(eq(schema.memberships.userId, principal.userId));
@@ -68,8 +87,12 @@ export async function buildTenantContext(db: DbHandle, principal: Principal & { 
     const access = await loadAccess(tx, principal.userId);
     return { membership, tenant, plan, roleKeys: roles.rows.map((r) => r.key), modules: modules.map((m) => m.id), ...access };
   });
-  if (!loaded.membership || loaded.membership.status !== 'active' || !loaded.tenant) throw new ProblemError('UNAUTHENTICATED', 'no active membership');
-  if (loaded.tenant.status !== 'trial' && loaded.tenant.status !== 'active') throw new ProblemError('FORBIDDEN', 'tenant is not active');
+  const support = principal.support;
+  // A support session has no membership: it acts with Admin read scope, narrowed to the granted modules.
+  if (!support && (!loaded.membership || loaded.membership.status !== 'active')) throw new ProblemError('UNAUTHENTICATED', 'no active membership');
+  if (!loaded.tenant) throw new ProblemError('UNAUTHENTICATED', 'no tenant');
+  const pending = loaded.tenant.status === 'pending_deletion' && opts.allowPendingDeletion === true && !support;
+  if (loaded.tenant.status !== 'trial' && loaded.tenant.status !== 'active' && !pending) throw new ProblemError('FORBIDDEN', 'tenant is not active');
   // Every tenant gets its plan row when it is created (0012 gave older tenants one); none means corrupt data.
   const p = loaded.plan;
   const planId = p?.plan_id ?? '';
@@ -83,15 +106,15 @@ export async function buildTenantContext(db: DbHandle, principal: Principal & { 
     authz: {
       tenantId,
       userId: principal.userId,
-      roleKeys: loaded.roleKeys,
-      enabledModules: new Set(['core', ...loaded.modules]),
-      authzVersion: loaded.membership.authzVersion,
+      roleKeys: support ? ['admin'] : loaded.roleKeys,
+      enabledModules: new Set(['core', ...loaded.modules.filter((m) => !support || support.modules.length === 0 || support.modules.includes(m))]),
+      authzVersion: loaded.membership?.authzVersion ?? 0,
       tenantAuthzEpoch: t.authzEpoch,
       enabledPolicies: defaultEnabledPolicies(),
       overrides: loaded.overrides,
     },
-    segments: effectiveSegments(loaded.grantedSegments, tenant.salesMode, segmentHeader),
-    availableSegments: effectiveSegments(loaded.grantedSegments, tenant.salesMode, undefined),
+    segments: effectiveSegments(support ? ['b2b', 'b2c'] : loaded.grantedSegments, tenant.salesMode, segmentHeader),
+    availableSegments: effectiveSegments(support ? ['b2b', 'b2c'] : loaded.grantedSegments, tenant.salesMode, undefined),
     access: loaded.access,
   };
 }
@@ -152,12 +175,23 @@ export class TenantGuard implements CanActivate {
       const write = !['GET', 'HEAD', 'OPTIONS'].includes(req.method);
       if (write && !principal.apiKey.scopes.includes('write')) throw new ProblemError('API_KEY_SCOPE', 'the API key is read-only');
     }
-    const ctx = await buildTenantContext(this.db, { ...principal, tenantId }, req.headers['x-segment']);
+    const route = `${req.method} ${req.routeOptions.url ?? ''}`;
+    const ctx = await buildTenantContext(this.db, { ...principal, tenantId }, req.headers['x-segment'], { allowPendingDeletion: true });
+    if (ctx.tenant.status === 'pending_deletion' && !PENDING_DELETION_ROUTES.has(route)) throw new ProblemError('TENANT_PENDING_DELETION');
+    if (principal.support) {
+      if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) throw new ProblemError('SUPPORT_READ_ONLY');
+      // TEN-08: every request of a support session is on the tenant's audit trail.
+      const grantId = principal.support.grantId;
+      await this.db.withTenant({ tenantId, userId: principal.userId }, (tx) => audit(tx, tenantId, {
+        action: 'support.request', actorType: 'operator', actorId: principal.userId, targetType: 'support_grant', targetId: grantId, ip: req.ip,
+        details: { method: req.method, path: req.url.split('?')[0] ?? '' },
+      }));
+    }
     const routeModule = moduleForPath(req.routeOptions.url ?? req.url.split('?')[0] ?? '');
     if (routeModule && !ctx.authz.enabledModules.has(routeModule)) throw new ProblemError('MODULE_DISABLED');
     // TEN-10: one tenant (or one user, or one integration key) cannot exhaust the API for the others.
     const m = this.env.TENANT_RATE_LIMIT_MULTIPLIER;
-    const subject = principal.apiKey ? `key:${principal.apiKey.id}` : principal.userId;
+    const subject = principal.apiKey ? `key:${principal.apiKey.id}` : principal.support ? `support:${principal.support.grantId}` : principal.userId;
     const rate = await this.limiter.take(tenantId, subject, Math.round(ctx.plan.limits.api_rpm * m), Math.round(ctx.plan.limits.api_rpm_per_user * m));
     if (!rate.allowed) {
       throw new ProblemError('RATE_LIMITED', 'workspace request rate exceeded', {}, { 'retry-after': String(Math.max(1, Math.ceil(rate.retryAfterMs / 1000))) });

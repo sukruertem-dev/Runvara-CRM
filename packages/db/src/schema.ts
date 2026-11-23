@@ -193,6 +193,8 @@ export const authSessions = pgTable('auth_sessions', {
   lastUsedAt: ts('last_used_at').notNull().defaultNow(),
   revokedAt: ts('revoked_at'),
   revokeReason: text('revoke_reason'),
+  /** Set while a platform operator uses this session for approved support access (P7c). */
+  supportGrantId: uuid('support_grant_id'),
 });
 
 export const refreshTokens = pgTable('refresh_tokens', {
@@ -239,6 +241,10 @@ export const GLOBAL_TABLES = [
   'refresh_tokens',
   'email_tokens',
   'auth_events',
+  // Platform operators and their action log are platform data (P7c); the log keeps a tenant id for
+  // reference after the tenant is gone.
+  'platform_operators',
+  'operator_actions',
   'schema_migrations',
 ] as const;
 

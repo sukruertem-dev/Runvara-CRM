@@ -127,6 +127,11 @@ function UserMenu() {
         <DropdownMenuItem onSelect={() => { router.push('/settings/security'); }}>
           <ShieldCheck aria-hidden size={14} /> {t('shell.security')}
         </DropdownMenuItem>
+        {me.operator ? (
+          <DropdownMenuItem onSelect={() => { router.push('/operator'); }} data-testid="menu-operator">
+            <Building2 aria-hidden size={14} /> {t('shell.operatorConsole')}
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem onSelect={() => void onLogout()}>
           <LogOut aria-hidden size={14} /> {t('shell.logoutFull')}
         </DropdownMenuItem>

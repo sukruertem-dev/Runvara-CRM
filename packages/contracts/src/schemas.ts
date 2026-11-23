@@ -75,7 +75,13 @@ export const AcceptedResponse = z.object({ status: z.literal('accepted') }).open
 
 // ---------------------------------------------------------------- me / mfa
 export const MeResponse = z
-  .object({ user: UserSummary, tenant: TenantSummary.nullable(), tenants: z.array(TenantSummary) })
+  .object({
+    user: UserSummary,
+    tenant: TenantSummary.nullable(),
+    tenants: z.array(TenantSummary),
+    /** Platform operator (P7c): the console is offered; it still needs a second factor. */
+    operator: z.boolean(),
+  })
   .openapi('MeResponse');
 
 export const TotpSetupResponse = z.object({ secret: z.string(), otpauthUri: z.string() }).openapi('TotpSetupResponse');
@@ -107,6 +113,10 @@ export const NavigationResponse = z
     segments: z.array(z.enum(['b2b', 'b2c'])),
     salesMode: z.enum(['b2b_only', 'b2c_only', 'both']),
     capabilities: z.array(z.enum(UI_CAPABILITIES)),
+    /** Approved support access (TEN-08): `operator` while an operator works in the workspace, `observed`
+     *  for the workspace Admins while support access is active. */
+    support: z.object({ role: z.enum(['operator', 'observed']), grantId: Uuid, operatorName: z.string(), validUntil: z.iso.datetime() }).nullable(),
+    tenantStatus: z.enum(['trial', 'active', 'suspended', 'pending_deletion', 'deleted']),
   })
   .openapi('NavigationResponse');
 
@@ -223,6 +233,12 @@ export const MailJob = z.discriminatedUnion('template', [
       limit: z.string(),
       url: z.url(),
     }),
+  }),
+  z.object({
+    template: z.literal('support_request'),
+    to: z.string(),
+    locale: Locale,
+    vars: z.object({ tenantName: z.string(), operatorName: z.string(), reason: z.string(), minutes: z.number().int(), url: z.url() }),
   }),
 ]);
 export type MailJob = z.infer<typeof MailJob>;

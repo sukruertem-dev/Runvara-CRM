@@ -1,5 +1,75 @@
 # İlerleme
 
+## P7c — G1: operatör konsolu, destek erişimi, tenant yaşam döngüsü, dışa aktarma ve silme · 2026-11-23 · ✅ (CI PR'da çalışacak)
+
+> P7'nin üçüncü adımı (`docs/p7-plan.md` §13–17). SAML ve parola/2FA politikaları **P7d**'ye ayrıldı.
+
+### Yapılanlar
+- **Platform operatörü** (B72):
+  - `platform_operators` tablosu; operatör işareti sahip bağlantısıyla verilir (`cli.js operator grant`).
+  - Operatör uç noktaları operatör işaretini ve ikinci faktörü (`otp` veya `recovery`) ister.
+  - Konsol yalnızca üst veriyi görür:
+    - tenant listesi;
+    - tenant açma (ilk Admin'e davet);
+    - plan, ek modül, sınır ve deneme bitişi;
+    - durum geçişleri (ADR-0014 §5; geçersiz geçiş 422 `TENANT_TRANSITION_INVALID`).
+  - Her eylem tenant audit'ine ve silinmeyen `operator_actions` tablosuna yazılır.
+- **Destek erişimi** (TEN-08, B74):
+  - Operatör talep eder, Admin onaylar; süre onayla başlar.
+  - Operatörün oturumu onaya bağlanır:
+    - Admin okuma kapsamı, onaylı modüller;
+    - yalnızca okuma (403 `SUPPORT_READ_ONLY`);
+    - her istek `support.request` olarak audit'e yazılır.
+  - Onay her istekte yeniden denetlenir: iptal ya da süre dolumu 401 `SUPPORT_ACCESS_ENDED`. Biten onaydan çıkış yapılabilir.
+  - Admin'e e-posta gider ve kabukta şerit görünür; operatör "destek modu" şeridi görür.
+- **Dışa aktarma** (TEN-05): kuyruk işi tüm tenant tablolarını NDJSON + gzip olarak nesne depolamaya yazar.
+  - Gizli değerler çıkarılır: DEK, belirteç ve anahtar özetleri, şifreli sırlar.
+  - İmzalı indirme bağlantısı verilir; dosya 7 gün sonra kaldırılır.
+- **Silme** (TEN-05, B73, B75):
+  - Admin adresi yazarak onaylar → `pending_deletion` + bekleme süresi (`privacy.deletionGraceDays`).
+  - Bu sürede yalnızca durum, iptal ve dışa aktarma açıktır; iptal önceki duruma döndürür.
+  - Saatlik iş sırasıyla:
+    1. dosyaları kaldırır;
+    2. `app.purge_tenant` tüm tenant satırlarını yabancı anahtar sırasıyla siler; ekleme-yalnız tablolar yalnızca bu fonksiyonda silinebilir;
+    3. DEK'i yok eder;
+    4. başka üyeliği olmayan kişileri anonimleştirir;
+    5. mezar taşı bırakır.
+- **Geri yükleme** (TEN-11):
+  - `cli.js restore-tenant`: tek tenant'ı yedek kopyasından tek transaction'da kopyalar.
+  - Anonimleştirilmiş üyeler yedekteki bilgilerine döner.
+  - Prosedür: `docs/ops/tenant-restore.md`.
+- **Göç** `0013_operator.sql`:
+  - tablolar: `platform_operators`, `operator_actions`, `support_access_grants`, `tenant_exports`;
+  - operatör ve silme fonksiyonları;
+  - `auth_sessions.support_grant_id`;
+  - bekleyen silmedeki tenant listede görünür.
+- **Ekranlar:**
+  - **Operatör konsolu** (`/operator`): liste ve arama; ayrıntı (plan, durum, kullanım, destek talebi, dışa aktarma, kayıtlar); taleplerim (salt okuma aç, geri çek, bitir).
+  - **Ayarlar → Destek erişimi**, **Ayarlar → Veri ve silme**.
+  - Bekleyen silme ekranı, destek şeridi, kullanıcı menüsünde operatör konsolu bağlantısı.
+
+### Testler
+- DB 21/21. Yeni `lifecycle.int.test.ts`:
+  - süresi gelmemiş silme reddediliyor;
+  - silme yalnızca o tenant'ın satırlarını kaldırıyor;
+  - ekleme-yalnız tablolar başka zaman silinemiyor;
+  - DEK yok ediliyor, tek üye anonimleşiyor, kanıt satırı yazılıyor;
+  - ikinci veritabanındaki yedekten geri yükleme her tabloyu aynı sayıyla geri getiriyor;
+  - dolu hedefe ikinci geri yükleme reddediliyor.
+- API entegrasyon:
+  - Yeni `operator.int.test.ts` (6):
+    - operatör işareti ve ikinci faktör, yalnızca üst veri;
+    - tenant açma, plan ve durum;
+    - destek: onay, salt okuma, audit, yenileme, iptal, modül kapsamı, süre dolumu, başka tenant;
+    - dışa aktarma içeriği ve gizlilik;
+    - silme: bekleme, iptal, dosya ve satır silme.
+  - Yeni `leaks.int.test.ts` (5): SSE ve replay, dosyalar, liste/sorgu/aggregate/dışa aktarma, kuyruk tüketicileri, Redis anahtarları.
+  - Tüm paket: 135 testin 130'u ilk koşuda geçti. 5 otomasyon testi Docker bellek baskısında `ECONNRESET` ile düştü; çalışan konteynerler durdurulunca tek başına 7/7 geçti.
+- E2E `operator.spec.ts` 2 senaryo (destek akışı uçtan uca; veri, silme planı, bekleme ekranı, iptal; axe her ekranda). Yerelde çalıştırılamadı: disk doldu. CI'da koşacak.
+- Lint, tip denetimi ve birim testleri temiz. Kontrast, matris ve katalog denetimleri PASS.
+- Bulunup düzeltilen:
+  - Onay bitince operatör destek oturumundan çıkamıyordu; çıkış uç noktası biten onayı da reddediyordu.
+
 ## P7b — G1: blueprint'ler, dışa/içe aktarma, onboarding, plan/kota, gürültülü komşu · 2026-11-23 · ✅ (CI PR'da çalışacak)
 
 > P7'nin ikinci adımı (`docs/p7-plan.md` §7–12). Sıradaki: **P7c** SAML ve güvenlik politikaları, operatör konsolu ve destek erişimi, tenant dışa aktarma/silme.

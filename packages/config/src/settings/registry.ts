@@ -146,6 +146,20 @@ export const CONFIG_KEYS: readonly ConfigKeyDef[] = [
     },
     default: { status: 'completed', blueprint: null },
   },
+  {
+    key: 'privacy',
+    module: 'core',
+    schemaVersion: 1,
+    description: 'Data protection (TEN-05): days between a deletion request and the deletion itself (7 to 90).',
+    overridableAt: ['tenant'],
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['deletionGraceDays'],
+      properties: { deletionGraceDays: { type: 'integer', minimum: 7, maximum: 90 } },
+    },
+    default: { deletionGraceDays: 30 },
+  },
 ];
 
 const BY_KEY = new Map(CONFIG_KEYS.map((k) => [k.key, k]));

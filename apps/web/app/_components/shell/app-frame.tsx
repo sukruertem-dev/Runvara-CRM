@@ -5,8 +5,10 @@ import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { t } from '../../../lib/i18n';
+import { useApp } from '../../../lib/app-context';
 import { usePreferences } from '../../../lib/preferences';
 import { ConnectionBanner, GlobalHotkeys, QuotaBanner } from './overlays';
+import { PendingDeletion, SupportBanner } from './support-parts';
 import { useShell } from './shell-context';
 import { SidebarContent } from './sidebar';
 import { Topbar } from './topbar';
@@ -32,6 +34,9 @@ export function AppFrame({ children }: { children: ReactNode }) {
   const newTask = useOpenedOnce(newTaskOpen);
   const help = useOpenedOnce(helpOpen);
   const pathname = usePathname();
+  const { nav } = useApp();
+  // TEN-05: a workspace waiting for deletion shows one screen, whatever the address.
+  const pending = nav?.tenantStatus === 'pending_deletion';
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -62,8 +67,9 @@ export function AppFrame({ children }: { children: ReactNode }) {
         <Topbar />
         <ConnectionBanner />
         <QuotaBanner />
+        <SupportBanner />
         <main id="main" tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto outline-none">
-          {children}
+          {pending ? <PendingDeletion /> : children}
         </main>
       </div>
       {palette ? <CommandPalette /> : null}

@@ -13,3 +13,4 @@ export { z } from 'zod';
 export * from './views';
 export * from './config';
 export * from './bundle';
+export * from './operator';

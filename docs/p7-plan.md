@@ -3,7 +3,8 @@
 > 2026-11-23 · Kaynak: prompt §10.2 (TEN, MOD, CFG), §10.3.2 (katmanlar), Faz G1, ADR-0011 (yapılandırma, blueprint, marka), ADR-0014 (modül, kota, adalet, operatör). P1'de G1'in çekirdeği (tenant yaşam döngüsü, modül kayıt defteri ve kapısı, OIDC, sızıntı iskeleti) yapıldı. Kalan iş tek PR için çok büyük; üç adıma bölündü:
 > - **P7a (bu dal, `feat/p7a-config`):** yapılandırma motoru (anahtar kayıt defteri, katmanlar, JSON Schema, sürüm, diff, geri alma, audit, olay), tenant yerelleştirmesi (CFG-07), marka (CFG-06), sunucu tarafı kullanıcı tercihleri ve bunların **ekranları**.
 > - **P7b:** blueprint'ler ve yapılandırma dışa/içe aktarma (CFG-04/05), onboarding sihirbazı, plan/kota/kullanım ölçümü ve plan hakkı (MOD-04), gürültülü komşu koruması (TEN-10), modül kataloğu ve kullanım ekranları.
-> - **P7c:** tenant SSO (SAML) ve güvenlik politikaları, Platform Operatörü konsolu ve destek erişimi (TEN-08), tenant dışa aktarma ve silme (crypto-shredding), yedekten geri yükleme prosedürü, sızıntı test paketinin genişletilmesi (önbellek, kuyruk, SSE, dosya, arama) ve ekranları.
+> - **P7c:** Platform Operatörü konsolu ve destek erişimi (TEN-08), tenant yaşam döngüsü, tenant dışa aktarma ve silme (crypto-shredding), yedekten geri yükleme prosedürü, sızıntı test paketinin genişletilmesi (önbellek, kuyruk, SSE, dosya, arama) ve ekranları.
+> - **P7d:** tenant SSO (SAML) ve parola/2FA güvenlik politikaları (TEN-04) ve ekranları. P7c tek PR için çok büyüdüğünden ayrıldı.
 
 ## 1. Yapılandırma anahtarları (`packages/config`)
 - `src/settings/` altında **kayıt defteri**: her anahtar kodda tanımlıdır ve şunları bildirir:
@@ -192,3 +193,74 @@
 | Kuyruk adaleti | birim: parça seçimi, semafor; entegrasyon: ağır tenant'ın işleri diğer tenant'ın işini bekletmez |
 | Yetki ve izolasyon | entegrasyon: Yönetici içe aktaramaz (403); A'nın kullanımı B'den görünmez; DB sızıntı testine yeni tablolar |
 | Erişilebilirlik | E2E axe: Modüller, Kullanım, İçe/dışa aktarma, Onboarding |
+
+---
+
+# P7c — operatör konsolu, destek erişimi, tenant dışa aktarma ve silme
+
+> Dal `feat/p7c-operator`. Kaynak: TEN-01/02/05/08/11, ADR-0014 §5–6, B12, B16.
+
+## 13. Platform Operatörü
+- `platform_operators` (global): kullanıcı + rol. Operatör ayrı bir kimlik değil; operatör olarak işaretlenmiş bir kullanıcıdır. Operatör uç noktaları (`/v1/operator/*`) üç koşul arar:
+  - oturum tenant'a bağlı değil;
+  - kullanıcı operatör;
+  - oturum ikinci faktörle açılmış (`amr` içinde `otp` veya `recovery`).
+- İlk operatör `scripts/grant-operator.mjs` ile sahip bağlantısından eklenir. Uygulama rolü bu tabloya yazamaz.
+- Operatörün tenant verisine varsayılan erişimi yoktur. Tenant listesi yalnızca üst veriyi gösterir; tenant listesi bir SECURITY DEFINER fonksiyonundan okunur, fonksiyon çağıranın operatör olduğunu denetler. Ad, adres, durum, plan, kullanım ve üye sayısı vardır; kayıt içeriği yoktur.
+- **Yetenekler:**
+  - tenant açma (TEN-01; ilk Admin e-postayla davet edilir);
+  - plan, ek modül, sınır ve deneme bitişi;
+  - durum geçişi (ADR-0014 §5, nedenli);
+  - destek erişimi talebi.
+- Her operatör eylemi iki yere yazılır: tenant audit'ine (`actor_type = operator`) ve global `operator_actions` tablosuna. Tenant silinse de operatör kaydı kalır.
+- Arayüz: ayrı uygulama yerine `apps/web` içinde ayrı alan (`/operator`), kendi düzeni ve kendi API korumasıyla (B72, B16'nın yerine).
+
+## 14. Destek erişimi (TEN-08)
+- Akış:
+  1. Operatör talep açar: gerekçe, isteğe bağlı modül kapsamı, süre 15–480 dk (B12).
+  2. Tenant Admin'i uygulama içinde onaylar veya reddeder.
+  3. Onaydan sonra süre işlemeye başlar.
+- Operatör `POST /v1/operator/support/{grantId}/enter` ile kendi oturumunu süreli onaya bağlar ve tenant'a bağlı bir erişim belirteci alır (`amr` + `support`).
+- Her istekte onay yeniden denetlenir (geçerli, iptal edilmemiş, süresi dolmamış); bitmişse 401 `SUPPORT_ACCESS_ENDED`.
+- Destek bağlamı:
+  - Admin okuma kapsamı; yalnızca okuma: yazma 403 `SUPPORT_READ_ONLY`;
+  - modüller onaylı kapsamla daraltılır;
+  - her istek audit'e yazılır (`support.request`: yöntem, yol).
+- Admin, etkin destek oturumu boyunca kabukta şerit görür ve tek tıkla iptal eder. Operatör de çıkış yapabilir.
+
+## 15. Yaşam döngüsü, dışa aktarma, silme (TEN-02/05)
+- Geçişler: `trial → active | suspended`, `active → suspended | pending_deletion`, `suspended → active | pending_deletion`, `pending_deletion → active` (bekleme süresinde iptal), `pending_deletion → deleted` (yalnızca silme işi). Geçersiz geçiş 422 `TENANT_TRANSITION_INVALID`.
+- **Dışa aktarma** (Admin veya operatör talebi):
+  - Kuyrukta çalışan iş, tüm tenant tablolarını NDJSON + gzip olarak nesne depolamaya yazar (`tenants/{id}/exports/`). Gizli değerler (anahtar ve belirteç özetleri, şifreli sırlar, DEK) çıkarılır.
+  - İndirme imzalı bağlantıyla yapılır; dosya 7 gün sonra silinir.
+  - Bekleyen silmede de çalışır (veri taşınabilirliği).
+- **Silme:**
+  - Admin, adresi yazarak onaylar → `pending_deletion`, `deletion_scheduled_at = şimdi + bekleme` (`privacy.deletionGraceDays`, 7–90, varsayılan 30).
+  - Bu sürede giriş kapanır. Admin bekleyen silme ekranından iptal edebilir ve dışa aktarma alabilir.
+  - Süre dolunca silme işi sırasıyla:
+    1. nesne depolama nesnelerini kaldırır;
+    2. tüm tenant satırlarını yabancı anahtar sırasıyla siler (SECURITY DEFINER `app.purge_tenant`);
+    3. DEK'i yok eder (crypto-shredding);
+    4. başka üyeliği kalmayan kullanıcıları anonimleştirir;
+    5. tenant satırını `deleted` mezar taşı olarak bırakır.
+  - Yedeklerde kalan düz metin satırlar yedek saklama süresiyle (35 gün) kaybolur; şifreli alanlar DEK imhasıyla hemen okunamaz olur (B73).
+- **Yedekten geri yükleme** (TEN-11): `docs/ops/tenant-restore.md` ve `scripts/tenant-restore.mjs`. Yedek geçici bir sunucuya açılır; tek tenant'ın satırları hedefe kopyalanır. Hedefte tenant boş olmalıdır. Kopyalama tek transaction'dadır.
+
+## 16. Sızıntı paketi
+Yeni `leaks.int.test.ts` iki tenant ile şunları denetler:
+- SSE akışı;
+- ek dosya indirme ve dışa aktarma dosyası;
+- arama/liste ve RQL;
+- kuyruk zarfının tenant'ı;
+- hız sınırı ve kota anahtarları;
+- yapılandırma, plan ve kullanım.
+
+## 17. Ekranlar
+- **Operatör konsolu** (`/operator`):
+  - tenant listesi (arama, durum ve plan);
+  - tenant ayrıntısı: plan formu, durum geçişi, kullanım, destek talebi;
+  - destek talepleri; "salt okuma aç" ve çıkış.
+- **Ayarlar → Destek erişimi:** bekleyen talepler, onay/ret/iptal, geçmiş. Etkin erişim için kabuk şeridi.
+- **Ayarlar → Veri ve silme:** dışa aktarma talebi ve indirme, çalışma alanını silme (adres onayı), bekleme süresi.
+- **Bekleyen silme ekranı:** giriş yapan Admin'e kalan süre, iptal ve dışa aktarma.
+
