@@ -140,8 +140,11 @@ export function TableView({
   // Stable references: a new grouping array each render makes TanStack recompute the grouped model, which
   // auto-resets `expanded`, which renders again — an endless render loop on the next parent update.
   const grouping = useMemo<GroupingState>(() => (group === 'none' ? [] : [group]), [group]);
+  // No pagination here (rows are virtualized). Left on, the page-index reset is queued as a microtask whenever
+  // the row model recomputes and can call setState before the first commit ("hasn't mounted yet").
   const table = useReactTable({
     autoResetExpanded: false,
+    autoResetPageIndex: false,
     data: tasks,
     columns,
     getRowId: (x) => x.id,
