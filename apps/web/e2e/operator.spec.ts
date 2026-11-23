@@ -89,11 +89,11 @@ test('destek erişimi: talep → Admin onayı → salt okuma oturum → iptal', 
     await admin.getByRole('button', { name: 'Erişimi sonlandır' }).click();
     await expect(admin.getByText('Destek erişimi sonlandırıldı').first()).toBeVisible();
 
+    // The operator's next request finds the grant ended: the session leaves support mode on its own.
     await op.reload();
-    await op.goto('/operator/support');
-    await expect(op.getByText('Bir çalışma alanında destek oturumundasınız')).toBeVisible({ timeout: 30_000 });
-    await op.getByRole('button', { name: 'Destek oturumundan çık' }).click();
+    await expect(op).toHaveURL(/\/operator\/support$/, { timeout: 30_000 });
     await expect(op.getByTestId('op-grants')).toContainText('Sonlandırıldı', { timeout: 30_000 });
+    await expect(op.getByTestId('support-banner')).toHaveCount(0);
   } finally {
     await opCtx.close();
     await adminCtx.close();

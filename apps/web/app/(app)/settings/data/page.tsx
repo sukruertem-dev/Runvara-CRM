@@ -90,10 +90,10 @@ function Data() {
             </Field>
             <div>
               <Button variant="danger" disabled={confirm.trim().toLowerCase() !== slug.toLowerCase() || !slug} loading={deletion.isPending} onClick={() => {
-                deletion.mutate({ action: 'schedule', confirmSlug: confirm.trim(), ...(reason.trim() ? { reason: reason.trim() } : {}) }, {
-                  onSuccess: () => { toast.toast({ kind: 'success', title: t('data.delete.scheduled') }); },
-                  onError: (err) => { toast.toast({ kind: 'error', title: problem(err) }); },
-                });
+                deletion.mutateAsync({ action: 'schedule', confirmSlug: confirm.trim(), ...(reason.trim() ? { reason: reason.trim() } : {}) }).then(
+                  () => { toast.toast({ kind: 'success', title: t('data.delete.scheduled') }); },
+                  (err: unknown) => { toast.toast({ kind: 'error', title: problem(err) }); },
+                );
               }} data-testid="delete-schedule">
                 {t('data.delete.action')}
               </Button>

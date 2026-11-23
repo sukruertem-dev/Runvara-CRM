@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { createContext, startTransition, useContext, useEffect, useState, type ReactNode } from 'react';
-import { ApiError, bootstrapSession, request, type Me, type Navigation, type Tenant } from './api';
+import { ApiError, bootstrapSession, isSupportEnded, request, type Me, type Navigation, type Tenant } from './api';
 import { restoreStoredBrand } from './config';
 import { restoreStoredLocale } from './i18n';
 import { qk } from './query';
@@ -50,7 +50,7 @@ export function useAppSession(): SessionState {
           setState({ status: 'ready', me });
         });
       } catch (err) {
-        if (err instanceof ApiError && err.status === 401) router.replace('/login');
+        if (err instanceof ApiError && err.status === 401 && !isSupportEnded(err)) router.replace('/login');
       }
     })();
     return () => {

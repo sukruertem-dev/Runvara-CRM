@@ -59,7 +59,7 @@ export function PendingDeletion() {
         action={admin ? (
           <div className="flex flex-wrap justify-center gap-2">
             <Button loading={deletion.isPending} onClick={() => {
-              deletion.mutate({ action: 'cancel' }, { onSuccess: () => { toast.toast({ kind: 'success', title: t('pending.cancelled') }); }, onError: fail });
+              deletion.mutateAsync({ action: 'cancel' }).then(() => { toast.toast({ kind: 'success', title: t('pending.cancelled') }); }, fail);
             }}>
               {t('pending.cancel')}
             </Button>
