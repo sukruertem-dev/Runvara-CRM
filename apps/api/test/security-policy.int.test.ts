@@ -125,7 +125,7 @@ describe('password policy', () => {
     const other = await login(m.email);
     const s = await login(m.email);
     const blocked = await s.c.post('/v1/auth/tenant', { tenantId: admin.tenantId });
-    expect(blocked.body).toMatchObject({ code: 'PASSWORD_CHANGE_REQUIRED', reasons: ['too_short'] });
+    expect(blocked.body).toMatchObject({ code: 'PASSWORD_CHANGE_REQUIRED', reasons: ['too_short'], rules: { minLength: 24, requireMixed: true } });
 
     expect((await s.c.post('/v1/me/password', { currentPassword: 'yanlis-parola-123', newPassword: 'Uzun-ve-Karma-Parola-2026-xyz' })).body.code).toBe('INVALID_CREDENTIALS');
     const weak = await s.c.post('/v1/me/password', { currentPassword: PASSWORD, newPassword: 'kucuk-harfli-uzun-parola-yeterli-degil', tenantId: admin.tenantId });

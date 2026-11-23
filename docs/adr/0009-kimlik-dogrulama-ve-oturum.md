@@ -42,3 +42,10 @@ Ayrı kimlik tablosu, ayrı alan adı ve ayrı çerez; tenant oturumu ile karı�
   - `consumed_by_grace` ile tüketilmiş bir belirteç tanıma alamaz. Böylece iki taraf sırayla yenileme yaparak çalınmış bir aileyi açık tutamaz.
   - Halef kullanılmışsa ya da 30 sn geçmişse eski kural aynen geçerlidir: aile hemen iptal edilir.
 - **Kanıt:** `auth.int.test.ts` "survives a lost refresh response…", "rotates, detects reuse…".
+
+## P7d uygulama notu: tenant güvenlik politikası ve SAML
+- **Politika nerede uygulanır:** oturumun bir tenant'a bağlandığı her anda (giriş, tenant seçimi, yenileme, SSO dönüşü), `SecurityPolicyService.check` ile. Her istekte değil: sıkılaştırma en geç erişim belirtecinin ömründe (10 dk) etkili olur (B76).
+- **Oturumun yöntemleri** artık belirteçten değil oturum satırından okunur. Oturum sırasında kanıtlanan ikinci faktör (2FA kurulumu, step-up) satıra eklenir; yeniden giriş gerekmez.
+- **Parola kuralı:** parola kişiye, kural tenant'a aittir. Girişte parolanın uzunluğu ve karma olup olmadığı oturuma yazılır (parola değil, B77).
+- **SAML:** `@node-saml/node-saml` 5.2; yalnızca SP başlatmalı giriş, imzalı assertion, `InResponseTo` tek kullanımlık ve tekrar reddi Redis'te (B78). IdP sertifikası elle girilir; döndürme için en çok üç sertifika.
+- **Kanıt:** `security-policy.int.test.ts`, `saml.int.test.ts`, E2E `security.spec.ts`.

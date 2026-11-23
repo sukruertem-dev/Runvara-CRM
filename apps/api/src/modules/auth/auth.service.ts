@@ -201,12 +201,15 @@ export class AuthService {
     assertPassword(input.newPassword, user.email);
     const profile = passwordProfile(input.newPassword);
     const reasons: string[] = [];
+    let rules: { minLength: number; requireMixed: boolean } | undefined;
     if (input.newPassword === input.currentPassword) reasons.push('same_as_current');
     if (input.tenantId) {
       if (!(await this.sessions.listTenants(userId)).some((t) => t.id === input.tenantId)) throw new ProblemError('NOT_FOUND');
-      reasons.push(...SecurityPolicyService.passwordRuleReasons(await this.policy.policy(input.tenantId), profile));
+      const policy = await this.policy.policy(input.tenantId);
+      rules = SecurityPolicyService.passwordRules(policy);
+      reasons.push(...SecurityPolicyService.passwordRuleReasons(policy, profile));
     }
-    if (reasons.length > 0) throw new ProblemError('PASSWORD_POLICY', undefined, { reasons });
+    if (reasons.length > 0) throw new ProblemError('PASSWORD_POLICY', undefined, { reasons, ...(rules ? { rules } : {}) });
     const passwordHash = await hashPassword(input.newPassword);
     await this.db.withUser(userId, (tx) => tx.update(schema.userCredentials).set({ passwordHash }).where(eq(schema.userCredentials.userId, userId)));
     await this.sessions.setPasswordProfile(userId, sessionId, profile);

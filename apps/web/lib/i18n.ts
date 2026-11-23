@@ -4,6 +4,7 @@ import { appEn, appTr } from './messages-app';
 import { configEn, configTr } from './messages-config';
 import { platformEn, platformTr } from './messages-platform';
 import { operatorEn, operatorTr } from './messages-operator';
+import { securityEn, securityTr } from './messages-security';
 import { settingsEn, settingsTr } from './messages-settings';
 import { viewsEn, viewsTr } from './messages-views';
 
@@ -190,7 +191,7 @@ const baseTr = {
   'reason.contains_email': 'Parola e-posta adresinizi içermemeli.',
 } as const;
 
-const tr = { ...baseTr, ...appTr, ...viewsTr, ...settingsTr, ...configTr, ...platformTr, ...operatorTr };
+const tr = { ...baseTr, ...appTr, ...viewsTr, ...settingsTr, ...configTr, ...platformTr, ...operatorTr, ...securityTr };
 
 export type MessageKey = keyof typeof tr;
 
@@ -377,7 +378,7 @@ const baseEn: Record<keyof typeof baseTr, string> = {
   'reason.contains_email': 'The password must not contain your e-mail address.',
 };
 
-const en: Record<MessageKey, string> = { ...baseEn, ...appEn, ...viewsEn, ...settingsEn, ...configEn, ...platformEn, ...operatorEn };
+const en: Record<MessageKey, string> = { ...baseEn, ...appEn, ...viewsEn, ...settingsEn, ...configEn, ...platformEn, ...operatorEn, ...securityEn };
 
 export type Locale = 'tr' | 'en';
 

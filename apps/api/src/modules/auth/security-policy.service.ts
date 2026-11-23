@@ -82,7 +82,7 @@ export class SecurityPolicyService {
 
     if (s.amr.includes('pwd')) {
       const reasons = await this.passwordReasons(s.userId, s.sessionId, policy);
-      if (reasons.length > 0) return new ProblemError('PASSWORD_CHANGE_REQUIRED', 'this workspace requires a new password', { reasons });
+      if (reasons.length > 0) return new ProblemError('PASSWORD_CHANGE_REQUIRED', 'this workspace requires a new password', { reasons, rules: SecurityPolicyService.passwordRules(policy) });
     }
     return null;
   }
@@ -93,6 +93,11 @@ export class SecurityPolicyService {
     if (now - createdAt.getTime() > session.maxHours * 3_600_000) return 'policy_max_age';
     if (now - lastUsedAt.getTime() > session.idleMinutes * 60_000) return 'policy_idle';
     return null;
+  }
+
+  /** What the password screen tells the person (never the policy's other parts). */
+  static passwordRules(policy: SecurityPolicy): { minLength: number; requireMixed: boolean } {
+    return { minLength: policy.password.minLength, requireMixed: policy.password.requireMixed };
   }
 
   /** Reasons a new password does not satisfy a tenant's rules (the base rules are checked separately). */
