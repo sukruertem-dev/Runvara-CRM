@@ -67,12 +67,18 @@ export default function OnboardingPage() {
   const { can } = useApp();
   const manage = can('tenant.config.manage');
   const state = useOnboarding(manage);
+  // Once the wizard has started it stays: finishing it marks onboarding completed, and swapping to the
+  // "already done" view would unmount the wizard before it can confirm and move on.
+  const [started, setStarted] = useState(false);
+  useEffect(() => {
+    if (state.data?.status === 'pending') setStarted(true);
+  }, [state.data?.status]);
   if (!manage) {
     return <PageContainer><EmptyState icon={Rocket} title={t('settings.noAccess')} description={t('settings.noAccessBody')} /></PageContainer>;
   }
   if (state.isError) return <PageContainer><ErrorState title={t('error.fallback')} retryLabel={t('common.retry')} onRetry={() => { void state.refetch(); }} /></PageContainer>;
   if (!state.data) return <PageContainer><Skeleton className="h-96 w-full" /></PageContainer>;
-  if (state.data.status !== 'pending') {
+  if (state.data.status !== 'pending' && !started) {
     return (
       <PageContainer>
         <EmptyState icon={Check} title={t('onboarding.notPending')} description="" action={<Button asChild variant="secondary"><Link href="/settings/modules">{t('onboarding.goSettings')}</Link></Button>} />
@@ -147,14 +153,14 @@ function Wizard() {
   const index = STEPS.indexOf(step);
   const go = (delta: number) => { setStep(STEPS[Math.min(STEPS.length - 1, Math.max(0, index + delta))] ?? 'blueprint'); };
 
-  const finish = () => {
-    apply.mutate({ kind: 'onboarding', choice }, {
-      onSuccess: () => {
-        toast.toast({ kind: 'success', title: t('onboarding.done') });
-        router.push('/');
-      },
-      onError: (err) => { toast.toast({ kind: 'error', title: err instanceof ApiError ? messageForCode(err.code) : t('error.fallback') }); },
-    });
+  const finish = async () => {
+    try {
+      await apply.mutateAsync({ kind: 'onboarding', choice });
+      toast.toast({ kind: 'success', title: t('onboarding.done') });
+      router.push('/');
+    } catch (err) {
+      toast.toast({ kind: 'error', title: err instanceof ApiError ? messageForCode(err.code) : t('error.fallback') });
+    }
   };
 
   return (
@@ -244,7 +250,7 @@ function Wizard() {
       <div className="mt-6 flex justify-between gap-2">
         <Button variant="secondary" disabled={index === 0} onClick={() => { go(-1); }}>{t('onboarding.back')}</Button>
         {step === 'review' ? (
-          <Button loading={apply.isPending} disabled={!plan || plan.blocking > 0} onClick={finish} data-testid="onboarding-finish">{t('onboarding.finish')}</Button>
+          <Button loading={apply.isPending} disabled={!plan || plan.blocking > 0} onClick={() => { void finish(); }} data-testid="onboarding-finish">{t('onboarding.finish')}</Button>
         ) : (
           <Button onClick={() => { go(1); }} data-testid="onboarding-next">{t('onboarding.next')}</Button>
         )}
