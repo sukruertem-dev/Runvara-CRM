@@ -94,7 +94,7 @@
   - DEK yok ediliyor, tek üye anonimleşiyor, kanıt satırı yazılıyor;
   - ikinci veritabanındaki yedekten geri yükleme her tabloyu aynı sayıyla geri getiriyor;
   - dolu hedefe ikinci geri yükleme reddediliyor.
-- API entegrasyon (tüm paket 149/149):
+- API entegrasyon:
   - Yeni `operator.int.test.ts` (6):
     - operatör işareti ve ikinci faktör, yalnızca üst veri;
     - tenant açma, plan ve durum;
