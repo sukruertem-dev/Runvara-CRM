@@ -1,0 +1,314 @@
+{
+  "id": "enterprise-b2b",
+  "version": 1,
+  "nameKey": "blueprint.enterprise-b2b.name",
+  "descriptionKey": "blueprint.enterprise-b2b.description",
+  "bundle": {
+    "format": "flexa.config/1",
+    "meta": {
+      "kind": "blueprint",
+      "id": "enterprise-b2b",
+      "version": 1
+    },
+    "salesMode": "b2b_only",
+    "modules": [
+      "crm",
+      "sales_b2b",
+      "sales_tracking",
+      "automation_sla",
+      "reporting_advanced"
+    ],
+    "settings": {
+      "notifications.defaults": {
+        "mention": [
+          "in_app",
+          "email"
+        ],
+        "assigned": [
+          "in_app",
+          "email"
+        ],
+        "automation": [
+          "in_app"
+        ]
+      }
+    },
+    "customFields": [
+      {
+        "resourceType": "account",
+        "key": "cf_industry",
+        "type": "select",
+        "label": {
+          "tr": "Sektör",
+          "en": "Industry"
+        },
+        "options": [
+          {
+            "id": "manufacturing",
+            "label": {
+              "tr": "Üretim",
+              "en": "Manufacturing"
+            }
+          },
+          {
+            "id": "technology",
+            "label": {
+              "tr": "Teknoloji",
+              "en": "Technology"
+            }
+          },
+          {
+            "id": "finance",
+            "label": {
+              "tr": "Finans",
+              "en": "Finance"
+            }
+          },
+          {
+            "id": "healthcare",
+            "label": {
+              "tr": "Sağlık",
+              "en": "Healthcare"
+            }
+          },
+          {
+            "id": "public",
+            "label": {
+              "tr": "Kamu",
+              "en": "Public sector"
+            }
+          },
+          {
+            "id": "other",
+            "label": {
+              "tr": "Diğer",
+              "en": "Other"
+            }
+          }
+        ]
+      },
+      {
+        "resourceType": "account",
+        "key": "cf_employee_count",
+        "type": "number",
+        "label": {
+          "tr": "Çalışan sayısı",
+          "en": "Employees"
+        }
+      },
+      {
+        "resourceType": "account",
+        "key": "cf_contract_tier",
+        "type": "select",
+        "label": {
+          "tr": "Sözleşme seviyesi",
+          "en": "Contract tier"
+        },
+        "options": [
+          {
+            "id": "standard",
+            "label": {
+              "tr": "Standart",
+              "en": "Standard"
+            }
+          },
+          {
+            "id": "premium",
+            "label": {
+              "tr": "Premium",
+              "en": "Premium"
+            }
+          },
+          {
+            "id": "strategic",
+            "label": {
+              "tr": "Stratejik",
+              "en": "Strategic"
+            }
+          }
+        ]
+      },
+      {
+        "resourceType": "opportunity",
+        "key": "cf_decision_maker",
+        "type": "text",
+        "label": {
+          "tr": "Karar verici",
+          "en": "Decision maker"
+        }
+      },
+      {
+        "resourceType": "opportunity",
+        "key": "cf_competitor",
+        "type": "text",
+        "label": {
+          "tr": "Rakip",
+          "en": "Competitor"
+        }
+      },
+      {
+        "resourceType": "case",
+        "key": "cf_affected_product",
+        "type": "text",
+        "label": {
+          "tr": "Etkilenen ürün",
+          "en": "Affected product"
+        }
+      }
+    ],
+    "taskWorkflows": [
+      {
+        "key": "approval",
+        "name": "Onay akışı",
+        "statuses": [
+          {
+            "key": "draft",
+            "label": {
+              "tr": "Taslak",
+              "en": "Draft"
+            },
+            "category": "open",
+            "isInitial": true
+          },
+          {
+            "key": "in_review",
+            "label": {
+              "tr": "İncelemede",
+              "en": "In review"
+            },
+            "category": "in_progress",
+            "colorToken": "info"
+          },
+          {
+            "key": "approved",
+            "label": {
+              "tr": "Onaylandı",
+              "en": "Approved"
+            },
+            "category": "closed",
+            "colorToken": "success"
+          },
+          {
+            "key": "rejected",
+            "label": {
+              "tr": "Reddedildi",
+              "en": "Rejected"
+            },
+            "category": "closed",
+            "colorToken": "danger"
+          }
+        ],
+        "transitions": [
+          {
+            "key": "submit",
+            "label": {
+              "tr": "İncelemeye gönder",
+              "en": "Submit for review"
+            },
+            "from": "draft",
+            "to": "in_review"
+          },
+          {
+            "key": "approve",
+            "label": {
+              "tr": "Onayla",
+              "en": "Approve"
+            },
+            "from": "in_review",
+            "to": "approved"
+          },
+          {
+            "key": "reject",
+            "label": {
+              "tr": "Reddet",
+              "en": "Reject"
+            },
+            "from": "in_review",
+            "to": "rejected"
+          },
+          {
+            "key": "revise",
+            "label": {
+              "tr": "Düzeltmeye gönder",
+              "en": "Send back"
+            },
+            "from": "rejected",
+            "to": "draft"
+          }
+        ]
+      }
+    ],
+    "calendars": [
+      {
+        "name": "Mesai saatleri",
+        "timezone": "Europe/Istanbul",
+        "weeklyHours": [
+          {
+            "day": 1,
+            "start": "09:00",
+            "end": "18:00"
+          },
+          {
+            "day": 2,
+            "start": "09:00",
+            "end": "18:00"
+          },
+          {
+            "day": 3,
+            "start": "09:00",
+            "end": "18:00"
+          },
+          {
+            "day": 4,
+            "start": "09:00",
+            "end": "18:00"
+          },
+          {
+            "day": 5,
+            "start": "09:00",
+            "end": "18:00"
+          }
+        ]
+      }
+    ],
+    "slaPolicies": [
+      {
+        "name": "Kurumsal destek",
+        "resourceType": "case",
+        "calendar": "Mesai saatleri",
+        "firstResponseMinutes": 240,
+        "resolutionMinutes": 2880,
+        "pauseStatuses": [
+          "waiting"
+        ]
+      },
+      {
+        "name": "Kurumsal aday takibi",
+        "resourceType": "lead",
+        "calendar": "Mesai saatleri",
+        "firstResponseMinutes": 480
+      }
+    ],
+    "tags": [
+      {
+        "name": "Stratejik",
+        "colorToken": "accent"
+      },
+      {
+        "name": "Yenileme",
+        "colorToken": "info"
+      },
+      {
+        "name": "Referans",
+        "colorToken": "success"
+      }
+    ],
+    "queues": [
+      {
+        "kind": "work",
+        "name": "Kurumsal destek",
+        "segment": "b2b"
+      }
+    ]
+  }
+}

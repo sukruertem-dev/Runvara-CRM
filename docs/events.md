@@ -25,7 +25,8 @@
 | `tenant.status_changed` | core | from, to, reason | operator, işler, telefoni |
 | `tenant.sales_mode_changed` | core | from, to | authz (epoch), menü, işler |
 | `module.toggled` | core | moduleId, enabled, cascade[] | authz (epoch), işler, SSE |
-| `config.changed` | core | key, scope, fromVersion, toVersion | önbellek, ilgili modül |
+| `config.changed` | core | key, scope, version (değer yok) | önbellek, SSE, ilgili modül |
+| `quota.threshold` | core | dimension, level (warning/soft/hard), used, limit, period | Admin e-postası, webhook |
 | `user.invited` / `user.joined` / `user.suspended` / `user.anonymized` | core | userId, roleIds | bildirim, KVKK işi |
 | `authz.changed` | core | userIds[] veya tenantEpoch | SSE (yeniden süzme), önbellek |
 | `role.matrix_published` | core | version, diffSummary, affectedUserCount | audit, SSE |

@@ -92,6 +92,7 @@ export const UI_CAPABILITIES = [
   'tenant.config.read',
   'tenant.config.manage',
   'tenant.modules.manage',
+  'tenant.sales_mode.manage',
   'users.manage',
   'authz.matrix.read',
   'authz.matrix.edit',
@@ -124,7 +125,11 @@ export const TenantResponse = z
   .openapi('TenantResponse');
 
 export const ModuleState = z
-  .object({ id: z.string(), displayNameKey: z.string(), enabled: z.boolean(), alwaysOn: z.boolean(), dependsOn: z.array(z.array(z.string())) })
+  .object({
+    id: z.string(), displayNameKey: z.string(), enabled: z.boolean(), alwaysOn: z.boolean(), dependsOn: z.array(z.array(z.string())),
+    /** MOD-04: in the plan tier, bought as an add-on, purchasable as an add-on, or not available on this plan. */
+    entitlement: z.enum(['included', 'add_on', 'available_add_on', 'not_in_plan']),
+  })
   .openapi('ModuleState');
 export const ModuleListResponse = z.object({ data: z.array(ModuleState) }).openapi('ModuleListResponse');
 export const ModuleToggleResponse = z
@@ -205,6 +210,19 @@ export const MailJob = z.discriminatedUnion('template', [
     to: z.string(),
     locale: Locale,
     vars: z.object({ tenantName: z.string(), subject: z.string(), body: z.string(), url: z.url() }),
+  }),
+  z.object({
+    template: z.literal('quota_warning'),
+    to: z.string(),
+    locale: Locale,
+    vars: z.object({
+      tenantName: z.string(),
+      dimension: z.enum(['users', 'storage_bytes', 'records', 'call_minutes', 'ai_tokens']),
+      level: z.enum(['warning', 'soft', 'hard']),
+      used: z.string(),
+      limit: z.string(),
+      url: z.url(),
+    }),
   }),
 ]);
 export type MailJob = z.infer<typeof MailJob>;

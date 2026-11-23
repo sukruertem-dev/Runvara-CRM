@@ -15,6 +15,7 @@ import { ZodPipe } from '../../common/zod.pipe';
 import { DB, ENV, MAILER, SIGNER, type Mailer } from '../../infra/tokens';
 import { assertPassword } from '../auth/auth.service';
 import { SessionService } from '../auth/session.service';
+import { QuotaService } from '../usage/quota.service';
 
 const INVITATION_TTL_MS = 7 * 86_400_000;
 
@@ -32,6 +33,7 @@ export class InvitationsController {
     @Inject(MAILER) private readonly mailer: Mailer,
     @Inject(SIGNER) private readonly signer: TokenSigner,
     private readonly sessions: SessionService,
+    private readonly quota: QuotaService,
   ) {}
 
   @Get()
@@ -62,9 +64,10 @@ export class InvitationsController {
     const row = await this.db.withTenant(dbCtx(t), async (tx) => {
       const existing = await tx.execute(sql`SELECT 1 FROM memberships m JOIN users u ON u.id = m.user_id WHERE u.email = ${body.email}`);
       if ((existing.rowCount ?? 0) > 0) throw new ProblemError('CONFLICT', 'already a member');
-      // One open invitation per address: re-inviting revokes the previous token.
+      // One open invitation per address: re-inviting revokes the previous token (and frees its seat first).
       await tx.update(schema.invitations).set({ revokedAt: new Date() })
         .where(and(eq(schema.invitations.email, body.email), isNull(schema.invitations.acceptedAt), isNull(schema.invitations.revokedAt)));
+      await this.quota.assert(tx, t, 'users', 1, 'soft');
       const inv = one(await tx.insert(schema.invitations).values({
         tenantId: t.tenant.id, email: body.email, roleKey: body.roleKey, tokenHash: sha256(token), invitedBy: t.principal.userId,
         expiresAt: new Date(Date.now() + INVITATION_TTL_MS), segments, teamId: body.teamId ?? null,

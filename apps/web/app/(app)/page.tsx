@@ -7,6 +7,7 @@ import { roleLabel, t } from '../../lib/i18n';
 import { PageContainer } from '../_components/app-shell';
 import { useShell } from '../_components/shell/shell-context';
 import { Dashboard } from './_dashboard/dashboard';
+import { OnboardingCard } from './_dashboard/onboarding-card';
 
 export default function HomePage() {
   const { me, tenant, nav, can } = useApp();
@@ -37,6 +38,7 @@ export default function HomePage() {
         ) : null}
       </div>
 
+      <OnboardingCard />
       <Dashboard />
     </PageContainer>
   );

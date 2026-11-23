@@ -25,6 +25,9 @@ async function seed(): Promise<void> {
     await q(`INSERT INTO tenant_sso_providers (tenant_id, kind, name, issuer, client_id, client_secret_enc, key_version)
              VALUES ($1, 'oidc', 'IdP', 'https://idp.example.test', 'c', '\\x00', 1)`, [t.tenant]);
     await q(`INSERT INTO audit_log (tenant_id, action, actor_type, actor_id) VALUES ($1, 'test.seed', 'system', NULL)`, [t.tenant]);
+    await q(`INSERT INTO tenant_plans (tenant_id, plan_id) VALUES ($1, 'starter') ON CONFLICT DO NOTHING`, [t.tenant]);
+    await q(`INSERT INTO tenant_usage_counters (tenant_id, day, dimension, value) VALUES ($1, current_date, 'api_requests', 1)`, [t.tenant]);
+    await q(`INSERT INTO tenant_quota_alerts (tenant_id, dimension, level, period, used, quota_limit) VALUES ($1, 'users', 'warning', '2026-11', 8, 10)`, [t.tenant]);
     const [sess] = await q(`INSERT INTO auth_sessions (user_id, amr) VALUES ($1, '{pwd}') RETURNING id`, [t.user]);
     await q(`INSERT INTO refresh_tokens (session_id, user_id, family_id, token_hash, expires_at)
              VALUES ($1, $2, $3, $4, now() + interval '1 day')`, [sess!.id, t.user, randomUUID(), Buffer.from(`rt${i}`)]);

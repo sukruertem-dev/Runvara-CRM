@@ -1,5 +1,6 @@
 import { createParamDecorator, type ExecutionContext } from '@nestjs/common';
 import type { AuthzContext } from '@flexa/authz';
+import type { PlanId, PlanLimits } from '@flexa/modules';
 import type { FastifyRequest } from 'fastify';
 import type { AccessInfo } from './record-access';
 
@@ -26,9 +27,18 @@ export interface TenantInfo {
 
 export type Segment = 'b2b' | 'b2c';
 
+/** The tenant's plan with overrides applied (TEN-09, MOD-04). */
+export interface TenantPlanInfo {
+  id: PlanId;
+  addOns: readonly string[];
+  limits: PlanLimits;
+  trialEndsAt: Date | null;
+}
+
 export interface TenantRequestContext {
   principal: Principal & { tenantId: string };
   tenant: TenantInfo;
+  plan: TenantPlanInfo;
   authz: AuthzContext;
   /** Segments this request may see (ADR-0010 §6): the user's active grants ∩ the tenant's sales mode,
    *  optionally narrowed by the `X-Segment` header (the segment switcher only narrows). */

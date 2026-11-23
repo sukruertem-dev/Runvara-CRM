@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ALWAYS_ON_MODULES } from '@flexa/modules';
+import { ALWAYS_ON_MODULES, getPlan } from '@flexa/modules';
 import { SYSTEM_ROLES } from '@flexa/authz';
 import { schema, sql, type Db, type DbHandle } from '@flexa/db';
 import { randomUUID } from 'node:crypto';
@@ -43,6 +43,12 @@ export class ProvisioningService {
         });
         await tx.insert(schema.userCredentials).values({ userId, passwordHash: input.admin.passwordHash });
         await this.seedTenant(tx, tenantId, userId);
+        // TEN-09: self-service tenants start on the trial plan; the wizard runs on first visit (docs/p7-plan.md §8).
+        const trialDays = getPlan('trial').trialDays ?? 14;
+        await tx.execute(sql`INSERT INTO tenant_plans (tenant_id, plan_id, trial_ends_at) VALUES (${tenantId}, 'trial', now() + make_interval(days => ${trialDays}))`);
+        await tx.execute(sql`INSERT INTO tenant_settings (tenant_id, scope_type, scope_id, key, version, value, schema_version, created_by, change_note)
+          VALUES (${tenantId}, 'tenant', ${tenantId}, 'onboarding', 1, ${JSON.stringify({ status: 'pending', blueprint: null })}::jsonb, 1, ${userId}, 'tenant created')`);
+        await tx.execute(sql`INSERT INTO tenant_settings_head (tenant_id, scope_type, scope_id, key, version) VALUES (${tenantId}, 'tenant', ${tenantId}, 'onboarding', 1)`);
         await audit(tx, tenantId, { action: 'tenant.created', actorId: userId, targetType: 'tenant', targetId: tenantId, ip: input.ip, details: { slug: input.slug, plan: 'trial' } });
       });
     } catch (err) {

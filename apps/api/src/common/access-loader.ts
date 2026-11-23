@@ -99,6 +99,7 @@ export async function contextForUser(tx: Db, t: TenantRequestContext, userId: st
   return {
     principal: { userId, sessionId: '', tenantId: t.tenant.id, amr: [] },
     tenant: t.tenant,
+    plan: t.plan,
     authz: { ...t.authz, userId, roleKeys: row.role_keys ?? [], authzVersion: row.authz_version, overrides: loaded.overrides },
     segments: loaded.grantedSegments.filter((s) => mode.includes(s)),
     availableSegments: loaded.grantedSegments.filter((s) => mode.includes(s)),

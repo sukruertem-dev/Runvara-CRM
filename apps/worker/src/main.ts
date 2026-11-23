@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { loadEnv, workerEnvSchema } from '@flexa/config';
-import { EVENTS_QUEUE, MAIL_QUEUE, MailJob } from '@flexa/contracts';
+import { eventShardQueue, eventShard, MAIL_QUEUE, MailJob } from '@flexa/contracts';
 import { createRelay, startRelayLoop, toEnvelope } from '@flexa/db';
 import { Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
@@ -27,17 +27,25 @@ mailWorker.on('failed', (job, err) => {
   log.warn({ jobId: job?.id, attempts: job?.attemptsMade, err: err.message }, 'mail failed');
 });
 
-// Outbox relay (ADR-0006): committed domain events → `events` queue (job id = event id, so a relay that dies
-// between publishing and marking cannot enqueue an event twice). Consumers run in the `automation` service.
+// Outbox relay (ADR-0006): committed domain events → the tenant's shard of the event queue (ADR-0014 §4; job
+// id = event id, so a relay that dies between publishing and marking cannot enqueue an event twice). Consumers
+// run in the `automation` service.
 const relay = env.RELAY_DATABASE_URL ? createRelay(env.RELAY_DATABASE_URL) : null;
-const eventsQueue = new Queue(EVENTS_QUEUE, { connection });
+const shardQueues = Array.from({ length: env.EVENT_SHARDS }, (_, i) => new Queue(eventShardQueue(i), { connection }));
 const relayLoop = relay
   ? startRelayLoop(relay, async (rows) => {
-    await eventsQueue.addBulk(rows.map((r) => ({
-      name: r.type,
-      data: toEnvelope(r),
-      opts: { jobId: r.id, attempts: 8, backoff: { type: 'custom' }, removeOnComplete: { age: 86_400, count: 100_000 }, removeOnFail: { age: 1_209_600 } },
-    })));
+    const byShard = new Map<number, typeof rows>();
+    for (const r of rows) {
+      const shard = eventShard(r.tenant_id, env.EVENT_SHARDS);
+      byShard.set(shard, [...(byShard.get(shard) ?? []), r]);
+    }
+    for (const [shard, batch] of byShard) {
+      await shardQueues[shard]?.addBulk(batch.map((r) => ({
+        name: r.type,
+        data: toEnvelope(r),
+        opts: { jobId: r.id, attempts: 8, backoff: { type: 'custom' }, removeOnComplete: { age: 86_400, count: 100_000 }, removeOnFail: { age: 1_209_600 } },
+      })));
+    }
   }, { onError: (e) => { log.error({ err: (e as Error).message }, 'relay error (events stay in the outbox)'); } })
   : null;
 if (!relay) log.warn('RELAY_DATABASE_URL not set: domain events are not relayed');
@@ -64,7 +72,7 @@ async function shutdown(signal: string): Promise<void> {
   health.close();
   await relayLoop?.stop();
   await relay?.close();
-  await eventsQueue.close();
+  await Promise.all(shardQueues.map((q) => q.close()));
   await mailWorker.close();
   transport.close();
   connection.disconnect();

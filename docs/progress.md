@@ -1,5 +1,59 @@
 # İlerleme
 
+## P7b — G1: blueprint'ler, dışa/içe aktarma, onboarding, plan/kota, gürültülü komşu · 2026-11-23 · ✅ (CI PR'da çalışacak)
+
+> P7'nin ikinci adımı (`docs/p7-plan.md` §7–12). Sıradaki: **P7c** SAML ve güvenlik politikaları, operatör konsolu ve destek erişimi, tenant dışa aktarma/silme.
+
+### Yapılanlar
+- **Yapılandırma paketi `flexa.config/1`** (`packages/contracts` `ConfigBundle`):
+  - İçerik: satış modu, modüller, taşınabilir ayarlar, özel alanlar, görev akışları, takvimler, SLA politikaları, etiketler, kuyruklar. Eşleme doğal anahtarla yapılır, UUID taşınmaz (B67).
+  - Saf planlayıcı (`bundle-plan.ts`) her öğe için `create`/`update`/`unchanged`/`conflict` döner. Ayar farkı `update`, diğer tanımlarda farklı tanım `conflict`tır.
+  - Plan dışı modül, eksik bağımlılık, eksik takvim ve geçersiz öğe engelleyicidir (B68).
+- **İçe aktarma:**
+  - Tek transaction ve tenant kilidi. Plan transaction içinde yeniden hesaplanır.
+  - `onConflict: fail | keep`. Engelleyici çakışma ya da `fail` ile çakışma varsa 409 `IMPORT_CONFLICTS` döner ve hiçbir şey yazılmaz.
+  - Ayarlar P7a motorundan geçer (sürüm, audit, olay). Diğer öğeler mevcut ayar API'lerinin doğrulamasını paylaşır: özel alan ve görev akışı oluşturma `config-defs.ts`'e, takvim ve politika oluşturma SLA servisinin transaction düzeyi metotlarına taşındı.
+  - Tek audit kaydı: `config.imported`.
+- **Blueprint'ler** (`packages/config/src/blueprints/`): Kurumsal B2B, Perakende B2C, Telesatış/Çağrı Merkezi. API açılışta şemayla doğrular.
+- **Onboarding** (B66): yeni tenant `pending` ile doğar. Ana sayfada Admin kartı; sihirbaz `/onboarding` (şablon → satış modu → modüller → kuru çalıştırma özeti → tek transaction); atlanabilir, bir kez uygulanır.
+- **Plan ve modül hakkı** (B69): `plans.json` (`trial`, `starter`, `growth`, `enterprise`) ve `tenant_plans`. Plan dışı modül 402 `MODULE_NOT_IN_PLAN`; ek modül satın alındıysa açılır. Modül listesi her modülün hak durumunu döndürür.
+- **Kota** (B70):
+  - Kullanıcı, depolama, kayıt, arama dakikası ve AI token'ı ölçülür.
+  - %80 uyarı. %100'de davet ve yükleme 402 `QUOTA_EXCEEDED` alır. %120'de kayıt oluşturma durur. Okuma ve dışa aktarma engellenmez.
+  - Eşikler ay başına bir kez duyurulur: audit + `quota.threshold` olayı + Admin e-postası.
+  - API istekleri Redis'te sayılır ve dakikada bir `tenant_usage_counters`'a aktarılır. Anlık değerler saatte bir yazılır.
+- **Gürültülü komşu** (B71):
+  - Tenant ve kullanıcı başına token bucket (Redis Lua, atomik; 429 + `Retry-After`).
+  - Olay kuyruğu tenant'a göre parçalara bölündü (`events-<n>`). Parça içinde tenant başına kiralı eşzamanlılık semaforu; dolu ise iş deneme sayılmadan gecikmeyle sıraya döner.
+- **Satış modu** uç noktası (`PUT /v1/tenant/sales-mode`, `tenant.sales_mode.manage`).
+- **Göç** `0012_plans.sql`: `tenant_plans`, `tenant_usage_counters`, `tenant_quota_alerts`, `app.live_tenant_ids()`. Mevcut tenant'lara `enterprise` atanır.
+- **Ekranlar:**
+  - **Modüller:** tasarım sistemine taşındı. Katalog kartları, plan/ek modül rozeti, bağımlılık uyarısı, zincirleme kapatma onayı, satış modu.
+  - **Kullanım ve plan:** plan, deneme bitişi, ek modüller, hız sınırları, boyut ölçerleri, 30 günlük API grafiği.
+  - **İçe/dışa aktarma:** JSON indirme; dosya → kuru çalıştırma tablosu → çakışma politikası → not → uygula; blueprint önizleme ve uygulama.
+  - **Onboarding sihirbazı**, ana sayfa kartı ve Admin'e kota uyarı şeridi.
+- **İşletim:** `docs/ops/automation-dlq.md` belgesine parça/adalet ve kullanım sayaçları eklendi (`EVENT_SHARDS` değişikliği yalnızca kuyruklar boşaltılınca yapılır).
+
+### Testler
+- Birim: planlar ve modül hakkı 4, paket planlayıcı ve blueprint'ler 10, olay parçaları 2. Tüm depo: lint, typecheck, birim 55/55 görev.
+- API entegrasyon 124/124. Yeni `plans.int.test.ts` 13 test:
+  - üç blueprint de uygulanıyor; ikinci kuru çalıştırma "aynı";
+  - onboarding bir kez; atlama;
+  - A'dan dışa aktar, B'ye içe aktar: çakışma `fail` ile reddediliyor, `keep` ile korunuyor; B'nin dışa aktarması A'nınkine eşit;
+  - engelleyici çakışmalar;
+  - Yönetici ve Satış yetkisi;
+  - `MODULE_NOT_IN_PLAN` ve ek modül;
+  - satış modu;
+  - kota: davet %100, kayıt %120, eşik başına tek duyuru, Admin e-postası;
+  - ölçüm ve aktarım;
+  - tenant ve kullanıcı hız sınırı;
+  - tenant semaforu;
+  - ağır tenant aynı parçadaki hafif tenant'ı bekletmiyor.
+- DB sızıntı testi yeni tabloları tohumluyor.
+- E2E `platform.spec.ts` 3 senaryo (onboarding; modüller + kullanım + Yönetici salt okuma; dışa → içe aktarma, kuru çalıştırma ve korunan çakışma; axe her ekranda).
+- Görsel regresyon: iş akışı düzenleyicisi temelleri ayarlar menüsü değiştiği için yenilendi; diğer temeller onboarding'i atlayarak aynı kaldı.
+- Kontrast, matris ve katalog denetimleri PASS.
+
 ## P7a — G1: yapılandırma motoru, yerelleştirme, marka, kullanıcı tercihleri · 2026-11-23 · ✅ (CI PR'da çalışacak)
 
 > P7 üç adıma bölündü (`docs/p7-plan.md`): **P7a** yapılandırma motoru + yerelleştirme + marka + tercihler (bu adım), **P7b** blueprint'ler, dışa/içe aktarma, onboarding, plan/kota, gürültülü komşu, **P7c** SAML ve güvenlik politikaları, operatör konsolu, tenant dışa aktarma/silme.

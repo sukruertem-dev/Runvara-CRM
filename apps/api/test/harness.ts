@@ -60,6 +60,8 @@ export async function startHarness(overrides: Record<string, string> = {}, deps:
     COOKIE_SECURE: 'false',
     RATE_LIMIT_PER_MINUTE: '10000',
     AUTH_RATE_LIMIT_PER_MINUTE: '10000',
+    // Tests make many requests per user per minute; the rate-limit test sets 1 and small plan limits.
+    TENANT_RATE_LIMIT_MULTIPLIER: '100',
     OIDC_ALLOW_INSECURE_LOCALHOST: 'true',
     EGRESS_ALLOW_INSECURE_LOCALHOST: 'true',
     S3_ENDPOINT: process.env.TEST_S3_ENDPOINT,

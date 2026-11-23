@@ -16,7 +16,7 @@ const Problem = z
 
 const STATUS_TEXT: Record<number, string> = {
   200: 'OK', 201: 'Created', 202: 'Accepted', 204: 'No Content', 302: 'Redirect',
-  400: 'Validation failed', 401: 'Unauthenticated', 403: 'Forbidden', 404: 'Not found (or not visible)',
+  400: 'Validation failed', 401: 'Unauthenticated', 402: 'Plan or quota limit (MODULE_NOT_IN_PLAN, QUOTA_EXCEEDED)', 403: 'Forbidden', 404: 'Not found (or not visible)',
   409: 'Conflict', 412: 'Precondition failed (stale If-Match)', 428: 'If-Match required', 410: 'Gone (token invalid or expired)', 422: 'Business rule violated', 429: 'Rate limited',
 };
 

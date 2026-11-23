@@ -12,6 +12,7 @@ import { contentDisposition, signatureMatches, type ObjectStorage } from '../../
 import { DB, SCANNER, STORAGE } from '../../infra/tokens';
 import { attachedSegment } from '../crm/crm-objects';
 import { RecordsService } from './records.service';
+import { QuotaService } from '../usage/quota.service';
 
 const PUT_TTL_SECONDS = 300;
 const GET_TTL_SECONDS = 60;
@@ -38,6 +39,7 @@ export class AttachmentsService {
     @Inject(STORAGE) private readonly storage: ObjectStorage | null,
     @Inject(SCANNER) private readonly scanner: AttachmentScanner | null,
     private readonly records: RecordsService,
+    private readonly quota: QuotaService,
   ) {}
 
   private store(): ObjectStorage {
@@ -68,6 +70,7 @@ export class AttachmentsService {
     if (recordScope(t.authz, 'create', this.records.resourceOf(type)).kind === 'none') throw new ProblemError('FORBIDDEN');
     return this.db.withTenant(dbCtx(t), async (tx) => {
       await this.records.readRecord(tx, t, type, id);
+      await this.quota.assert(tx, t, 'storage_bytes', body.sizeBytes, 'soft');
       const now = new Date();
       // Storage key carries no user input (the file name lives in metadata only).
       const key = `tenants/${t.tenant.id}/attachments/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}/${randomUUID()}`;

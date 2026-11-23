@@ -12,3 +12,4 @@ export { buildOpenApiDocument } from './openapi';
 export { z } from 'zod';
 export * from './views';
 export * from './config';
+export * from './bundle';

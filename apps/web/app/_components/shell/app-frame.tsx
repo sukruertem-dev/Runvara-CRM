@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { t } from '../../../lib/i18n';
 import { usePreferences } from '../../../lib/preferences';
-import { ConnectionBanner, GlobalHotkeys } from './overlays';
+import { ConnectionBanner, GlobalHotkeys, QuotaBanner } from './overlays';
 import { useShell } from './shell-context';
 import { SidebarContent } from './sidebar';
 import { Topbar } from './topbar';
@@ -61,6 +61,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />
         <ConnectionBanner />
+        <QuotaBanner />
         <main id="main" tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto outline-none">
           {children}
         </main>

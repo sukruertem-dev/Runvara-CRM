@@ -129,3 +129,5 @@ export function moduleForPermission(key: string): ModuleId | null {
 export const ALWAYS_ON_MODULES: readonly ModuleId[] = MODULES.filter((m) => m.alwaysOn).map((m) => m.id);
 
 assertCatalogValid();
+
+export * from './plans';
