@@ -7,6 +7,7 @@ import {
   dummyPasswordHash,
   hashPassword,
   hashRecoveryCode,
+  passwordProfile,
   randomToken,
   sha256,
   verifyPassword,
@@ -14,13 +15,14 @@ import {
   type KeyRing,
   type TokenSigner,
 } from '@flexa/security';
-import type { FastifyReply } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { authEvent } from '../../common/audit';
 import { ProblemError } from '../../common/problem';
 import type { ClientInfo } from '../../common/request-context';
 import { FailureThrottle } from '../../common/throttle';
 import { DB, ENV, KEYRING, MAILER, REDIS, SIGNER, type Mailer, type Redis } from '../../infra/tokens';
 import { ProvisioningService } from '../tenancy/provisioning.service';
+import { SecurityPolicyService } from './security-policy.service';
 import { SessionService } from './session.service';
 
 const EMAIL_TOKEN_TTL_MS = 30 * 60_000;
@@ -48,6 +50,7 @@ export class AuthService {
     @Inject(KEYRING) private readonly keys: KeyRing,
     private readonly sessions: SessionService,
     private readonly provisioning: ProvisioningService,
+    private readonly policy: SecurityPolicyService,
   ) {
     this.loginThrottle = new FailureThrottle(redis, 'login-account', 10, 15 * 60);
     this.ipThrottle = new FailureThrottle(redis, 'login-ip', 50, 15 * 60);
@@ -98,17 +101,33 @@ export class AuthService {
     await this.loginThrottle.reset(email);
     if (found.status !== 'active') throw new ProblemError('ACCOUNT_DISABLED');
     if (!found.email_verified) throw new ProblemError('EMAIL_NOT_VERIFIED');
+    // The measure of the password (never the password) travels to the session for tenant rules (B77).
+    const pwd = passwordProfile(password);
     if (found.mfa_enabled) {
-      const mfaToken = await this.signer.signPurpose({ sub: found.user_id, purpose: 'mfa', amr: ['pwd'] }, MFA_TOKEN_TTL_S);
+      const mfaToken = await this.signer.signPurpose({ sub: found.user_id, purpose: 'mfa', amr: ['pwd'], pwd }, MFA_TOKEN_TTL_S);
       return { next: 'mfa' as const, mfaToken, expiresIn: MFA_TOKEN_TTL_S };
     }
-    return this.completeLogin(found.user_id, ['pwd'], client, reply);
+    return this.completeLogin(found.user_id, ['pwd'], client, reply, pwd);
   }
 
   async verifyMfa(input: { mfaToken: string; code?: string | undefined; recoveryCode?: string | undefined }, client: ClientInfo, reply: FastifyReply) {
     const t = await this.signer.verifyPurpose(input.mfaToken, 'mfa');
     if (!t.ok) throw new ProblemError('MFA_INVALID', 'MFA challenge expired or invalid');
     const userId = t.claims.sub;
+    await this.secondFactor(userId, input, client);
+    return this.completeLogin(userId, input.code ? ['pwd', 'otp'] : ['pwd', 'recovery'], client, reply, t.claims.pwd);
+  }
+
+  /** Adds a second factor to a session that was opened without one, for a tenant whose policy requires it. */
+  async stepUp(userId: string, sessionId: string, input: { code?: string | undefined; recoveryCode?: string | undefined }, client: ClientInfo, req: FastifyRequest) {
+    await this.secondFactor(userId, input, client);
+    await this.sessions.addAmr(userId, sessionId, input.code ? 'otp' : 'recovery');
+    await authEvent(this.db, { kind: 'auth.step_up', userId, ip: client.ip, userAgent: client.userAgent, details: { sessionId } });
+    return this.sessions.reissue(userId, sessionId, req);
+  }
+
+  /** Verifies a TOTP or a recovery code (single use, throttled). Throws MFA_INVALID. */
+  private async secondFactor(userId: string, input: { code?: string | undefined; recoveryCode?: string | undefined }, client: ClientInfo): Promise<void> {
     await this.mfaThrottle.assertAllowed(userId);
     const ok = await this.db.withUser(userId, async (tx) => {
       const [m] = await tx.select().from(schema.userMfa).where(eq(schema.userMfa.userId, userId));
@@ -133,11 +152,10 @@ export class AuthService {
       throw new ProblemError('MFA_INVALID');
     }
     await this.mfaThrottle.reset(userId);
-    return this.completeLogin(userId, input.code ? ['pwd', 'otp'] : ['pwd', 'recovery'], client, reply);
   }
 
-  async completeLogin(userId: string, amr: string[], client: ClientInfo, reply: FastifyReply) {
-    const s = await this.sessions.start(userId, amr, client, reply);
+  async completeLogin(userId: string, amr: string[], client: ClientInfo, reply: FastifyReply, pwd?: { length: number; mixed: boolean }) {
+    const s = await this.sessions.start(userId, amr, client, reply, undefined, pwd);
     const user = await this.sessions.userSummary(userId);
     return { next: s.tenant ? ('done' as const) : ('select_tenant' as const), accessToken: s.accessToken, expiresIn: s.expiresIn, csrfToken: s.csrfToken, tenant: s.tenant, tenants: s.tenants, user };
   }
@@ -165,6 +183,35 @@ export class AuthService {
     });
     await this.sessions.revokeAllSessions(consumed, 'password_reset');
     await authEvent(this.db, { kind: 'auth.password_reset', userId: consumed, ip: client.ip, userAgent: client.userAgent });
+  }
+
+  /** Password change by the signed-in person (current password required). With `tenantId` the new password
+   *  must also satisfy that tenant's rules (the "password change required" screen). Other sessions end. */
+  async changePassword(userId: string, sessionId: string, input: { currentPassword: string; newPassword: string; tenantId?: string | undefined }, client: ClientInfo): Promise<void> {
+    const user = await this.sessions.userSummary(userId);
+    await this.loginThrottle.assertAllowed(user.email);
+    const stored = await this.db.withUser(userId, async (tx) =>
+      (await tx.select({ hash: schema.userCredentials.passwordHash }).from(schema.userCredentials).where(eq(schema.userCredentials.userId, userId)))[0]?.hash ?? null);
+    if (!stored || !(await verifyPassword(stored, input.currentPassword))) {
+      await this.loginThrottle.fail(user.email);
+      await authEvent(this.db, { kind: 'auth.password_change_failed', userId, ip: client.ip, userAgent: client.userAgent });
+      throw new ProblemError('INVALID_CREDENTIALS');
+    }
+    await this.loginThrottle.reset(user.email);
+    assertPassword(input.newPassword, user.email);
+    const profile = passwordProfile(input.newPassword);
+    const reasons: string[] = [];
+    if (input.newPassword === input.currentPassword) reasons.push('same_as_current');
+    if (input.tenantId) {
+      if (!(await this.sessions.listTenants(userId)).some((t) => t.id === input.tenantId)) throw new ProblemError('NOT_FOUND');
+      reasons.push(...SecurityPolicyService.passwordRuleReasons(await this.policy.policy(input.tenantId), profile));
+    }
+    if (reasons.length > 0) throw new ProblemError('PASSWORD_POLICY', undefined, { reasons });
+    const passwordHash = await hashPassword(input.newPassword);
+    await this.db.withUser(userId, (tx) => tx.update(schema.userCredentials).set({ passwordHash }).where(eq(schema.userCredentials.userId, userId)));
+    await this.sessions.setPasswordProfile(userId, sessionId, profile);
+    await this.sessions.revokeAllSessions(userId, 'password_changed', sessionId);
+    await authEvent(this.db, { kind: 'auth.password_changed', userId, ip: client.ip, userAgent: client.userAgent });
   }
 
   // ------------------------------------------------------------------ helpers

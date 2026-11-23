@@ -160,7 +160,70 @@ export const CONFIG_KEYS: readonly ConfigKeyDef[] = [
     },
     default: { deletionGraceDays: 30 },
   },
+  {
+    key: 'security',
+    module: 'core',
+    schemaVersion: 1,
+    description: 'Security policies (TEN-04): two-factor requirement, password rules, session length and single sign-on.',
+    overridableAt: ['tenant'],
+    // "SSO required" copied into a workspace without its providers would lock everyone out: never bundled.
+    portable: false,
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['mfa', 'password', 'session', 'sso'],
+      properties: {
+        mfa: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['require', 'ssoSatisfies'],
+          properties: { require: { enum: ['off', 'admins', 'all'] }, ssoSatisfies: { type: 'boolean' } },
+        },
+        password: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['minLength', 'requireMixed', 'maxAgeDays'],
+          properties: {
+            minLength: { type: 'integer', minimum: 12, maximum: 64 },
+            requireMixed: { type: 'boolean' },
+            maxAgeDays: { type: 'integer', minimum: 0, maximum: 365 },
+          },
+        },
+        session: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['idleMinutes', 'maxHours'],
+          properties: { idleMinutes: { type: 'integer', minimum: 15, maximum: 43_200 }, maxHours: { type: 'integer', minimum: 1, maximum: 720 } },
+        },
+        sso: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['required', 'adminPasswordFallback'],
+          properties: { required: { type: 'boolean' }, adminPasswordFallback: { type: 'boolean' } },
+        },
+      },
+    },
+    default: {
+      mfa: { require: 'off', ssoSatisfies: true },
+      password: { minLength: 12, requireMixed: false, maxAgeDays: 0 },
+      session: { idleMinutes: 10_080, maxHours: 720 },
+      sso: { required: false, adminPasswordFallback: true },
+    },
+    check: (v) => {
+      const password = v.password as { maxAgeDays?: unknown } | undefined;
+      const age = password?.maxAgeDays;
+      return typeof age === 'number' && age > 0 && age < 30 ? [{ path: '/password/maxAgeDays', message: 'must be 0 (off) or between 30 and 365' }] : [];
+    },
+  },
 ];
+
+/** Effective `security` value (docs/p7-plan.md §18). */
+export interface SecurityPolicy {
+  mfa: { require: 'off' | 'admins' | 'all'; ssoSatisfies: boolean };
+  password: { minLength: number; requireMixed: boolean; maxAgeDays: number };
+  session: { idleMinutes: number; maxHours: number };
+  sso: { required: boolean; adminPasswordFallback: boolean };
+}
 
 const BY_KEY = new Map(CONFIG_KEYS.map((k) => [k.key, k]));
 

@@ -7,6 +7,7 @@ import {
   ResetPasswordRequest,
   SelectTenantRequest,
   SignupRequest,
+  StepUpRequest,
   TokenRequest,
   type z,
 } from '@flexa/contracts';
@@ -65,7 +66,14 @@ export class AuthController {
   @HttpCode(200)
   @UseGuards(AccessGuard)
   selectTenant(@Body(new ZodPipe(SelectTenantRequest)) body: z.infer<typeof SelectTenantRequest>, @CurrentPrincipal() p: Principal, @Req() req: FastifyRequest) {
-    return this.sessions.selectTenant(p.userId, p.sessionId, p.amr, body.tenantId, req);
+    return this.sessions.selectTenant(p.userId, p.sessionId, body.tenantId, req);
+  }
+
+  @Post('step-up')
+  @HttpCode(200)
+  @UseGuards(AccessGuard)
+  stepUp(@Body(new ZodPipe(StepUpRequest)) body: z.infer<typeof StepUpRequest>, @CurrentPrincipal() p: Principal, @Client() client: ClientInfo, @Req() req: FastifyRequest) {
+    return this.auth.stepUp(p.userId, p.sessionId, body, client, req);
   }
 
   @Post('refresh')

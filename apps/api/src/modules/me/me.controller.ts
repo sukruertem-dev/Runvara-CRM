@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Post, UseGuards } from '@nestjs/common';
 import { can, recordScope, type RecordAction, type RecordResource } from '@flexa/authz';
-import { TotpConfirmRequest, UI_CAPABILITIES, type z } from '@flexa/contracts';
+import { ChangePasswordRequest, TotpConfirmRequest, UI_CAPABILITIES, type z } from '@flexa/contracts';
 import { eq, schema, sql, type DbHandle } from '@flexa/db';
 import { MODULES } from '@flexa/modules';
 import { decrypt, encrypt, generateRecoveryCodes, generateTotpSecret, totpUri, verifyTotp, type KeyRing } from '@flexa/security';
@@ -10,6 +10,7 @@ import { ProblemError } from '../../common/problem';
 import { Client, CurrentPrincipal, CurrentTenant, dbCtx, type ClientInfo, type Principal, type TenantRequestContext } from '../../common/request-context';
 import { ZodPipe } from '../../common/zod.pipe';
 import { DB, KEYRING } from '../../infra/tokens';
+import { AuthService } from '../auth/auth.service';
 import { SessionService } from '../auth/session.service';
 
 /** Task capabilities map onto the generic record permissions (`*record*.<action>` on core.task). */
@@ -36,6 +37,7 @@ export class MeController {
     @Inject(DB) private readonly db: DbHandle,
     @Inject(KEYRING) private readonly keys: KeyRing,
     private readonly sessions: SessionService,
+    private readonly auth: AuthService,
   ) {}
 
   @Get()
@@ -121,8 +123,17 @@ export class MeController {
     });
     if (ok === 'enabled') throw new ProblemError('MFA_ALREADY_ENABLED');
     if (ok !== 'ok') throw new ProblemError('MFA_INVALID');
+    // The code just proved the second factor: the session counts as two-step verified (tenant policy, P7d).
+    await this.sessions.addAmr(p.userId, p.sessionId, 'otp');
     await authEvent(this.db, { kind: 'auth.mfa_enabled', userId: p.userId, ip: client.ip, userAgent: client.userAgent });
     return { recoveryCodes: codes };
+  }
+
+  @Post('password')
+  @HttpCode(204)
+  @UseGuards(AccessGuard)
+  async changePassword(@CurrentPrincipal() p: Principal, @Body(new ZodPipe(ChangePasswordRequest)) body: z.infer<typeof ChangePasswordRequest>, @Client() client: ClientInfo): Promise<void> {
+    await this.auth.changePassword(p.userId, p.sessionId, body, client);
   }
 
   @Delete('mfa')

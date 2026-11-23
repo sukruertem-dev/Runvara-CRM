@@ -9,6 +9,17 @@ const OPTIONS = { algorithm: ARGON2ID, memoryCost: 65_536, timeCost: 3, parallel
 export const PASSWORD_MIN_LENGTH = 12;
 export const PASSWORD_MAX_LENGTH = 256;
 
+/** The measure of a password a tenant's rules look at (B77): its length and whether it mixes upper case,
+ *  lower case and digits. Kept on the session instead of the password. */
+export interface PasswordProfile {
+  length: number;
+  mixed: boolean;
+}
+
+export function passwordProfile(password: string): PasswordProfile {
+  return { length: Array.from(password).length, mixed: /\p{Lu}/u.test(password) && /\p{Ll}/u.test(password) && /\p{Nd}/u.test(password) };
+}
+
 export function hashPassword(password: string): Promise<string> {
   return hash(password, OPTIONS);
 }
