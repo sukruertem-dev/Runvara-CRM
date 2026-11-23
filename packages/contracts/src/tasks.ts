@@ -138,7 +138,7 @@ export const TransitionView = z
   .object({ id: Uuid, key: z.string(), label: LabelI18n, fromStatusId: Uuid.nullable(), toStatusId: Uuid, conditions: z.array(z.unknown()), validators: z.array(z.unknown()), postFunctions: z.array(z.unknown()) })
   .openapi('TransitionView');
 export const WorkflowView = z
-  .object({ id: Uuid, key: z.string(), name: z.string(), resourceType: z.string(), isDefault: z.boolean(), statuses: z.array(StatusView.extend({ isInitial: z.boolean(), position: z.string(), wipLimit: z.number().int().nullable() })), transitions: z.array(TransitionView) })
+  .object({ id: Uuid, key: z.string(), name: z.string(), resourceType: z.string(), isDefault: z.boolean(), version: z.number().int(), statuses: z.array(StatusView.extend({ isInitial: z.boolean(), position: z.string(), wipLimit: z.number().int().nullable() })), transitions: z.array(TransitionView) })
   .openapi('WorkflowView');
 export const WorkflowListResponse = z.object({ data: z.array(WorkflowView) }).openapi('WorkflowListResponse');
 
@@ -159,15 +159,59 @@ const PostFunctionInput = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('assign_to_actor') }),
 ]);
 
+const StatusInput = z.object({
+  key: Key,
+  label: LabelI18n,
+  category: z.enum(['open', 'in_progress', 'closed']),
+  colorToken: z.string().regex(/^[a-z][a-z0-9-]{1,31}$/).default('text-secondary'),
+  isInitial: z.boolean().default(false),
+  wipLimit: z.number().int().min(1).max(1000).nullable().default(null),
+});
+const TransitionInput = z.object({
+  key: Key,
+  label: LabelI18n.default({}),
+  from: Key.nullable(),
+  to: Key,
+  conditions: z.array(ConditionInput).max(10).default([]),
+  validators: z.array(ValidatorInput).max(10).default([]),
+  postFunctions: z.array(PostFunctionInput).max(10).default([]),
+});
+
 export const WorkflowCreate = z
   .object({
     key: Key,
     name: z.string().trim().min(1).max(120),
-    statuses: z.array(z.object({ key: Key, label: LabelI18n, category: z.enum(['open', 'in_progress', 'closed']), colorToken: z.string().regex(/^[a-z][a-z0-9-]{1,31}$/).default('text-secondary'), isInitial: z.boolean().default(false), wipLimit: z.number().int().min(1).max(1000).nullable().default(null) })).min(2).max(30),
-    transitions: z.array(z.object({ key: Key, label: LabelI18n.default({}), from: Key.nullable(), to: Key, conditions: z.array(ConditionInput).max(10).default([]), validators: z.array(ValidatorInput).max(10).default([]), postFunctions: z.array(PostFunctionInput).max(10).default([]) })).min(1).max(100),
+    statuses: z.array(StatusInput.strict()).min(2).max(30),
+    transitions: z.array(TransitionInput.strict()).min(1).max(100),
   })
   .strict()
   .openapi('WorkflowCreate');
+
+/**
+ * Replaces a workflow's definition (the visual editor saves the whole state machine). Existing statuses are
+ * matched by `id` and keep their key (saved views, rules and SLA pause lists refer to keys); a status without
+ * `id` is new. Records sitting in a removed status move to `statusMap[removedId]` (a status key of the new
+ * definition); removing a status that still holds records without a mapping is rejected with the counts.
+ * Statuses are stored in the order given. For opportunity workflows `probability` sets the stage probability
+ * in every pipeline using the workflow.
+ */
+export const WorkflowUpdate = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    statuses: z.array(StatusInput.extend({ id: Uuid.optional(), probability: z.number().int().min(0).max(100).optional() }).strict()).min(2).max(30),
+    transitions: z.array(TransitionInput.strict()).min(1).max(100),
+    statusMap: z.record(Uuid, Key).default({}),
+  })
+  .strict()
+  .openapi('WorkflowUpdate');
+export const WorkflowUpdatePreview = z
+  .object({
+    added: z.array(z.string()),
+    removed: z.array(z.object({ statusId: Uuid, key: z.string(), records: z.number().int(), mappedTo: z.string().nullable() })),
+    /** True when every removed status that holds records has a mapping. */
+    applicable: z.boolean(),
+  })
+  .openapi('WorkflowUpdatePreview');
 
 // ------------------------------------------------------------------ custom fields
 export const CustomFieldType = z.enum(['text', 'number', 'date', 'select', 'multi_select', 'user', 'relation', 'formula']);
@@ -187,8 +231,26 @@ export const CustomFieldCreate = z
   .strict()
   .openapi('CustomFieldCreate');
 export const CustomFieldView = z
-  .object({ id: Uuid, resourceType: z.string(), key: z.string(), type: CustomFieldType, label: LabelI18n, required: z.boolean(), defaultValue: z.unknown(), options: z.array(z.object({ id: z.string(), label: LabelI18n })), relationTarget: z.string().nullable(), formula: z.string().nullable(), indexed: z.boolean(), archived: z.boolean() })
+  .object({ id: Uuid, resourceType: z.string(), key: z.string(), type: CustomFieldType, label: LabelI18n, required: z.boolean(), defaultValue: z.unknown(), options: z.array(z.object({ id: z.string(), label: LabelI18n })), relationTarget: z.string().nullable(), formula: z.string().nullable(), indexed: z.boolean(), archived: z.boolean(), version: z.number().int() })
   .openapi('CustomFieldView');
+/**
+ * Changes a definition in place (If-Match). Key, type, relation target and formula are fixed: changing them
+ * would reinterpret stored values. Options keep their ids; an option still used by a record cannot be removed.
+ * `moveAfter` reorders (null = first).
+ */
+export const CustomFieldPatch = z
+  .object({
+    label: LabelI18n,
+    required: z.boolean(),
+    defaultValue: z.unknown().nullable(),
+    options: z.array(z.object({ id: z.string().regex(/^[a-z0-9_]{1,40}$/), label: LabelI18n })).max(200),
+    indexed: z.boolean(),
+    moveAfter: Uuid.nullable(),
+  })
+  .partial()
+  .strict()
+  .refine((v) => Object.keys(v).length > 0, 'empty patch')
+  .openapi('CustomFieldPatch');
 export const CustomFieldListResponse = z.object({ data: z.array(CustomFieldView) }).openapi('CustomFieldListResponse');
 
 // ------------------------------------------------------------------ recurrence

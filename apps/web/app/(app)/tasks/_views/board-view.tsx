@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  MeasuringStrategy,
   DndContext,
   DragOverlay,
   KeyboardSensor,
@@ -29,6 +30,8 @@ import { t } from '../../../../lib/i18n';
 import { patchTaskInCache, statusLabel, useMoveTask, useUpdateTask, type Task, type Workflow, type WorkflowStatus } from '../../../../lib/tasks';
 import { useQueryClient } from '@tanstack/react-query';
 import { AssigneeCell, DueCell, priorityLabel, useMutationErrorToast } from '../_parts/cells';
+
+const MEASURING = { droppable: { strategy: MeasuringStrategy.BeforeDragging } };
 
 export type Swimlane = 'none' | 'assignee' | 'priority';
 
@@ -199,9 +202,10 @@ export function BoardView({
   const coordinateGetter = useRef<KeyboardCoordinateGetter>((event, args) => {
     const delta = event.code === 'ArrowRight' ? 1 : event.code === 'ArrowLeft' ? -1 : 0;
     if (delta !== 0) {
-      const { over, active, droppableRects } = args.context;
+      const { over, active, droppableRects, droppableContainers } = args.context;
       const target = columnStep.current(over?.id ?? active?.id ?? '', delta);
-      const rect = target ? droppableRects.get(target) : undefined;
+      // Columns may not be measured yet right after pick-up: fall back to the DOM.
+      const rect = target ? (droppableRects.get(target) ?? droppableContainers.get(target)?.node.current?.getBoundingClientRect()) : undefined;
       event.preventDefault();
       return rect ? { x: rect.left, y: rect.top } : undefined;
     }
@@ -322,6 +326,8 @@ export function BoardView({
       <DndContext
         sensors={editable ? sensors : []}
         collisionDetection={collision}
+        // Measure the drop targets before the drag starts: a key press right after pick-up must find them.
+        measuring={MEASURING}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
         onDragCancel={() => { setActiveId(null); }}

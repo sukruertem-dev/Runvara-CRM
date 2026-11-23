@@ -1,8 +1,5 @@
 'use client';
 
-import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import type { DashboardLayout, SlaSummary } from '@flexa/contracts';
 import {
   Button,
@@ -13,14 +10,13 @@ import {
   DropdownMenuTrigger,
   ErrorState,
   focusRing,
-  IconButton,
   Skeleton,
   useToast,
 } from '@flexa/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { GripVertical, Minus, MoveHorizontal, MoveVertical, Pencil, Plus, RotateCcw, X } from 'lucide-react';
+import { Pencil, Plus, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { request } from '../../../lib/api';
 import { useApp } from '../../../lib/app-context';
 import { t, type MessageKey } from '../../../lib/i18n';
@@ -29,6 +25,10 @@ import { statusLabel, useTaskWorkflow } from '../../../lib/tasks';
 import { money } from '../crm/_parts/columns';
 import { priorityLabel } from '../tasks/_parts/cells';
 import { BarList, Funnel, Kpi, PairedColumns } from './charts';
+import { Tile, type TileDrag } from './tile';
+
+// Drag-and-drop reordering is needed only in edit mode: loaded when editing starts.
+const SortableGrid = lazy(() => import('./sortable-grid').then((m) => ({ default: m.SortableGrid<Widget> })));
 
 type Out<T extends { _output: unknown }> = T['_output'];
 type Layout = Out<typeof DashboardLayout>;
@@ -170,54 +170,6 @@ function body(kind: Kind): ReactNode {
   }
 }
 
-function Tile({ widget, editing, onChange, onRemove }: { widget: Widget; editing: boolean; onChange: (w: Widget) => void; onRemove: () => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id, disabled: !editing });
-  const title = titleOf(widget.kind);
-  const size = (dw: number, dh: number): void => {
-    onChange({ ...widget, w: Math.max(2, Math.min(12, widget.w + dw)), h: Math.max(2, Math.min(8, widget.h + dh)) });
-  };
-  return (
-    <section
-      ref={setNodeRef}
-      aria-label={title}
-      data-testid="widget"
-      data-kind={widget.kind}
-      data-w={widget.w}
-      style={{ transform: CSS.Translate.toString(transform), transition, gridColumn: `span ${String(widget.w)} / span ${String(widget.w)}`, gridRow: `span ${String(widget.h)} / span ${String(widget.h)}` }}
-      className={cn('col-span-12 flex min-h-0 flex-col gap-3 overflow-hidden rounded-card border border-line bg-surface p-4 shadow-card max-md:![grid-column:span_12/span_12]', isDragging && 'z-10 opacity-80', editing && 'border-dashed border-line-strong')}
-    >
-      <header className="flex items-center gap-1">
-        {editing ? (
-          <button type="button" {...attributes} {...listeners} aria-label={`${title}: ${t('dash.moveHint')}`} className={cn('-ml-1 cursor-grab rounded-input p-1 text-fg-muted hover:bg-subtle', focusRing)}>
-            <GripVertical aria-hidden size={14} />
-          </button>
-        ) : null}
-        <h2 className="m-0 min-w-0 flex-1 truncate text-sm font-semibold text-fg-muted">{title}</h2>
-        {editing ? (
-          <span className="flex items-center">
-            <IconButton size="sm" label={t('dash.narrower', { title })} onClick={() => { size(-1, 0); }} disabled={widget.w <= 2}>
-              <Minus aria-hidden size={12} />
-            </IconButton>
-            <IconButton size="sm" label={t('dash.wider', { title })} onClick={() => { size(1, 0); }} disabled={widget.w >= 12}>
-              <MoveHorizontal aria-hidden size={12} />
-            </IconButton>
-            <IconButton size="sm" label={t('dash.shorter', { title })} onClick={() => { size(0, -1); }} disabled={widget.h <= 2}>
-              <Minus aria-hidden size={12} className="rotate-90" />
-            </IconButton>
-            <IconButton size="sm" label={t('dash.taller', { title })} onClick={() => { size(0, 1); }} disabled={widget.h >= 8}>
-              <MoveVertical aria-hidden size={12} />
-            </IconButton>
-            <IconButton size="sm" label={t('dash.remove', { title })} onClick={onRemove}>
-              <X aria-hidden size={12} />
-            </IconButton>
-          </span>
-        ) : null}
-      </header>
-      <div className="min-h-0 flex-1">{body(widget.kind)}</div>
-    </section>
-  );
-}
-
 /**
  * Personal dashboard: widgets on a 12-column grid. In edit mode they are reordered by drag (or Space + arrows),
  * resized with buttons and added/removed; the layout is saved per user (`PUT /v1/me/dashboard`).
@@ -245,16 +197,38 @@ export function Dashboard() {
     },
   });
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
-  function onDragEnd(e: DragEndEvent): void {
-    if (!e.over || e.active.id === e.over.id) return;
-    setDraft((list) => arrayMove(list, list.findIndex((w) => w.id === e.active.id), list.findIndex((w) => w.id === e.over?.id)));
-  }
 
   if (layout.isLoading) return <Skeleton className="h-64" />;
   if (layout.error) return <ErrorState title={t('common.loadError')} retryLabel={t('common.retry')} onRetry={() => void layout.refetch()} />;
   const widgets = (editing ? draft : (layout.data?.widgets ?? [])).filter((w) => available(w.kind));
   const missing = KINDS.filter((k) => available(k) && !draft.some((w) => w.kind === k));
+
+  const editTile = (w: Widget, drag?: TileDrag): ReactNode => (
+    <Tile
+      key={w.id}
+      widget={w}
+      title={titleOf(w.kind)}
+      editing
+      {...(drag ? { drag } : {})}
+      onChange={(next) => { setDraft((list) => list.map((x) => (x.id === next.id ? next : x))); }}
+      onRemove={() => { setDraft((list) => list.filter((x) => x.id !== w.id)); }}
+    >
+      {body(w.kind)}
+    </Tile>
+  );
+  const staticGrid = (edit: boolean): ReactNode => (
+    <div className="grid auto-rows-[3.25rem] grid-cols-12 gap-3">
+      {widgets.map((w) =>
+        edit ? (
+          editTile(w)
+        ) : (
+          <Tile key={w.id} widget={w} title={titleOf(w.kind)} editing={false} onChange={() => undefined} onRemove={() => undefined}>
+            {body(w.kind)}
+          </Tile>
+        ),
+      )}
+    </div>
+  );
 
   return (
     <section aria-labelledby="dash-h" className="flex flex-col gap-3" data-testid="dashboard">
@@ -293,21 +267,14 @@ export function Dashboard() {
           </Button>
         )}
       </div>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <SortableContext items={widgets.map((w) => w.id)} strategy={rectSortingStrategy}>
-          <div className="grid auto-rows-[3.25rem] grid-cols-12 gap-3">
-            {widgets.map((w) => (
-              <Tile
-                key={w.id}
-                widget={w}
-                editing={editing}
-                onChange={(next) => { setDraft((list) => list.map((x) => (x.id === next.id ? next : x))); }}
-                onRemove={() => { setDraft((list) => list.filter((x) => x.id !== w.id)); }}
-              />
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
+      {editing ? (
+        // Until the drag-and-drop module arrives the same tiles show with their edit controls (no blank frame).
+        <Suspense fallback={staticGrid(true)}>
+          <SortableGrid widgets={widgets} onChange={setDraft} render={editTile} />
+        </Suspense>
+      ) : (
+        staticGrid(false)
+      )}
     </section>
   );
 }

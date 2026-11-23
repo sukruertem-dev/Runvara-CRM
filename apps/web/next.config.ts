@@ -21,6 +21,8 @@ const config: NextConfig = {
   outputFileTracingRoot: path.join(__dirname, '../..'),
   poweredByHeader: false,
   transpilePackages: ['@flexa/ui'],
+  // The design system and the icon set are imported through barrels; only what a page uses may reach its bundle.
+  experimental: { optimizePackageImports: ['@flexa/ui', 'lucide-react'] },
   rewrites() {
     return Promise.resolve([{ source: '/api/:path*', destination: `${apiUrl}/:path*` }]);
   },

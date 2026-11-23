@@ -27,10 +27,19 @@ export async function api<T = Record<string, unknown>>(method: string, path: str
   if (opts.ifMatch !== undefined) headers['if-match'] = `"${String(opts.ifMatch)}"`;
   const init: RequestInit = { method, headers };
   if (opts.body !== undefined) init.body = JSON.stringify(opts.body);
-  const res = await fetch(`${API}${path}`, init);
-  const text = await res.text();
-  if (!res.ok) throw new Error(`${method} ${path} → ${String(res.status)} ${text}`);
-  return (text ? JSON.parse(text) : {}) as T;
+  // A stack with the default per-IP limits (20 auth requests a minute) can throttle a fast run, where every
+  // account comes from one machine: wait as the API asks and try again.
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`${API}${path}`, init);
+    const text = await res.text();
+    if (res.status === 429 && attempt < 3) {
+      const wait = Number(res.headers.get('retry-after') ?? '20');
+      await new Promise((resolve) => setTimeout(resolve, (Number.isFinite(wait) ? wait + 1 : 21) * 1000));
+      continue;
+    }
+    if (!res.ok) throw new Error(`${method} ${path} → ${String(res.status)} ${text}`);
+    return (text ? JSON.parse(text) : {}) as T;
+  }
 }
 
 export interface Workspace {
@@ -42,10 +51,10 @@ export interface Workspace {
 }
 
 /** Sign-up, e-mail verification and login through the API (the UI flow itself is covered by auth.spec.ts). */
-export async function createWorkspace(label: string, displayName = 'Deniz Yönetici'): Promise<Workspace> {
+export async function createWorkspace(label: string, displayName = 'Deniz Yönetici', fixedTenantName?: string): Promise<Workspace> {
   const id = uniqueId(label);
   const email = `e2e-${id}@firma.test`;
-  const tenantName = `Firma ${id}`;
+  const tenantName = fixedTenantName ?? `Firma ${id}`;
   await api('POST', '/v1/auth/signup', { body: { email, password: PASSWORD, displayName, tenantName, tenantSlug: `e2e-${id}`.slice(0, 40) } });
   await api('POST', '/v1/auth/email/verify', { body: { token: await waitForToken(email, 'doğrulayın') } });
   const login = await api<{ accessToken: string; user: { id: string } }>('POST', '/v1/auth/login', { body: { email, password: PASSWORD } });

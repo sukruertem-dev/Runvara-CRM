@@ -1,7 +1,8 @@
 'use client';
 
-import { SegmentedControl } from '@flexa/ui';
+import { SegmentedControl, Skeleton } from '@flexa/ui';
 import { KanbanSquare, Table2 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback } from 'react';
 import { t } from '../../../lib/i18n';
@@ -9,8 +10,11 @@ import type { CrmResource, View } from '../../../lib/records';
 import { FilterBar } from '../../_components/filter-bar';
 import { ViewsMenu } from '../../_components/views-menu';
 import { TYPE_LABEL } from './_parts/columns';
-import { PipelineBoard } from './_parts/pipeline-board';
+
 import { RecordTable } from './_parts/record-table';
+
+// The pipeline (dnd-kit) loads only when opened.
+const PipelineBoard = dynamic(() => import('./_parts/pipeline-board').then((m) => m.PipelineBoard), { ssr: false, loading: () => <Skeleton className="m-4 h-64" /> });
 
 const TYPES: CrmResource[] = ['account', 'contact', 'lead', 'opportunity', 'case'];
 

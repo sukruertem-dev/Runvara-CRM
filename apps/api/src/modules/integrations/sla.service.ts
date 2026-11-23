@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { BusinessCalendarInput, DomainEvent, SlaPolicyCreate, z } from '@flexa/contracts';
+import type { BusinessCalendarInput, DomainEvent, SlaPolicyCreate, SlaPolicyPatch, z } from '@flexa/contracts';
 import { sql, type Db, type DbHandle } from '@flexa/db';
 import { compileQuery, RqlError } from '@flexa/query-lang';
 import { businessAdd, businessDiff, SlaError, validateCalendar, type BusinessCalendar } from '@flexa/sla';
@@ -20,7 +20,7 @@ const SYSTEM_USER = '00000000-0000-0000-0000-000000000000';
 type CalendarRow = { id: string; name: string; timezone: string; weekly_hours: BusinessCalendar['weeklyHours']; holidays: BusinessCalendar['holidays'] };
 type PolicyRow = {
   id: string; name: string; resource_type: string; criteria: string; position: number; calendar_id: string; first_response_minutes: number | null;
-  resolution_minutes: number | null; warn_percent: number; pause_statuses: string[]; enabled: boolean;
+  resolution_minutes: number | null; warn_percent: number; pause_statuses: string[]; enabled: boolean; version: number;
 };
 type TimerRow = {
   id: string; record_type: string; record_id: string; policy_id: string; milestone: 'first_response' | 'resolution'; state: 'running' | 'paused' | 'met' | 'breached';
@@ -87,7 +87,7 @@ export class SlaService {
 
   private policyView = (p: PolicyRow) => ({
     id: p.id, name: p.name, resourceType: p.resource_type, criteria: p.criteria, position: p.position, calendarId: p.calendar_id,
-    firstResponseMinutes: p.first_response_minutes, resolutionMinutes: p.resolution_minutes, warnPercent: p.warn_percent, pauseStatuses: p.pause_statuses, enabled: p.enabled,
+    firstResponseMinutes: p.first_response_minutes, resolutionMinutes: p.resolution_minutes, warnPercent: p.warn_percent, pauseStatuses: p.pause_statuses, enabled: p.enabled, version: p.version,
   });
 
   async policies(t: TenantRequestContext) {
@@ -121,6 +121,46 @@ export class SlaService {
       } catch (e) {
         if (e instanceof ProblemError) throw e;
         if (isUniqueViolation(e)) throw new ProblemError('CONFLICT', `policy "${body.name}" already exists`);
+        if ((e as { cause?: { code?: string } }).cause?.code === '23503') throw new ProblemError('NOT_FOUND', 'calendar not found');
+        return mapDbError(e);
+      }
+    });
+  }
+
+  /** In-place change (If-Match). Clocks already running keep the budget and calendar they started with. */
+  async patchPolicy(t: TenantRequestContext, id: string, version: number, body: z.infer<typeof SlaPolicyPatch>, ip: string) {
+    authorize(t, 'tenant.config.manage');
+    return this.db.withTenant(dbCtx(t), async (tx) => {
+      const cur = (await tx.execute<PolicyRow>(sql`SELECT * FROM sla_policies WHERE id = ${id} FOR UPDATE`)).rows[0];
+      if (!cur) throw new ProblemError('NOT_FOUND');
+      if (cur.version !== version) throw new ProblemError('PRECONDITION_FAILED', 'the policy was changed by someone else');
+      const next = {
+        name: body.name ?? cur.name, criteria: body.criteria ?? cur.criteria, position: body.position ?? cur.position, calendarId: body.calendarId ?? cur.calendar_id,
+        first: body.firstResponseMinutes === undefined ? cur.first_response_minutes : body.firstResponseMinutes,
+        resolution: body.resolutionMinutes === undefined ? cur.resolution_minutes : body.resolutionMinutes,
+        warn: body.warnPercent ?? cur.warn_percent, pause: body.pauseStatuses ?? cur.pause_statuses, enabled: body.enabled ?? cur.enabled,
+      };
+      if (next.first === null && next.resolution === null) throw new ProblemError('VALIDATION_FAILED', 'set first response and/or resolution time');
+      if (next.criteria.trim()) {
+        try {
+          compileQuery(next.criteria, await conditionRegistry(tx, cur.resource_type as 'case' | 'task' | 'lead'), { userId: t.principal.userId, timezone: t.tenant.timezone, now: new Date() });
+        } catch (e) {
+          if (e instanceof RqlError) throw new ProblemError('SLA_POLICY_INVALID', `criteria: ${e.message}`, { position: e.position });
+          throw e;
+        }
+      }
+      try {
+        const r = await tx.execute<PolicyRow>(sql`UPDATE sla_policies SET name = ${next.name}, criteria = ${next.criteria}, position = ${next.position}, calendar_id = ${next.calendarId},
+            first_response_minutes = ${next.first}, resolution_minutes = ${next.resolution}, warn_percent = ${next.warn},
+            pause_statuses = ${`{${next.pause.join(',')}}`}::text[], enabled = ${next.enabled}, version = version + 1
+          WHERE id = ${id} RETURNING *`);
+        const row = r.rows[0];
+        if (!row) throw new ProblemError('NOT_FOUND');
+        await audit(tx, t.tenant.id, { action: 'sla.policy_updated', actorId: t.principal.userId, targetType: 'sla_policy', targetId: id, ip, details: { changed: Object.keys(body) } });
+        return this.policyView(row);
+      } catch (e) {
+        if (e instanceof ProblemError) throw e;
+        if (isUniqueViolation(e)) throw new ProblemError('CONFLICT', `policy "${next.name}" already exists`);
         if ((e as { cause?: { code?: string } }).cause?.code === '23503') throw new ProblemError('NOT_FOUND', 'calendar not found');
         return mapDbError(e);
       }

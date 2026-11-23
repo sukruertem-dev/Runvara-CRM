@@ -26,6 +26,9 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      # Timing budgets run alone: inside `pnpm test` every package's suite shares the runner's CPU.
+      - name: Performance budget (100k-edge dependency cycle check < 1 s)
+        run: pnpm --filter @flexa/workflow test:perf
       - name: Storybook (component documentation must build)
         run: pnpm --filter @flexa/ui build-storybook
       - name: 'Integration tests (Testcontainers: PostgreSQL 18 + Redis 7 + SeaweedFS)'
@@ -34,7 +37,7 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     needs: checks
-    timeout-minutes: 40
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v5
@@ -56,10 +59,26 @@ jobs:
             *.cache-to=type=gha,scope=flexa-e2e,mode=max
       - name: Start the stack from scratch
         run: docker compose up --wait --wait-timeout 600
+        # All E2E traffic comes from this one runner (one IP): per-IP limits sized for real users would throttle
+        # the suite itself. Rate limiting is verified by the API integration tests.
+        env: { RATE_LIMIT_PER_MINUTE: '20000', AUTH_RATE_LIMIT_PER_MINUTE: '2000' }
       - run: pnpm install --frozen-lockfile --filter @flexa/web...
       - run: pnpm --filter @flexa/web exec playwright install --with-deps chromium
       - run: pnpm e2e
         env: { CI: 'true' }
+      # Baselines live in apps/web/e2e/__screenshots__ and are produced in the same pinned Linux image.
+      - name: Screenshot regression (light/dark, desktop/mobile)
+        run: pnpm --filter @flexa/web e2e:visual
+        env: { CI: 'true' }
+      - name: Lighthouse (production build, mobile profile)
+        run: pnpm --filter @flexa/web lighthouse
+        env: { LH_RUNS: '3' }
+      - if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: lighthouse-report
+          path: apps/web/lighthouse-report
+          if-no-files-found: ignore
       - if: failure()
         run: docker compose logs --no-color > compose.log
       - if: failure()
@@ -70,3 +89,4 @@ jobs:
             compose.log
             apps/web/playwright-report
             apps/web/test-results
+            apps/web/test-results-visual

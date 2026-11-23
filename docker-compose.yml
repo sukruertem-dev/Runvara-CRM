@@ -93,6 +93,10 @@ services:
       # Local stack runs over plain http; production must keep the default (true).
       COOKIE_SECURE: "false"
       TRUST_PROXY: "true"
+      # Per-IP limits. On this stack every E2E user, account and page shares one IP, so the CI E2E job raises
+      # them (ci.yml); the limits themselves are covered by the API integration tests.
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-600}
+      AUTH_RATE_LIMIT_PER_MINUTE: ${AUTH_RATE_LIMIT_PER_MINUTE:-20}
       S3_ENDPOINT: http://s3:8333
       S3_PUBLIC_ENDPOINT: http://localhost:${FLEXA_S3_PORT:-8333}
       S3_BUCKET: flexa

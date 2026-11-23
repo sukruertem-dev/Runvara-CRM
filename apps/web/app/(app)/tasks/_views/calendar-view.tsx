@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  MeasuringStrategy,
   DndContext,
   DragOverlay,
   KeyboardSensor,
@@ -26,6 +27,8 @@ import { fmt } from '../../../../lib/format';
 import { t } from '../../../../lib/i18n';
 import { useTaskList, useUpdateTask, type Task, type TaskFilters } from '../../../../lib/tasks';
 import { useMutationErrorToast } from '../_parts/cells';
+
+const MEASURING = { droppable: { strategy: MeasuringStrategy.BeforeDragging } };
 
 export type CalendarMode = 'month' | 'week' | 'day';
 
@@ -182,7 +185,8 @@ export function CalendarView({ filters, editable }: { filters: TaskFilters; edit
       return task?.dueAt ? dayKey(new Date(task.dueAt)) : ids[0];
     })();
     const i = Math.max(0, Math.min(ids.length - 1, ids.indexOf(current ?? '') + step));
-    const rect = context.droppableRects.get(ids[i] ?? '');
+    // Days may not be measured yet right after pick-up: fall back to the DOM.
+    const rect = context.droppableRects.get(ids[i] ?? '') ?? context.droppableContainers.get(ids[i] ?? '')?.node.current?.getBoundingClientRect();
     return rect ? { x: rect.left + 4, y: rect.top + 4 } : undefined;
   });
   const sensors = useSensors(
@@ -264,6 +268,8 @@ export function CalendarView({ filters, editable }: { filters: TaskFilters; edit
         <DndContext
           sensors={editable ? sensors : []}
           collisionDetection={collision}
+          // Measure the drop targets before the drag starts: a key press right after pick-up must find them.
+          measuring={MEASURING}
           onDragStart={(e) => { setActiveId(e.active.id); }}
           onDragEnd={onDragEnd}
           onDragCancel={() => { setActiveId(null); }}

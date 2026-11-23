@@ -72,3 +72,33 @@
 | Kayıt detay: satır içi düzenleme, timeline, ilişkili kayıtlar | E2E: firma sayfası, ilişkili kişi ve fırsat, alan düzenleme |
 | Dashboard: sürüklenebilir/yeniden boyutlanır widget'lar | E2E: KPI'lar gerçek sayılarla; kaldırma ve genişletme yeniden yüklemeden sonra korunur; `views.int.test.ts` varsayılan yerleşim ve kapalı modül bileşenleri |
 | Erişilebilirlik | E2E: filtre, takvim, Gantt, CRM listesi ve detayı, pipeline, pano için axe |
+
+## 9. P6c — ayarlar, Lighthouse, ekran görüntüsü regresyonu (`feat/p6c-settings`)
+- **API:**
+  - `POST /v1/workflows/{id}/preview` (kuru çalıştırma) ve `PUT /v1/workflows/{id}` (If-Match). Var olan durumlar `id` ile eşleşir, anahtarları değişmez. Kaldırılan durumdaki kayıtlar `statusMap` ile başka duruma taşınır; eşleme yoksa 409 `WORKFLOW_STATUS_IN_USE` (ADR-0026). Opportunity aşamalarında `probability`.
+  - `PATCH /v1/custom-fields/{id}` (If-Match; etiket, zorunluluk, varsayılan, seçenekler, dizin, sıralama) ve `POST …/restore`. Anahtar, tür, ilişki hedefi ve formül sabittir. Bir kayıtta kullanılan seçenek kaldırılamaz (409 `CUSTOM_FIELD_OPTION_IN_USE`).
+  - `PATCH /v1/sla/policies/{id}` (If-Match); çalışan saatler başladıkları bütçeyle sürer.
+  - Göç `0010_settings.sql`: `custom_field_definitions.version`, `sla_policies.version` + `updated_at`. Arayüz yeteneği `authz.matrix.edit`.
+- **Ayarlar alanı** (`/settings`): alt menü (masaüstünde sütun, telefonda kaydırılabilir satır); yalnızca yetkili ve modülü açık bölümler görünür. Okuma yetkisi olan ama değiştiremeyen kullanıcı salt okuma notu görür, düzenleme denetimleri çizilmez. Sunucu aynı kuralları 403 / 404 `MODULE_DISABLED` ile uygular.
+- **İş akışı editörü:** durum diyagramı (kategori sütunları, eğri oklar, "her durumdan" geçişleri kesik çizgi) ve altında klavyeyle düzenlenen durum ve geçiş listeleri. Durum adı, kategori, renk token'ı, WIP sınırı, başlangıç durumu, sıra; geçiş adı, nereden/nereye, koşullar (sahip, roller), doğrulayıcılar (alt görevler kapalı, açık engelleyici yok) ve atama son işlemi. Motorun kuralları canlı uyarı olarak gösterilir. Kaydetmede kuru çalıştırma; kaldırılan durumda kayıt varsa eşleme iletişim kutusu.
+- **Özel alan yöneticisi:** kayıt türü seçimi, alan ekleme (tür, ilişki hedefi, formül, seçenekler), düzenleme, sıralama, arşivleme (geri al toast'u) ve arşivden çıkarma.
+- **Rol/izin matrisi:** modüle göre gruplu tablo (sabit başlık ve ilk sütun, arama). Hücre açılır kutusunda kip ve kapsam seçilir; bekleyen değişiklikler vurgulanır ve sayılır. Önizleme farkı ve not ile uygulanır. Sürüm geçmişinden eski sürüme dönülebilir.
+- **Otomasyon kural oluşturucu:** üç adım (ne zaman → hangi kayıtlarda → ne yapılsın). Tetikleyiciye göre alan, durum, cron, SLA olayı seçimi; koşul için RQL filtre çubuğu; en çok 10 eylem. Hedef kayıt sahibi, kişi (dizin araması) veya atama politikası olabilir. Webhook eylemi yalnızca modül açıksa sunulur. Kural tanımının JSON görünümü ve son 20 çalıştırma.
+- **Webhook ve API anahtarı:** olay seçici (gruplu, `kayıt.*` ve `*`), imza anahtarı yalnızca bir kez gösterilir. Yanıtı açma/kapama, anahtar yenileme, teslimat geçmişi ve yeniden gönderme, silme onayı. API anahtarında kapsam, son geçerlilik ve dakikalık sınır; anahtar bir kez gösterilir, iptal onaylıdır.
+- **SLA ve takvim:** haftalık çalışma saatleri (gün başına birden çok aralık), tatiller, saat dilimi. Politikada RQL ölçütü, takvim, ilk yanıt ve çözüm hedefleri, uyarı eşiği, sıra, saatin durduğu durumlar ve açma/kapama.
+- **Lighthouse** (`apps/web/scripts/lighthouse.mjs`, `lighthouse` 13): üretim imajı, mobil profil. Oturum gerçek giriş formuyla açılır; Lighthouse aynı tarayıcıda depolamayı sıfırlamadan ölçer. Sayfalar `/login`, `/`, `/tasks`, `/crm`, `/settings/workflows`. Eşik: performans ≥ 90, erişilebilirlik ≥ 95. CI'da e2e işinde çalışır; özet adım özetine ve `lighthouse-report/` ekine yazılır.
+- **Ekran görüntüsü regresyonu** (`e2e/visual.spec.ts`, `scripts/e2e-visual.mjs`): giriş, gösterge paneli, Kanban ve iş akışı editörü; açık/koyu × masaüstü (1280) / mobil (375). Sabit Playwright Linux imajında çalışır; böylece CI ile her makinede aynı yazı tipleri kullanılır. Temel görüntüler `e2e/__screenshots__/` altında depodadır. `--update` ile yenilenir ve fark gözden geçirilerek commit edilir.
+
+## 10. Kabul kriterleri ↔ testler (P6c)
+| Kriter | Test |
+|---|---|
+| Workflow editörü (görsel durum makinesi) | E2E `settings.spec.ts`: durum ekle/kaldır, geçiş bağla, eşleme iletişim kutusu, kayıt taşındı; `settings.int.test.ts`: kuru çalıştırma, 409/412/428, anahtar sabit, olasılık |
+| Custom field yöneticisi | E2E: oluştur, seçenek yeniden adlandır, arşivle + geri al; int: kullanılan seçenek korunur, sıralama, arşivden çıkarma |
+| Rol/izin matrisi arayüzü | E2E: hücre değiştir → önizle → uygula → sürüme dön |
+| Otomasyon kural oluşturucu | E2E: tetikleyici + RQL koşulu + eylem kaydedilir, kapatılır |
+| Webhook ve API anahtarı yönetimi | E2E: webhook oluştur (anahtar bir kez), API anahtarı oluştur ve iptal et |
+| SLA politikası ve çalışma takvimi | E2E: takvim (cumartesi açık), politika, açma/kapama; int: If-Match ve ölçüt doğrulaması |
+| Yetkiye duyarlı | E2E: yönetici salt okuma, temsilci erişemez |
+| Erişilebilirlik | E2E: her ayar ekranı ve iletişim kutusu için axe |
+| Lighthouse: Performance ≥ 90, Accessibility ≥ 95 | `pnpm --filter @flexa/web lighthouse` (CI) |
+| Açık/koyu tema ve mobilde görsel bozulma yok | `pnpm --filter @flexa/web e2e:visual` (CI, 16 temel görüntü) |

@@ -1,19 +1,36 @@
 'use client';
 
 import { cn, Dialog, SheetContent } from '@flexa/ui';
+import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { t } from '../../../lib/i18n';
 import { usePreferences } from '../../../lib/preferences';
-import { CommandPalette, ConnectionBanner, GlobalHotkeys, NewTaskDialog, ShortcutHelp } from './overlays';
+import { ConnectionBanner, GlobalHotkeys } from './overlays';
 import { useShell } from './shell-context';
 import { SidebarContent } from './sidebar';
 import { Topbar } from './topbar';
 
+const CommandPalette = dynamic(() => import('./dialogs').then((m) => m.CommandPalette), { ssr: false });
+const ShortcutHelp = dynamic(() => import('./dialogs').then((m) => m.ShortcutHelp), { ssr: false });
+const NewTaskDialog = dynamic(() => import('./dialogs').then((m) => m.NewTaskDialog), { ssr: false });
+
+/** True from the first time `open` is true: a dialog is loaded on first use and then stays mounted (close animation, state). */
+function useOpenedOnce(open: boolean): boolean {
+  const [once, setOnce] = useState(open);
+  useEffect(() => {
+    if (open) setOnce(true);
+  }, [open]);
+  return once || open;
+}
+
 /** Sidebar + top bar + main region. Below 768 px the sidebar becomes a drawer. */
 export function AppFrame({ children }: { children: ReactNode }) {
   const { sidebarCollapsed } = usePreferences();
-  const { mobileNavOpen, setMobileNavOpen } = useShell();
+  const { mobileNavOpen, setMobileNavOpen, paletteOpen, newTaskOpen, helpOpen } = useShell();
+  const palette = useOpenedOnce(paletteOpen);
+  const newTask = useOpenedOnce(newTaskOpen);
+  const help = useOpenedOnce(helpOpen);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -48,9 +65,9 @@ export function AppFrame({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
-      <CommandPalette />
-      <ShortcutHelp />
-      <NewTaskDialog />
+      {palette ? <CommandPalette /> : null}
+      {help ? <ShortcutHelp /> : null}
+      {newTask ? <NewTaskDialog /> : null}
       <GlobalHotkeys />
     </div>
   );
