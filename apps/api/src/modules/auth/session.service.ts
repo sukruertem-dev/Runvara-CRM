@@ -37,6 +37,8 @@ export interface IssuedSession {
 }
 
 const CSRF_COOKIE = 'fx_csrf';
+/** Authentication method added while an operator works in a tenant under a support grant. */
+export const SUPPORT_AMR = 'support';
 
 @Injectable()
 export class SessionService {
@@ -131,8 +133,7 @@ export class SessionService {
       });
       if (recovered) {
         this.setCookies(reply, next, row.family_id);
-        const tenants = row.session_tenant_id ? await this.listTenants(row.user_id) : [];
-        return this.accessFor(row.user_id, row.session_id, tenants.find((t) => t.id === row.session_tenant_id) ?? null, row.session_amr, row.family_id);
+        return this.accessFor(row.user_id, row.session_id, await this.sessionTenant(row.user_id, row.session_id, row.session_tenant_id, row.session_amr), row.session_amr, row.family_id);
       }
     }
     if (row.used_at) {
@@ -158,9 +159,51 @@ export class SessionService {
     });
     if (!rotated) throw new ProblemError('REFRESH_INVALID');
     this.setCookies(reply, next, row.family_id);
-    const tenants = row.session_tenant_id ? await this.listTenants(row.user_id) : [];
-    const tenant = tenants.find((t) => t.id === row.session_tenant_id) ?? null;
-    return this.accessFor(row.user_id, row.session_id, tenant, row.session_amr, row.family_id);
+    return this.accessFor(row.user_id, row.session_id, await this.sessionTenant(row.user_id, row.session_id, row.session_tenant_id, row.session_amr), row.session_amr, row.family_id);
+  }
+
+  /** The tenant a refreshed token is bound to: a membership, or for a support session the approved grant's
+   *  tenant while the grant is active (P7c, TEN-08). */
+  private async sessionTenant(userId: string, sessionId: string, tenantId: string | null, amr: readonly string[]): Promise<TenantSummaryRow | null> {
+    if (!tenantId) return null;
+    if (amr.includes(SUPPORT_AMR)) return this.supportTenant(userId, sessionId);
+    return (await this.listTenants(userId)).find((t) => t.id === tenantId) ?? null;
+  }
+
+  private async supportTenant(userId: string, sessionId: string): Promise<TenantSummaryRow | null> {
+    return this.db.withUser(userId, async (tx) => {
+      const r = await tx.execute<{ tenant_id: string; active: boolean }>(sql`SELECT tenant_id, active FROM app.support_grant_for_session(${sessionId})`);
+      const g = r.rows[0];
+      if (!g?.active) return null;
+      const t = (await tx.execute<{ slug: string; name: string; status: string }>(sql`SELECT slug::text AS slug, name, status FROM app.operator_tenants() WHERE id = ${g.tenant_id}`)).rows[0];
+      return t ? { id: g.tenant_id, slug: t.slug, name: t.name, status: t.status, roles: ['support'] } : null;
+    });
+  }
+
+  /** Binds the operator's own session to a tenant under an approved support grant (TEN-08). The grant is
+   *  checked again on every request; the session falls back to no tenant when the operator leaves. */
+  async enterSupport(userId: string, sessionId: string, amr: string[], grantId: string, req: FastifyRequest): Promise<IssuedSession> {
+    const supportAmr = [...amr.filter((a) => a !== SUPPORT_AMR), SUPPORT_AMR];
+    await this.db.withUser(userId, (tx) => tx.update(schema.authSessions)
+      .set({ supportGrantId: grantId, amr: supportAmr, lastUsedAt: new Date() })
+      .where(eq(schema.authSessions.id, sessionId)));
+    const tenant = await this.supportTenant(userId, sessionId);
+    if (!tenant) {
+      await this.exitSupport(userId, sessionId, amr, req);
+      throw new ProblemError('SUPPORT_ACCESS_ENDED');
+    }
+    await this.db.withUser(userId, (tx) => tx.update(schema.authSessions).set({ tenantId: tenant.id }).where(eq(schema.authSessions.id, sessionId)));
+    const familyId = await this.currentFamily(req);
+    return this.accessFor(userId, sessionId, tenant, supportAmr, familyId ?? sessionId);
+  }
+
+  async exitSupport(userId: string, sessionId: string, amr: string[], req: FastifyRequest): Promise<IssuedSession> {
+    const plain = amr.filter((a) => a !== SUPPORT_AMR);
+    await this.db.withUser(userId, (tx) => tx.update(schema.authSessions)
+      .set({ supportGrantId: null, tenantId: null, amr: plain, lastUsedAt: new Date() })
+      .where(eq(schema.authSessions.id, sessionId)));
+    const familyId = await this.currentFamily(req);
+    return this.accessFor(userId, sessionId, null, plain, familyId ?? sessionId);
   }
 
   async logout(req: FastifyRequest, reply: FastifyReply): Promise<void> {

@@ -7,6 +7,8 @@ import { SlaService } from '../integrations/sla.service';
 import { WebhooksService } from '../integrations/webhooks.service';
 import { DigestService } from '../records/digest.service';
 import { StreamService } from '../records/stream.service';
+import { DeletionService } from '../privacy/deletion.service';
+import { ExportsService } from '../privacy/exports.service';
 import { QuotaService } from '../usage/quota.service';
 import { UsageService } from '../usage/usage.service';
 import { eventBackoff } from './backoff';
@@ -49,6 +51,8 @@ export class AutomationQueues implements OnModuleInit, OnApplicationShutdown {
     private readonly digest: DigestService,
     private readonly usage: UsageService,
     private readonly quota: QuotaService,
+    private readonly deletion: DeletionService,
+    private readonly exportsService: ExportsService,
   ) {
     this.events = new Queue(EVENTS_QUEUE, { connection: redis, defaultJobOptions: EVENT_JOB_OPTIONS });
     this.shards = Array.from({ length: env.EVENT_SHARDS }, (_, i) => new Queue(eventShardQueue(i), { connection: redis, defaultJobOptions: EVENT_JOB_OPTIONS }));
@@ -102,6 +106,8 @@ export class AutomationQueues implements OnModuleInit, OnApplicationShutdown {
       if (job.name === 'digest') await this.digest.run();
       else if (job.name === 'usage-flush') await this.usage.flushCounters();
       else if (job.name === 'usage-snapshot') await this.usage.snapshotAll();
+      else if (job.name === 'tenant-purge') await this.deletion.runDue();
+      else if (job.name === 'export-expire') await this.exportsService.expire();
       else await this.sla.check();
     }, { connection: this.redis.duplicate(), concurrency: 1 });
     void this.slaCheckQueue.upsertJobScheduler('sla-check', { every: 60_000 }, { name: 'check' });
@@ -109,6 +115,9 @@ export class AutomationQueues implements OnModuleInit, OnApplicationShutdown {
     // Usage (TEN-09): Redis counters into the daily table every minute; gauges and quota alerts hourly.
     void this.slaCheckQueue.upsertJobScheduler('usage-flush', { every: 60_000 }, { name: 'usage-flush' });
     void this.slaCheckQueue.upsertJobScheduler('usage-snapshot', { every: 3_600_000 }, { name: 'usage-snapshot' });
+    // TEN-05: tenants past their deletion grace period are purged; expired export files are removed.
+    void this.slaCheckQueue.upsertJobScheduler('tenant-purge', { every: 3_600_000 }, { name: 'tenant-purge' });
+    void this.slaCheckQueue.upsertJobScheduler('export-expire', { every: 3_600_000 }, { name: 'export-expire' });
     this.webhooks.startWorker();
     this.workers = [...eventWorkers, ticks, slaCheck];
   }

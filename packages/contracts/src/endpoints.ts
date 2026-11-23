@@ -9,6 +9,7 @@ import * as I from './integrations';
 import * as V from './views';
 import * as G from './config';
 import * as B from './bundle';
+import * as O from './operator';
 
 export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 export type AuthMode = 'none' | 'access' | 'tenant' | 'refresh_cookie';
@@ -302,5 +303,26 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   { method: 'post', path: '/v1/onboarding/skip', summary: 'Skip onboarding', tag: 'config', auth: 'tenant', responses: { 200: B.OnboardingState }, errors: [401, 403] },
   { method: 'get', path: '/v1/usage', summary: 'Plan, quota usage and API request history', tag: 'tenant', auth: 'tenant', responses: { 200: B.UsageResponse }, errors: [401, 403] },
   { method: 'put', path: '/v1/tenant/sales-mode', summary: 'Change the tenant sales mode (B2B, B2C or both)', tag: 'tenant', auth: 'tenant', body: B.SalesModeUpdate, responses: { 200: S.TenantResponse }, errors: [400, 401, 403] },
+  { method: 'get', path: '/v1/operator/tenants', summary: 'Operator: every tenant with plan and status (metadata only)', tag: 'operator', auth: 'access', responses: { 200: O.OperatorTenantList }, errors: [401, 403] },
+  { method: 'post', path: '/v1/operator/tenants', summary: 'Operator: open a tenant and invite its first Admin', tag: 'operator', auth: 'access', body: O.OperatorTenantCreate, responses: { 201: O.OperatorTenant }, errors: [400, 401, 403, 409] },
+  { method: 'get', path: '/v1/operator/tenants/{id}', summary: 'Operator: tenant detail (plan, modules, usage, support grants, operator actions)', tag: 'operator', auth: 'access', responses: { 200: O.OperatorTenantDetail }, errors: [401, 403, 404] },
+  { method: 'put', path: '/v1/operator/tenants/{id}/plan', summary: 'Operator: change plan, add-ons, limits and trial end', tag: 'operator', auth: 'access', body: O.OperatorPlanUpdate, responses: { 200: O.OperatorTenant }, errors: [400, 401, 403, 404] },
+  { method: 'post', path: '/v1/operator/tenants/{id}/status', summary: 'Operator: lifecycle transition (ADR-0014 section 5)', tag: 'operator', auth: 'access', body: O.TenantTransition, responses: { 200: O.OperatorTenant }, errors: [400, 401, 403, 404, 422] },
+  { method: 'post', path: '/v1/operator/tenants/{id}/support', summary: 'Operator: request support access (the tenant Admin decides)', tag: 'operator', auth: 'access', body: O.SupportRequestCreate, responses: { 201: O.SupportGrant }, errors: [400, 401, 403, 404] },
+  { method: 'post', path: '/v1/operator/tenants/{id}/exports', summary: 'Operator: start a tenant data export', tag: 'operator', auth: 'access', responses: { 202: O.TenantExport }, errors: [401, 403, 404] },
+  { method: 'get', path: '/v1/operator/support', summary: 'Operator: own support requests', tag: 'operator', auth: 'access', responses: { 200: O.SupportGrantList }, errors: [401, 403] },
+  { method: 'post', path: '/v1/operator/support/{id}/cancel', summary: 'Operator: withdraw a support request or end an approved one', tag: 'operator', auth: 'access', responses: { 200: O.SupportGrant }, errors: [401, 403, 404, 409] },
+  { method: 'post', path: '/v1/operator/support/{id}/enter', summary: 'Operator: bind the session to the tenant under an approved grant (read-only)', tag: 'operator', auth: 'access', responses: { 200: S.SessionResponse }, errors: [401, 403, 404, 409] },
+  { method: 'post', path: '/v1/operator/support/exit', summary: 'Operator: leave the support session', tag: 'operator', auth: 'access', responses: { 200: S.SessionResponse }, errors: [401] },
+  { method: 'get', path: '/v1/support-access', summary: 'Support access requests and grants of this workspace', tag: 'tenant', auth: 'tenant', responses: { 200: O.SupportGrantList }, errors: [401, 403] },
+  { method: 'post', path: '/v1/support-access/{id}/approve', summary: 'Approve a support request; the time starts now', tag: 'tenant', auth: 'tenant', body: O.SupportDecision, responses: { 200: O.SupportGrant }, errors: [400, 401, 403, 404, 409] },
+  { method: 'post', path: '/v1/support-access/{id}/deny', summary: 'Deny a support request', tag: 'tenant', auth: 'tenant', body: O.SupportDecision, responses: { 200: O.SupportGrant }, errors: [400, 401, 403, 404, 409] },
+  { method: 'post', path: '/v1/support-access/{id}/revoke', summary: 'End approved support access immediately', tag: 'tenant', auth: 'tenant', responses: { 200: O.SupportGrant }, errors: [401, 403, 404, 409] },
+  { method: 'get', path: '/v1/tenant/exports', summary: 'Data exports of this workspace', tag: 'tenant', auth: 'tenant', responses: { 200: O.TenantExportList }, errors: [401, 403] },
+  { method: 'post', path: '/v1/tenant/exports', summary: 'Start a data export (KVKK/GDPR, TEN-05)', tag: 'tenant', auth: 'tenant', responses: { 202: O.TenantExport }, errors: [401, 403, 409] },
+  { method: 'get', path: '/v1/tenant/exports/{id}/download', summary: 'Signed download link for a finished export', tag: 'tenant', auth: 'tenant', responses: { 200: O.TenantExportDownload }, errors: [401, 403, 404, 409] },
+  { method: 'get', path: '/v1/tenant/deletion', summary: 'Deletion state and grace period', tag: 'tenant', auth: 'tenant', responses: { 200: O.TenantDeletionState }, errors: [401, 403] },
+  { method: 'post', path: '/v1/tenant/deletion', summary: 'Schedule the workspace for deletion after the grace period', tag: 'tenant', auth: 'tenant', body: O.TenantDeletionRequest, responses: { 200: O.TenantDeletionState }, errors: [400, 401, 403, 422] },
+  { method: 'post', path: '/v1/tenant/deletion/cancel', summary: 'Cancel a scheduled deletion during the grace period', tag: 'tenant', auth: 'tenant', responses: { 200: O.TenantDeletionState }, errors: [401, 403, 422] },
   { method: 'get', path: '/v1/stream', summary: 'Server-sent events: record changes and notifications the caller may see (Last-Event-ID replay)', tag: 'stream', auth: 'tenant', responses: { 200: null }, errors: [401] },
 ];

@@ -1,13 +1,13 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Post, UseGuards } from '@nestjs/common';
 import { can, recordScope, type RecordAction, type RecordResource } from '@flexa/authz';
 import { TotpConfirmRequest, UI_CAPABILITIES, type z } from '@flexa/contracts';
-import { eq, schema, type DbHandle } from '@flexa/db';
+import { eq, schema, sql, type DbHandle } from '@flexa/db';
 import { MODULES } from '@flexa/modules';
 import { decrypt, encrypt, generateRecoveryCodes, generateTotpSecret, totpUri, verifyTotp, type KeyRing } from '@flexa/security';
 import { authEvent } from '../../common/audit';
 import { AccessGuard, TenantGuard } from '../../common/guards';
 import { ProblemError } from '../../common/problem';
-import { Client, CurrentPrincipal, CurrentTenant, type ClientInfo, type Principal, type TenantRequestContext } from '../../common/request-context';
+import { Client, CurrentPrincipal, CurrentTenant, dbCtx, type ClientInfo, type Principal, type TenantRequestContext } from '../../common/request-context';
 import { ZodPipe } from '../../common/zod.pipe';
 import { DB, KEYRING } from '../../infra/tokens';
 import { SessionService } from '../auth/session.service';
@@ -41,14 +41,20 @@ export class MeController {
   @Get()
   @UseGuards(AccessGuard)
   async me(@CurrentPrincipal() p: Principal) {
-    const [user, tenants] = await Promise.all([this.sessions.userSummary(p.userId), this.sessions.listTenants(p.userId)]);
-    return { user, tenant: tenants.find((t) => t.id === p.tenantId) ?? null, tenants };
+    const [user, tenants, operator] = await Promise.all([
+      this.sessions.userSummary(p.userId),
+      this.sessions.listTenants(p.userId),
+      this.db.withUser(p.userId, async (tx) => (await tx.execute<{ ok: boolean }>(sql`SELECT app.is_operator() AS ok`)).rows[0]?.ok === true),
+    ]);
+    // A support session's tenant is not a membership; it is shown as the current tenant all the same.
+    const supportTenant = p.support && p.tenantId ? { id: p.tenantId, slug: '', name: '', status: 'active', roles: ['support'] } : null;
+    return { user, tenant: tenants.find((t) => t.id === p.tenantId) ?? supportTenant, tenants, operator };
   }
 
   /** Only enabled modules, and only menu items the user holds a permission for (AUTH-11, 10.5.1 §7). */
   @Get('navigation')
   @UseGuards(TenantGuard)
-  navigation(@CurrentTenant() t: TenantRequestContext) {
+  async navigation(@CurrentTenant() t: TenantRequestContext) {
     const enabled = MODULES.filter((m) => t.authz.enabledModules.has(m.id));
     const menu = enabled.flatMap((m) =>
       m.menu
@@ -67,7 +73,21 @@ export class MeController {
         if (taskAction) return recordScope(t.authz, taskAction, 'core.task').kind !== 'none';
         return can(t.authz, cap, cap.endsWith('.read') ? 'read' : 'full').allow;
       }),
+      support: await this.supportState(t),
+      tenantStatus: t.tenant.status as 'trial' | 'active' | 'suspended' | 'pending_deletion' | 'deleted',
     };
+  }
+
+  /** TEN-08: the operator sees their own support session; Admins see that support access is active. */
+  private async supportState(t: TenantRequestContext) {
+    const grantId = t.principal.support?.grantId ?? null;
+    if (!grantId && !can(t.authz, 'tenant.config.manage').allow) return null;
+    const row = await this.db.withTenant(dbCtx(t), async (tx) => (await tx.execute<{ id: string; operator_name: string; valid_until: Date | string }>(sql`
+      SELECT id, operator_name, valid_until FROM support_access_grants
+      WHERE status = 'approved' AND valid_until > now() ${grantId ? sql`AND id = ${grantId}` : sql``}
+      ORDER BY valid_until DESC LIMIT 1`)).rows[0]);
+    if (!row) return null;
+    return { role: grantId ? ('operator' as const) : ('observed' as const), grantId: row.id, operatorName: row.operator_name, validUntil: new Date(row.valid_until).toISOString() };
   }
 
   @Post('mfa/totp/setup')

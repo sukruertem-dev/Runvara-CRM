@@ -77,6 +77,13 @@ export function render(job: MailJob): RenderedMail {
         ? make(`${job.vars.tenantName}: ${what} kotası`, [`Kullanım: ${usage}.`, effect, 'Planınızı yükseltmek veya sınırı artırmak için Flexa desteğiyle iletişime geçin.'], { label: 'Kullanımı görüntüle', url: job.vars.url }, 'Bu e-postayı çalışma alanı yöneticisi olduğunuz için aldınız.')
         : make(`${job.vars.tenantName}: ${what} quota`, [`Usage: ${usage}.`, effect, 'Contact Flexa support to upgrade your plan or raise the limit.'], { label: 'View usage', url: job.vars.url }, 'You receive this e-mail because you administer the workspace.');
     }
+    case 'support_request': {
+      // TEN-08: nothing happens until an Admin approves; the operator's reason is shown as written.
+      const hours = (job.vars.minutes / 60).toLocaleString(tr ? 'tr-TR' : 'en-US', { maximumFractionDigits: 1 });
+      return tr
+        ? make(`${job.vars.tenantName}: destek erişimi talebi`, [`Flexa destek ekibinden ${job.vars.operatorName}, çalışma alanınıza ${hours} saatlik salt okuma erişimi istiyor.`, `Gerekçe: ${job.vars.reason}`, 'Onaylamadığınız sürece hiçbir erişim verilmez. Onaylarsanız erişimi istediğiniz an sonlandırabilirsiniz.'], { label: 'Talebi incele', url: job.vars.url }, 'Bu e-postayı çalışma alanı yöneticisi olduğunuz için aldınız.')
+        : make(`${job.vars.tenantName}: support access request`, [`${job.vars.operatorName} from Flexa support asks for ${hours} hours of read-only access to your workspace.`, `Reason: ${job.vars.reason}`, 'No access is given unless you approve. If you approve, you can end it at any moment.'], { label: 'Review the request', url: job.vars.url }, 'You receive this e-mail because you administer the workspace.');
+    }
   }
 }
 

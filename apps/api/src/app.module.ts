@@ -51,6 +51,12 @@ import { BundleService } from './modules/config/bundle.service';
 import { QuotaService } from './modules/usage/quota.service';
 import { UsageController } from './modules/usage/usage.controller';
 import { UsageService } from './modules/usage/usage.service';
+import { OperatorController } from './modules/operator/operator.controller';
+import { OperatorService } from './modules/operator/operator.service';
+import { SupportAccessController } from './modules/operator/support-access.controller';
+import { DeletionService } from './modules/privacy/deletion.service';
+import { ExportsService } from './modules/privacy/exports.service';
+import { PrivacyController } from './modules/privacy/privacy.controller';
 import { IdempotencyInterceptor } from './common/idempotency';
 import { ClamdScanner } from './infra/scanner';
 import { storageFromEnv } from './infra/storage';
@@ -64,7 +70,7 @@ export class AppModule {
         // Operation routes first: Fastify matches static segments before parameters either way, but keep it explicit.
         CrmOperationsController, AccountsController, ContactsController, LeadsController, OpportunitiesController, CasesController, NotesController,
         AccessAdminController, ...SHARES_CONTROLLERS,
-        GovernanceController, RecordItemsController, ...RECORD_EXTRAS_CONTROLLERS, AutomationController, IntegrationsController, BundleController, UsageController],
+        GovernanceController, RecordItemsController, ...RECORD_EXTRAS_CONTROLLERS, AutomationController, IntegrationsController, BundleController, UsageController, OperatorController, SupportAccessController, PrivacyController],
       providers: [
         { provide: ENV, useValue: deps.env },
         { provide: DB, useValue: deps.db },
@@ -79,6 +85,9 @@ export class AppModule {
         QuotaService,
         UsageService,
         BundleService,
+        OperatorService,
+        ExportsService,
+        DeletionService,
         ProvisioningService,
         AuthService,
         OidcService,

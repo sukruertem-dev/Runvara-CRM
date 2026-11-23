@@ -12,6 +12,8 @@ export interface Principal {
   amr: string[];
   /** Set when the caller authenticated with an API key (acts as its creator, narrowed to its scopes). */
   apiKey?: { id: string; scopes: ('read' | 'write')[]; rateLimitPerMinute: number };
+  /** Set while a platform operator works in a tenant under an approved support grant (TEN-08). */
+  support?: { grantId: string; tenantId: string; modules: readonly string[]; validUntil: Date };
 }
 
 export interface TenantInfo {

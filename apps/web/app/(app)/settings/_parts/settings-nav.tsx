@@ -25,6 +25,8 @@ const GROUPS: readonly { label: MessageKey; items: readonly Item[] }[] = [
       { href: '/settings/invitations', label: 'home.invitations', anyOf: ['users.manage'] },
       { href: '/settings/modules', label: 'modules.title', anyOf: ['tenant.modules.manage', 'tenant.config.read'] },
       { href: '/settings/usage', label: 'settings.usage', anyOf: ['tenant.config.read'] },
+      { href: '/settings/support', label: 'settings.support', anyOf: ['tenant.config.manage'] },
+      { href: '/settings/data', label: 'settings.data', anyOf: ['tenant.config.manage'] },
     ],
   },
   {

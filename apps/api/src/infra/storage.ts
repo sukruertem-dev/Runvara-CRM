@@ -15,6 +15,8 @@ export interface ObjectStorage {
   /** Whole object as a stream for the scanner. */
   stream(key: string): Promise<AsyncIterable<Uint8Array>>;
   remove(key: string): Promise<void>;
+  /** Server-side write of a file the platform produces itself (tenant data exports). */
+  put(key: string, body: Buffer, mime: string, fileName: string): Promise<void>;
 }
 
 /** RFC 6266 attachment disposition with an ASCII fallback and the UTF-8 name. */
@@ -76,6 +78,10 @@ export class S3Storage implements ObjectStorage {
 
   async remove(key: string): Promise<void> {
     await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+  }
+
+  async put(key: string, body: Buffer, mime: string, fileName: string): Promise<void> {
+    await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: mime, ContentLength: body.length, ContentDisposition: contentDisposition(fileName) }));
   }
 }
 
