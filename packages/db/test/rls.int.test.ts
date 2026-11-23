@@ -252,4 +252,21 @@ describe('SECURITY DEFINER resolvers', () => {
   it('flexa_app cannot call owner-only helpers it was not granted', async () => {
     await expect(db.withAnonymous((tx) => tx.execute(sql`SELECT app.forbid_mutation()`))).rejects.toThrow();
   });
+
+  it('survives a connection the server drops, in use or idle', async () => {
+    const small = createDb(tdb.appUrl, { max: 1, applicationName: 'flexa-drop-test' });
+    const kill = () => superQuery(tdb.superUrl, `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = 'flexa-drop-test'`, []);
+    // In use: the running transaction fails; the process does not exit on the client's 'error' event.
+    await expect(small.withAnonymous(async (tx) => {
+      await kill();
+      await tx.execute(sql`SELECT 1`);
+    })).rejects.toThrow();
+    // Idle: the pool drops the dead client and opens a new connection for the next caller.
+    await small.withAnonymous((tx) => tx.execute(sql`SELECT 1`));
+    await kill();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const r = await small.withAnonymous((tx) => tx.execute(sql`SELECT 1 AS n`));
+    expect(r.rows[0]).toEqual({ n: 1 });
+    await small.close();
+  });
 });
