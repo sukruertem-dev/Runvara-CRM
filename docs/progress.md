@@ -52,6 +52,10 @@
 - DB sızıntı testi yeni tabloları tohumluyor.
 - E2E `platform.spec.ts` 3 senaryo (onboarding; modüller + kullanım + Yönetici salt okuma; dışa → içe aktarma, kuru çalıştırma ve korunan çakışma; axe her ekranda).
 - Görsel regresyon: iş akışı düzenleyicisi temelleri ayarlar menüsü değiştiği için yenilendi; diğer temeller onboarding'i atlayarak aynı kaldı.
+- Bulunup düzeltilenler:
+  - E2E, onboarding sihirbazının tamamlanınca söküldüğünü yakaladı. Söküldüğü için bildirim ve yönlendirme çalışmıyordu; sihirbaz artık sonucu bekliyor.
+  - Docker bellek baskısında Postgres bağlantıyı koparınca `pg` istemcisinin işlenmeyen `error` olayı API'yi çökertiyordu. Havuz ve istemci dinleyicileri eklendi; yeni bir DB testi bağlantıyı işlem içinde ve boştayken koparıyor (DB 19/19).
+- E2E `platform.spec.ts`: 3/3 (geliştirme sunucusuna karşı). Görsel 4/4.
 - Kontrast, matris ve katalog denetimleri PASS.
 
 ## P7a — G1: yapılandırma motoru, yerelleştirme, marka, kullanıcı tercihleri · 2026-11-23 · ✅ (CI PR'da çalışacak)
