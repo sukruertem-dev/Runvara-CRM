@@ -112,6 +112,10 @@ export class StreamService implements OnApplicationShutdown {
       const to = Array.isArray(event.payload.userIds) ? (event.payload.userIds as string[]) : [];
       return to.includes(conn.ctx.principal.userId);
     }
+    if (event.type === 'config.changed') {
+      // Tenant layer: every member reloads the effective configuration; user layer: only that user.
+      return event.payload.scope !== 'user' || event.payload.userId === conn.ctx.principal.userId;
+    }
     if (!event.resource || !(RECORD_TYPES as readonly string[]).includes(event.resource.type)) return false;
     if (Date.now() - conn.loadedAt > CONTEXT_TTL_MS) {
       // Rights may have changed (role, team, share, segment): reload, and close the stream if membership ended.
@@ -131,7 +135,9 @@ export class StreamService implements OnApplicationShutdown {
     if (conn.res.writableEnded || !(await this.visible(conn, event))) return;
     const data = event.type.startsWith('notification.')
       ? { type: event.type, notificationIds: event.payload.notificationIds ?? [] }
-      : {
+      : event.type === 'config.changed'
+        ? { type: event.type, key: event.payload.key, scope: event.payload.scope, version: event.payload.version }
+        : {
           type: event.type,
           resource: event.resource ? { type: event.resource.type, id: event.resource.id } : null,
           changedFields: event.payload.changedFields ?? undefined,

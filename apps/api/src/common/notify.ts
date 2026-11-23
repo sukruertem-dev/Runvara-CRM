@@ -14,8 +14,10 @@ export async function notify(
   // Automation notices may address the rule owner (the acting user); human actions never notify the actor.
   const users = [...new Set(n.users)].filter((u) => n.includeActor === true || u !== t.principal.userId);
   if (users.length === 0) return [];
-  const off = await tx.execute<{ user_id: string }>(sql`SELECT user_id::text FROM notification_preferences
-    WHERE kind = ${n.kind} AND user_id = ANY(${uuidArray(users)}) AND NOT ('in_app' = ANY(channels))`);
+  // A user's own choice wins; without one the tenant default (notifications.defaults) applies.
+  const off = await tx.execute<{ user_id: string }>(sql`SELECT u.id::text AS user_id FROM unnest(${uuidArray(users)}) AS u(id)
+    LEFT JOIN notification_preferences p ON p.user_id = u.id AND p.kind = ${n.kind}
+    WHERE NOT ('in_app' = ANY(COALESCE(p.channels, app.default_channels(${t.tenant.id}, ${n.kind}))))`);
   const muted = new Set(off.rows.map((r) => r.user_id));
   const recipients = users.filter((u) => !muted.has(u));
   if (recipients.length) {

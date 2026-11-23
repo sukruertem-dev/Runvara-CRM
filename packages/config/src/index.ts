@@ -94,3 +94,8 @@ export function loadEnv<S extends z.ZodType>(schema: S, source: Record<string, s
   }
   return result.data;
 }
+
+export * from './settings/registry';
+export * from './settings/merge';
+export * from './settings/brand';
+export { contrast, hexToOklch, isHexColor, oklchToHex } from './settings/color';

@@ -42,6 +42,8 @@ import { SlaService } from './modules/integrations/sla.service';
 import { WebhooksService } from './modules/integrations/webhooks.service';
 import { ViewsController } from './modules/views/views.controller';
 import { ViewsService } from './modules/views/views.service';
+import { ConfigController } from './modules/config/config.controller';
+import { ConfigService } from './modules/config/config.service';
 import { DigestService } from './modules/records/digest.service';
 import { StreamService } from './modules/records/stream.service';
 import { IdempotencyInterceptor } from './common/idempotency';
@@ -53,7 +55,7 @@ export class AppModule {
   static forRoot(deps: ApiDeps): DynamicModule {
     return {
       module: AppModule,
-      controllers: [HealthController, AuthController, MeController, TenancyController, InvitationsController, SsoController, TasksController, TaskConfigController, RqlController, ViewsController,
+      controllers: [HealthController, AuthController, MeController, TenancyController, InvitationsController, SsoController, TasksController, TaskConfigController, RqlController, ViewsController, ConfigController,
         // Operation routes first: Fastify matches static segments before parameters either way, but keep it explicit.
         CrmOperationsController, AccountsController, ContactsController, LeadsController, OpportunitiesController, CasesController, NotesController,
         AccessAdminController, ...SHARES_CONTROLLERS,
@@ -88,6 +90,7 @@ export class AppModule {
         AutomationService,
         SlaService,
         ViewsService,
+        ConfigService,
         WebhooksService,
         ApiKeysService,
         StreamService,

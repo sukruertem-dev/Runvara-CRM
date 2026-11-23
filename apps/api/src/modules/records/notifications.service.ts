@@ -101,7 +101,10 @@ export class NotificationsService {
     return this.db.withTenant(dbCtx(t), async (tx) => {
       const r = await tx.execute<{ kind: NotificationKind; channels: string[] }>(sql`SELECT kind, channels FROM notification_preferences WHERE user_id = ${t.principal.userId}`);
       const set = new Map(r.rows.map((x) => [x.kind, x.channels]));
-      return { data: KINDS.map((kind) => ({ kind, channels: set.get(kind) ?? ['in_app'] })) };
+      const defaults = await tx.execute<{ kind: NotificationKind; channels: string[] }>(sql`
+        SELECT k AS kind, app.default_channels(${t.tenant.id}, k) AS channels FROM unnest(${`{${KINDS.join(',')}}`}::text[]) AS k`);
+      const fallback = new Map(defaults.rows.map((x) => [x.kind, x.channels]));
+      return { data: KINDS.map((kind) => ({ kind, channels: set.get(kind) ?? fallback.get(kind) ?? ['in_app'] })) };
     });
   }
 

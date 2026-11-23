@@ -7,6 +7,7 @@ import * as R from './records';
 import * as U from './automation';
 import * as I from './integrations';
 import * as V from './views';
+import * as G from './config';
 
 export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 export type AuthMode = 'none' | 'access' | 'tenant' | 'refresh_cookie';
@@ -278,5 +279,15 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   { method: 'delete', path: '/v1/views/{id}', summary: 'Delete an own view', tag: 'views', auth: 'tenant', responses: { 204: null }, errors: [401, 404] },
   { method: 'get', path: '/v1/me/dashboard', summary: 'Personal dashboard layout (default layout when none is saved)', tag: 'me', auth: 'tenant', responses: { 200: V.DashboardLayout }, errors: [401] },
   { method: 'put', path: '/v1/me/dashboard', summary: 'Save the personal dashboard layout', tag: 'me', auth: 'tenant', body: V.DashboardLayout, responses: { 200: V.DashboardLayout }, errors: [400, 401] },
+  { method: 'get', path: '/v1/config', summary: 'Effective configuration for the caller (every layer merged) and the derived brand tokens', tag: 'config', auth: 'tenant', responses: { 200: G.ConfigEffectiveResponse }, errors: [401] },
+  { method: 'get', path: '/v1/config/keys', summary: 'Configuration key registry: schema, default, overridable layers', tag: 'config', auth: 'tenant', responses: { 200: G.ConfigKeysResponse }, errors: [401, 403] },
+  { method: 'get', path: '/v1/config/{key}', summary: 'One layer of a key (?scope=tenant|user; ETag = layer version)', tag: 'config', auth: 'tenant', responses: { 200: G.ConfigLayerView }, errors: [400, 401, 403, 404] },
+  { method: 'put', path: '/v1/config/{key}', summary: 'Write a layer (?scope=; If-Match, "0" for the first write): new version, audit, config.changed', tag: 'config', auth: 'tenant', body: G.ConfigWrite, responses: { 200: G.ConfigLayerView }, errors: [400, 401, 403, 404, 412, 422, 428] },
+  { method: 'delete', path: '/v1/config/{key}', summary: 'Remove the caller’s own override (?scope=user; If-Match)', tag: 'config', auth: 'tenant', responses: { 200: G.ConfigLayerView }, errors: [400, 401, 404, 412, 428] },
+  { method: 'post', path: '/v1/config/{key}/preview', summary: 'Validate a layer value and show the JSON Patch diff (and the derived brand colors)', tag: 'config', auth: 'tenant', body: G.ConfigWrite, responses: { 200: G.ConfigPreviewResponse }, errors: [400, 401, 403, 404] },
+  { method: 'get', path: '/v1/config/{key}/history', summary: 'Versions of a layer with the diff to the previous one', tag: 'config', auth: 'tenant', responses: { 200: G.ConfigHistoryResponse }, errors: [400, 401, 403, 404] },
+  { method: 'post', path: '/v1/config/{key}/revert', summary: 'Write an earlier version again as a new version (?scope=; If-Match)', tag: 'config', auth: 'tenant', body: G.ConfigRevert, responses: { 200: G.ConfigLayerView }, errors: [400, 401, 403, 404, 412, 422, 428] },
+  { method: 'post', path: '/v1/brand/logo', summary: 'Upload the tenant logo (PNG/WebP up to 512 KB, or SVG that is sanitized)', tag: 'config', auth: 'tenant', body: G.BrandLogoUpload, responses: { 201: G.BrandLogoView }, errors: [400, 401, 403, 422] },
+  { method: 'get', path: '/v1/brand/logo', summary: 'The current tenant logo image', tag: 'config', auth: 'tenant', responses: { 200: null }, errors: [401, 404] },
   { method: 'get', path: '/v1/stream', summary: 'Server-sent events: record changes and notifications the caller may see (Last-Event-ID replay)', tag: 'stream', auth: 'tenant', responses: { 200: null }, errors: [401] },
 ];
