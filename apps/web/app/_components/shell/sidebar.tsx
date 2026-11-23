@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { request, setAccessToken, type AccessToken } from '../../../lib/api';
 import { useApp } from '../../../lib/app-context';
+import { useEffectiveConfig, useLogoUrl } from '../../../lib/config';
 import { t, tOptional } from '../../../lib/i18n';
 import { usePreferences } from '../../../lib/preferences';
 
@@ -47,6 +48,8 @@ function TenantSwitcher({ collapsed }: { collapsed: boolean }) {
   const { me } = useApp();
   const current = me.tenant;
   const others = me.tenants.filter((x) => x.id !== current?.id);
+  const config = useEffectiveConfig();
+  const logo = useLogoUrl(config.data?.brand.logo?.assetId ?? null);
 
   async function switchTo(tenantId: string): Promise<void> {
     const res = await request<AccessToken>('/v1/auth/tenant', { method: 'POST', body: { tenantId } });
@@ -55,6 +58,12 @@ function TenantSwitcher({ collapsed }: { collapsed: boolean }) {
     window.location.assign('/');
   }
 
+  // The tenant logo sits on a light tile so any logo reads on the dark sidebar; the Flexa mark stays above.
+  const mark = logo ? (
+    <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-input bg-surface p-0.5">
+      <img src={logo} alt="" className="size-full object-contain" data-testid="tenant-logo" />
+    </span>
+  ) : null;
   const label = (
     <span className={cn('min-w-0 flex-1 text-left', collapsed && 'sr-only')}>
       <span className="block truncate text-sm font-semibold text-sidebar-text" data-testid="tenant-name">
@@ -65,7 +74,7 @@ function TenantSwitcher({ collapsed }: { collapsed: boolean }) {
   );
 
   if (others.length === 0) {
-    return <div className={cn('flex items-center gap-2 px-2.5 py-1.5', collapsed && 'justify-center')}>{label}</div>;
+    return <div className={cn('flex items-center gap-2 px-2.5 py-1.5', collapsed && 'justify-center')}>{mark}{label}</div>;
   }
   return (
     <DropdownMenu>
@@ -73,6 +82,7 @@ function TenantSwitcher({ collapsed }: { collapsed: boolean }) {
         aria-label={t('shell.tenantSwitcher')}
         className={cn('flex w-full items-center gap-2 rounded-btn px-2.5 py-1.5 hover:bg-sidebar-text/10', collapsed && 'justify-center', focusRing)}
       >
+        {mark}
         {label}
         <ChevronsUpDown aria-hidden size={14} className="shrink-0 text-sidebar-muted" />
       </DropdownMenuTrigger>

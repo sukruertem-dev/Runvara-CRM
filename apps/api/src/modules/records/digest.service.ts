@@ -40,8 +40,8 @@ export class DigestService {
     const ctx = await buildTenantContext(this.db, { userId, sessionId: 'digest', tenantId, amr: [] });
     const pending = await this.db.withTenant({ tenantId, userId }, async (tx) => (await tx.execute<{ id: string; kind: string }>(sql`
       SELECT n.id, n.kind FROM notifications n
-      JOIN notification_preferences p ON p.user_id = n.user_id AND p.kind = n.kind AND 'email' = ANY (p.channels)
-      WHERE n.user_id = ${userId} AND n.read_at IS NULL AND n.emailed_at IS NULL AND n.retracted_at IS NULL AND n.created_at <= now() - ${AGE}::interval
+      LEFT JOIN notification_preferences p ON p.user_id = n.user_id AND p.kind = n.kind
+      WHERE 'email' = ANY (COALESCE(p.channels, app.default_channels(${tenantId}, n.kind))) AND n.user_id = ${userId} AND n.read_at IS NULL AND n.emailed_at IS NULL AND n.retracted_at IS NULL AND n.created_at <= now() - ${AGE}::interval
       ORDER BY n.created_at DESC`)).rows);
     if (pending.length === 0) return false;
     const ids = new Set(pending.map((p) => p.id));

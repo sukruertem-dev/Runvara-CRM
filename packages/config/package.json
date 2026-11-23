@@ -6,12 +6,14 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src",
-    "test": "vitest run"
+    "gen": "node scripts/gen-tokens.mjs",
+    "build": "pnpm gen && tsc -p tsconfig.build.json",
+    "typecheck": "pnpm gen && tsc -p tsconfig.json --noEmit",
+    "lint": "pnpm gen && eslint src",
+    "test": "pnpm gen && vitest run"
   },
   "dependencies": {
+    "ajv": "8.17.1",
     "zod": "4.6.7"
   },
   "devDependencies": {

@@ -20,6 +20,7 @@ const GROUPS: readonly { label: MessageKey; items: readonly Item[] }[] = [
   {
     label: 'settings.group.account',
     items: [
+      { href: '/settings/preferences', label: 'settings.preferences' },
       { href: '/settings/security', label: 'shell.security' },
       { href: '/settings/invitations', label: 'home.invitations', anyOf: ['users.manage'] },
       { href: '/settings/modules', label: 'home.moduleSettings', anyOf: ['tenant.modules.manage'] },
@@ -28,9 +29,12 @@ const GROUPS: readonly { label: MessageKey; items: readonly Item[] }[] = [
   {
     label: 'settings.group.config',
     items: [
+      { href: '/settings/general', label: 'settings.general', anyOf: ['tenant.config.read'] },
+      { href: '/settings/brand', label: 'settings.brand', anyOf: ['tenant.config.read'] },
       { href: '/settings/workflows', label: 'settings.workflows', anyOf: ['tenant.config.read'] },
       { href: '/settings/fields', label: 'settings.fields', anyOf: ['tenant.config.read'] },
       { href: '/settings/roles', label: 'settings.roles', anyOf: ['authz.matrix.read'] },
+      { href: '/settings/history', label: 'settings.history', anyOf: ['tenant.config.read'] },
     ],
   },
   {

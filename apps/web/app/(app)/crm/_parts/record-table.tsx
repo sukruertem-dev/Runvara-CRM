@@ -4,7 +4,7 @@ import { Button, cn, EmptyState, ErrorState, focusRing, Skeleton } from '@flexa/
 import { ArrowDown, ArrowUp, ArrowUpDown, Search, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo } from 'react';
-import { fmt } from '../../../../lib/format';
+import { fmt, formatNumber } from '../../../../lib/format';
 import { t } from '../../../../lib/i18n';
 import { useRecordList, type CrmResource } from '../../../../lib/records';
 import { useDirectory } from '../../../../lib/tasks';
@@ -35,7 +35,7 @@ export function RecordTable({ type, q, sort, onSort }: { type: CrmResource; q: s
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <p className="m-0 px-4 pb-2 text-sm tabular-nums text-fg-muted md:px-6" aria-live="polite" data-testid="crm-count">
-        {list.total !== undefined ? fmt('crm.count', { count: list.total.toLocaleString('tr-TR') }) : ' '}
+        {list.total !== undefined ? fmt('crm.count', { count: formatNumber(list.total) }) : ' '}
       </p>
       <div className="min-h-0 flex-1 overflow-auto border-t border-line">
         <table className="w-full min-w-[720px] border-collapse text-sm" data-testid="crm-table">

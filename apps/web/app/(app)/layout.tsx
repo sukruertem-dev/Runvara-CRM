@@ -3,6 +3,7 @@
 import { Skeleton } from '@flexa/ui';
 import type { ReactNode } from 'react';
 import { AppContextProvider, useAppSession } from '../../lib/app-context';
+import { ConfigBoundary } from '../../lib/config';
 import { t } from '../../lib/i18n';
 import { RealtimeProvider } from '../../lib/realtime';
 import { AppFrame } from '../_components/shell/app-frame';
@@ -29,9 +30,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <AppContextProvider me={session.me}>
       <RealtimeProvider enabled>
-        <ShellProvider>
-          <AppFrame>{children}</AppFrame>
-        </ShellProvider>
+        <ConfigBoundary>
+          <ShellProvider>
+            <AppFrame>{children}</AppFrame>
+          </ShellProvider>
+        </ConfigBoundary>
       </RealtimeProvider>
     </AppContextProvider>
   );

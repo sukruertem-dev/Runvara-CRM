@@ -23,7 +23,7 @@ import { Button, cn, focusRing, IconButton, SegmentedControl, Skeleton, useToast
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState } from 'react';
-import { fmt } from '../../../../lib/format';
+import { fmt, formatLocale, weekStartsOn } from '../../../../lib/format';
 import { t } from '../../../../lib/i18n';
 import { useTaskList, useUpdateTask, type Task, type TaskFilters } from '../../../../lib/tasks';
 import { useMutationErrorToast } from '../_parts/cells';
@@ -32,7 +32,6 @@ const MEASURING = { droppable: { strategy: MeasuringStrategy.BeforeDragging } };
 
 export type CalendarMode = 'month' | 'week' | 'day';
 
-const LOCALE = 'tr-TR';
 
 const pad = (n: number): string => String(n).padStart(2, '0');
 export const dayKey = (d: Date): string => `${String(d.getFullYear())}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -42,7 +41,7 @@ const fromKey = (k: string): Date => {
 };
 const addDays = (d: Date, n: number): Date => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 /** Monday of the week containing `d`. */
-const startOfWeek = (d: Date): Date => addDays(d, -((d.getDay() + 6) % 7));
+const startOfWeek = (d: Date): Date => addDays(d, -((d.getDay() + 7 - weekStartsOn()) % 7));
 
 /** Visible days for a mode around an anchor date. */
 export function calendarDays(mode: CalendarMode, anchor: Date): Date[] {
@@ -102,7 +101,7 @@ function DayCell({ day, tasks, inMonth, mode, editable, onOpen, today }: { day: 
   const id = dayKey(day);
   const { setNodeRef, isOver } = useDroppable({ id });
   const limit = mode === 'month' ? 3 : 50;
-  const label = new Intl.DateTimeFormat(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' }).format(day);
+  const label = new Intl.DateTimeFormat(formatLocale(), { weekday: 'long', day: 'numeric', month: 'long' }).format(day);
   return (
     <section
       ref={setNodeRef}
@@ -196,7 +195,7 @@ export function CalendarView({ filters, editable }: { filters: TaskFilters; edit
   );
 
   const title = (id: UniqueIdentifier | null): string => list.tasks.find((x) => x.id === id)?.title ?? '';
-  const dateLabel = (id: UniqueIdentifier | null | undefined): string => (id ? new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'long' }).format(fromKey(String(id))) : '');
+  const dateLabel = (id: UniqueIdentifier | null | undefined): string => (id ? new Intl.DateTimeFormat(formatLocale(), { day: 'numeric', month: 'long' }).format(fromKey(String(id))) : '');
   const announcements: Announcements = {
     onDragStart: ({ active }) => title(active.id),
     onDragOver: ({ active, over }) => (over ? fmt('cal.moved', { title: title(active.id), date: dateLabel(over.id) }) : undefined),
@@ -228,9 +227,9 @@ export function CalendarView({ filters, editable }: { filters: TaskFilters; edit
   const step = (dir: -1 | 1): void => {
     setAnchor((a) => (mode === 'month' ? new Date(a.getFullYear(), a.getMonth() + dir, 1) : addDays(a, dir * (mode === 'week' ? 7 : 1))));
   };
-  const heading = new Intl.DateTimeFormat(LOCALE, mode === 'month' ? { month: 'long', year: 'numeric' } : { day: 'numeric', month: 'long', year: 'numeric' }).format(mode === 'week' ? first : anchor);
+  const heading = new Intl.DateTimeFormat(formatLocale(), mode === 'month' ? { month: 'long', year: 'numeric' } : { day: 'numeric', month: 'long', year: 'numeric' }).format(mode === 'week' ? first : anchor);
   const active = list.tasks.find((x) => x.id === activeId);
-  const weekdays = days.slice(0, 7).map((d) => new Intl.DateTimeFormat(LOCALE, { weekday: 'short' }).format(d));
+  const weekdays = days.slice(0, 7).map((d) => new Intl.DateTimeFormat(formatLocale(), { weekday: 'short' }).format(d));
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 pb-4 md:px-6" data-testid="task-calendar">

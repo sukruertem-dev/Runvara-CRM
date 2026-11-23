@@ -1,13 +1,14 @@
 'use client';
 
 import { cn } from '@flexa/ui';
+import { formatNumber } from '../../../lib/format';
 import { t } from '../../../lib/i18n';
 
 /** Big tabular number with a label (§10.5.1 §4 "sayılar kahramandır"). */
 export function Kpi({ value, tone = 'default', testId }: { value: number | undefined; tone?: 'default' | 'danger'; testId?: string }) {
   return (
     <p className={cn('m-0 font-display text-3xl font-bold tabular-nums', tone === 'danger' && value ? 'text-danger' : 'text-fg')} data-testid={testId}>
-      {value === undefined ? '–' : value.toLocaleString('tr-TR')}
+      {value === undefined ? '–' : formatNumber(value)}
     </p>
   );
 }
@@ -37,7 +38,7 @@ export function BarList({ title, data, testId }: { title: string; data: BarDatum
             <span className="h-3 overflow-hidden rounded-full bg-subtle">
               <span className="block h-full rounded-full" style={{ width: `${String((d.value / max) * 100)}%`, background: SERIES[i % SERIES.length] }} />
             </span>
-            <span className="tabular-nums text-fg">{d.display ?? d.value.toLocaleString('tr-TR')}</span>
+            <span className="tabular-nums text-fg">{d.display ?? formatNumber(d.value)}</span>
           </li>
         ))}
       </ul>
