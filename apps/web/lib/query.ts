@@ -50,6 +50,8 @@ let flushTimer: number | null = null;
 export function invalidateForEvent(qc: QueryClient, event: StreamEvent): void {
   const keys: QueryKey[] = [];
   if (event.type.startsWith('notification.')) keys.push(qk.notifications);
+  // Another tab or an admin changed configuration: effective values, layers, history (and tenant zone/currency).
+  else if (event.type === 'config.changed') keys.push(['config'], qk.tenant);
   else if (event.resource) {
     const prefixes = PREFIXES[event.resource.type];
     if (prefixes) keys.push(...prefixes(event.resource.id));

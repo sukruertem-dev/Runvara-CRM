@@ -69,7 +69,7 @@ describe('registry', () => {
 
   it('rejects unknown properties and wrong types with a JSON pointer', () => {
     expect(check('locale', { language: 'de' })).toEqual([expect.objectContaining({ path: '/language' })]);
-    expect(check('ui', { colour: 'red' } as JsonObject)).toEqual([expect.objectContaining({ path: '/colour' })]);
+    expect(check('ui', { colour: 'red' })).toEqual([expect.objectContaining({ path: '/colour' })]);
     expect(check('currency', { decimals: 9 })).toEqual([expect.objectContaining({ path: '/decimals' })]);
   });
 

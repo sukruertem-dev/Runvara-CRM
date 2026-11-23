@@ -4,14 +4,13 @@ import { Badge, cn, focusRing, SegmentedControl, Skeleton, useToast } from '@fle
 import { Route } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
-import { fmt } from '../../../../lib/format';
+import { fmt, formatLocale } from '../../../../lib/format';
 import { t } from '../../../../lib/i18n';
 import { useDependencyEdges, useTaskList, useUpdateTask, type Task, type TaskFilters } from '../../../../lib/tasks';
 import { useMutationErrorToast } from '../_parts/cells';
 
 const DAY = 86_400_000;
 const ROW = 36;
-const LOCALE = 'tr-TR';
 
 interface Bar {
   task: Task;
@@ -115,7 +114,7 @@ export function GanttView({ filters, editable }: { filters: TaskFilters; editabl
   const span = Math.max(21, daysBetween(origin, max) + 7);
   const x = (ms: number): number => daysBetween(origin, ms) * dayWidth;
   const row = new Map(shown.map((b, i) => [b.task.id, i]));
-  const dfmt = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short' });
+  const dfmt = new Intl.DateTimeFormat(formatLocale(), { day: 'numeric', month: 'short' });
 
   function save(task: Task, start: number, end: number): void {
     const toIso = (ms: number, endOfDay: boolean): string => {

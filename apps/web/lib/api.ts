@@ -138,6 +138,15 @@ export async function openStream(path: string, headers: Record<string, string>, 
   return res;
 }
 
+/** Authenticated binary download (the tenant logo); refreshes once on 401. */
+export async function requestBlob(path: string): Promise<Blob> {
+  const build = (): RequestInit => ({ method: 'GET', headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {} });
+  let res = await send(path, build());
+  if (res.status === 401 && (await refreshSession())) res = await send(path, build());
+  if (!res.ok) throw await toApiError(res);
+  return res.blob();
+}
+
 /** Rotates the refresh cookie and stores the new access token. Concurrent callers share one request. */
 export function refreshSession(): Promise<boolean> {
   refreshInFlight ??= (async () => {

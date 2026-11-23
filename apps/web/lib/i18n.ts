@@ -1,6 +1,7 @@
 /** Minimal i18n: Turkish is the default UI language, English mirrors the same keys. */
 
 import { appEn, appTr } from './messages-app';
+import { configEn, configTr } from './messages-config';
 import { settingsEn, settingsTr } from './messages-settings';
 import { viewsEn, viewsTr } from './messages-views';
 
@@ -195,7 +196,7 @@ const baseTr = {
   'reason.contains_email': 'Parola e-posta adresinizi içermemeli.',
 } as const;
 
-const tr = { ...baseTr, ...appTr, ...viewsTr, ...settingsTr };
+const tr = { ...baseTr, ...appTr, ...viewsTr, ...settingsTr, ...configTr };
 
 export type MessageKey = keyof typeof tr;
 
@@ -390,15 +391,33 @@ const baseEn: Record<keyof typeof baseTr, string> = {
   'reason.contains_email': 'The password must not contain your e-mail address.',
 };
 
-const en: Record<MessageKey, string> = { ...baseEn, ...appEn, ...viewsEn, ...settingsEn };
+const en: Record<MessageKey, string> = { ...baseEn, ...appEn, ...viewsEn, ...settingsEn, ...configEn };
 
 export type Locale = 'tr' | 'en';
 
 const catalogs: Record<Locale, Record<MessageKey, string>> = { tr, en };
+/** Last language the configuration chose, so a returning English user does not see Turkish first. */
+export const LOCALE_STORAGE_KEY = 'fx.locale';
+
+// Pages rendered on the server (sign-in, sign-up) are always Turkish; the signed-in app renders only on the
+// client, so it may start in the cached language without a hydration mismatch.
 let current: Locale = 'tr';
+
+/** Applies the cached language before the signed-in app first renders. */
+export function restoreStoredLocale(): void {
+  try {
+    if (window.localStorage.getItem(LOCALE_STORAGE_KEY) === 'en') current = 'en';
+  } catch {
+    // Storage blocked: stay with the default until the configuration arrives.
+  }
+}
 
 export function setLocale(locale: Locale): void {
   current = locale;
+}
+
+export function getLocale(): Locale {
+  return current;
 }
 
 export function t(key: MessageKey, vars?: Record<string, string>): string {

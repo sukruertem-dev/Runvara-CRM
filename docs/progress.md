@@ -1,5 +1,49 @@
 # İlerleme
 
+## P7a — G1: yapılandırma motoru, yerelleştirme, marka, kullanıcı tercihleri · 2026-11-23 · ✅ (CI PR'da çalışacak)
+
+> P7 üç adıma bölündü (`docs/p7-plan.md`): **P7a** yapılandırma motoru + yerelleştirme + marka + tercihler (bu adım), **P7b** blueprint'ler, dışa/içe aktarma, onboarding, plan/kota, gürültülü komşu, **P7c** SAML ve güvenlik politikaları, operatör konsolu, tenant dışa aktarma/silme.
+
+### Yapılanlar
+- **Yapılandırma motoru** (`packages/config`):
+  - Anahtar kayıt defteri: JSON Schema 2020-12 (Ajv, strict), platform varsayılanı, izin verilen katmanlar, sahip modül, şema sürümü ve yükseltme adımları. Kayıtsız anahtar 404 `CONFIG_KEY_UNKNOWN`.
+  - İlk anahtarlar: `locale`, `currency`, `brand`, `ui`, `notifications.defaults`.
+  - Katmanlar platform → tenant → (ekip) → kullanıcı. Nesneler derin birleşir, diziler tümüyle değişir. İzin verilmeyen katman 422 `CONFIG_KEY_NOT_OVERRIDABLE`.
+  - RFC 6902 JSON Patch diff.
+  - Marka türetmesi: OKLCH'de her tema için beş vurgu token'ı. Kontroller `tokens.json`'dan üretilir (`tenantAccent`). Sağlanamazsa 422 `BRAND_CONTRAST_UNSATISFIABLE`.
+- **API:**
+  - `GET /v1/config`, `/keys`, `/{key}`; `PUT` (If-Match, ilk yazım `0`); `DELETE` (kendi geçersiz kılması); `/preview`, `/history`, `/revert`.
+  - `POST`/`GET /v1/brand/logo`.
+  - Her yazım değişmez bir sürüm satırı, audit ve değer içermeyen `config.changed` olayı (SSE: tenant katmanı herkese, kullanıcı katmanı yalnızca sahibine) üretir.
+  - `locale`/`currency` tenant satırına da yazılır.
+  - Tenant bildirim varsayılanları, kendi tercihi olmayan kullanıcılara uygulanır (uygulama içi ve e-posta özeti).
+- **Göç** `0011_config.sql`: `tenant_settings` (yalnızca eklenir), `tenant_settings_head`, `tenant_assets`, `app.default_channels()`.
+- **Logo:** PNG/WebP imza denetimi. SVG izin listesiyle yeniden yazılır: script, foreignObject, style, olay öznitelikleri, dış ve `javascript:` referansları atılır; DOCTYPE/ENTITY/CDATA reddedilir. Sandbox CSP ile sunulur.
+- **Ekranlar:**
+  - **Genel:** dil, saat dilimi, tarih/saat biçimi, hafta başlangıcı, para birimi, varsayılan tema/yoğunluk, bildirim varsayılanları.
+  - **Marka:** renk seçici, seçilen ve düzeltilmiş renk, açık/koyu canlı örnek, kontrast tablosu, logo.
+  - **Yapılandırma geçmişi:** sürümler, diff, nedenli geri alma.
+  - **Tercihlerim:** her alan için "çalışma alanı varsayılanı".
+  - Her değişiklik sunucu önizlemesi + not ile uygulanır. Yönetici salt okur.
+- **Web:**
+  - Etkin yapılandırma arayüz dilini, zaman damgası saat dilimini, sayısal tarih sırasını, 12/24 saati, hafta başlangıcını ve sayı biçimini belirler.
+  - Tenant vurgu renkleri CSS değişkeni olarak uygulanır ve önbelleklenir; giriş sayfaları Flexa renkleriyle kalır.
+  - Tema/yoğunluk seçimi kullanıcı katmanına yazılır (B51 → B64).
+  - Kenar çubuğunda tenant logosu.
+- **Düzeltme:** göç sağlama toplamı satır sonundan bağımsız (B65). Windows çalışma kopyası eski göçleri "değişmiş" sayıyordu.
+
+### Testler
+- Birim: `packages/config` 17 (renk, türetme, kayıt defteri, birleştirme, diff). SVG temizleyici 6.
+- API entegrasyon 111/111, DB 18/18. Yeni: `config.int.test.ts` 7 (şema reddi, 428/412, diff, geri alma, audit/olay, katmanlar, bildirim varsayılanları, marka, logo, yetki, tenant izolasyonu).
+- E2E `config.spec.ts` 3 senaryo (genel + geçmiş + geri alma, marka reddi/düzeltme + logo, tercihler + Yönetici salt okuma; axe her ekranda).
+  - Bu makinede geliştirme sunucusuna karşı her senaryo en az bir kez geçti.
+  - Makine aşırı yüklüyken aynı turda hepsi birlikte geçmedi (API yanıtları 2–11 sn). CI üretim imajlarında koşar.
+- Lint, typecheck, birim testleri ve kontrast/matris/katalog denetimleri geçti.
+
+### Kalan
+- **P7b:** blueprint'ler, yapılandırma dışa/içe aktarma, onboarding, plan/kota/kullanım, plan hakkı (MOD-04), gürültülü komşu.
+- **P7c:** SAML, güvenlik politikaları, operatör konsolu ve destek erişimi, tenant dışa aktarma/silme, sızıntı paketinin genişletilmesi.
+
 ## P6c — Faz 6: ayar ekranları, Lighthouse, ekran görüntüsü regresyonu · 2026-11-22 · ✅ (CI PR'da çalışacak)
 
 ### Yapılanlar

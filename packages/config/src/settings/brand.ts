@@ -30,7 +30,7 @@ const HOVER_SHIFT = 0.06;
 export const MAX_LIGHTNESS_SHIFT = 0.3;
 
 type Palette = Record<string, string>;
-const fixedPalette = (theme: ThemeName): Palette => accentTokens.themes[theme] as Palette;
+const fixedPalette = (theme: ThemeName): Palette => accentTokens.themes[theme];
 
 export const DEFAULT_ACCENT = accentTokens.themes.light.accent;
 

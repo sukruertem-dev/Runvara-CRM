@@ -34,7 +34,7 @@
 - Migration `0011_config.sql`:
   - `tenant_settings`: değişmez sürüm satırları;
   - `tenant_settings_head`;
-  - `tenant_assets`: logo; nesne depolama anahtarı tenant önekli.
+  - `tenant_assets`: logo, veritabanında `bytea` olarak (≤ 512 KB). Nesne depolama gerekmez ve satır tenant dışa aktarma/silme ile birlikte gider (B61).
   Hepsi RLS'li. `tenant_settings` yalnızca eklenebilir.
 - Uç noktalar:
 
@@ -58,12 +58,12 @@
 ## 3. Marka (CFG-06)
 - `deriveAccent(hex)`:
   - OKLCH uzayında her tema için `accent`, `accent-hover`, `accent-soft`, `accent-btn` ve `accent-btn-hover` türetilir.
-  - Ton ve doygunluk korunur; yalnızca açıklık ikili aramayla ayarlanır.
+  - Ton ve doygunluk korunur; yalnızca açıklık 0,005'lik adımlarla ayarlanır. Açık temada açıklık 0,30'dan fazla değişmek zorundaysa renk reddedilir (B62).
   - Sonuç `tokens.json`'daki `tenantAccent: true` kontrollerinin tümünü sağlamalıdır.
   - Sağlanamazsa 422 `BRAND_CONTRAST_UNSATISFIABLE`.
   - Önizleme özgün ve düzeltilmiş değerleri ve her kontrolün oranını döndürür.
 - Tek kaynak `packages/ui/tokens.json`. Türetme `packages/config`'te saf bir fonksiyondur; API ve web aynı kodu kullanır.
-- Kaydedilen marka türetilmiş değerleriyle saklanır. `GET /v1/config` `brand.tokens` döndürür ve kabuk bunları `<html>` üzerinde CSS değişkeni olarak uygular. Flexa işareti ve temel token'lar değişmez.
+- Saklanan yalnızca seçilen renktir; türetme saf ve deterministik olduğundan okumada yapılır. `GET /v1/config` `brand.tokens` döndürür ve kabuk bunları `<html>` üzerinde CSS değişkeni olarak uygular. Flexa işareti ve temel token'lar değişmez.
 - **SVG temizleme:** izin listesine dayalı ayrıştırıcı.
   - Yalnızca şekil, yol, gradyan, `g` ve `defs` öğeleri kalır.
   - `script`, `foreignObject`, `style`, olay öznitelikleri ve harici veya `javascript:` referansları kaldırılır.

@@ -8,6 +8,7 @@ import { useAction } from '../../../../lib/use-action';
 import { isAdminRole as isAdmin, useApp } from '../../../../lib/app-context';
 import { PageContainer } from '../../../_components/app-shell';
 import { Alert, Field, FormMessage, SelectField, SubmitButton } from '../../../_components/ui';
+import { formatDate } from '../../../../lib/format';
 
 const ROLES = ['admin', 'manager', 'sales_rep', 'call_agent', 'analyst'] as const;
 
@@ -116,7 +117,7 @@ export default function InvitationsPage() {
                       <td>{inv.email}</td>
                       <td>{roleLabel(inv.roleKey)}</td>
                       <td>{t(key)}</td>
-                      <td>{new Date(inv.createdAt).toLocaleDateString('tr-TR')}</td>
+                      <td>{formatDate(inv.createdAt)}</td>
                       <td>
                         {key === 'inv.status.pending' ? (
                           <button

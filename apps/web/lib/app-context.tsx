@@ -4,6 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { createContext, startTransition, useContext, useEffect, useState, type ReactNode } from 'react';
 import { ApiError, bootstrapSession, request, type Me, type Navigation, type Tenant } from './api';
+import { restoreStoredBrand } from './config';
+import { restoreStoredLocale } from './i18n';
 import { qk } from './query';
 
 export type Capability = Navigation['capabilities'][number];
@@ -42,6 +44,8 @@ export function useAppSession(): SessionState {
         }
         // The first full render (shell + page) is large: as a transition React renders it in slices and keeps
         // the main thread responsive (the loading skeleton stays until it commits).
+        restoreStoredLocale();
+        restoreStoredBrand();
         startTransition(() => {
           setState({ status: 'ready', me });
         });

@@ -15,7 +15,7 @@ import dynamic from 'next/dynamic';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../../lib/app-context';
-import { fmt } from '../../../lib/format';
+import { fmt, formatNumber } from '../../../lib/format';
 import { useHotkeys } from '../../../lib/hotkeys';
 import { t } from '../../../lib/i18n';
 import { DEFAULT_FILTERS, useDirectory, useTaskList, useTaskWorkflow, type TaskFilters, type TaskScope } from '../../../lib/tasks';
@@ -184,7 +184,7 @@ function TasksPageInner() {
         <div className="min-w-0 flex-1">
           <h1 className="m-0 font-display text-xl font-bold">{t('tasks.title')}</h1>
           <p className="m-0 text-sm tabular-nums text-fg-muted" aria-live="polite" data-testid="task-count">
-            {list.total !== undefined ? fmt('tasks.count', { count: list.total.toLocaleString('tr-TR') }) : ' '}
+            {list.total !== undefined ? fmt('tasks.count', { count: formatNumber(list.total) }) : ' '}
           </p>
         </div>
         {can('task.create') ? (

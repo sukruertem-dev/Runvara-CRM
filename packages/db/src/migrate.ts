@@ -29,12 +29,17 @@ export async function migrate(ownerUrl: string, dir: string = MIGRATIONS_DIR): P
 
     const files = readdirSync(dir).filter((f) => /^\d{4}_[a-z0-9_]+\.sql$/.test(f)).sort();
     for (const file of files) {
-      const body = readFileSync(join(dir, file), 'utf8');
-      const checksum = createHash('sha256').update(body).digest('hex');
+      // Line endings depend on the checkout (Windows with autocrlf gives CRLF, CI gives LF): the checksum is
+      // taken over LF text. Rows written before this rule hold the hash of the raw file as it was then.
+      const raw = readFileSync(join(dir, file), 'utf8');
+      const body = raw.replace(/\r\n/g, '\n');
+      const sha = (text: string): string => createHash('sha256').update(text).digest('hex');
+      const checksum = sha(body);
+      const accepted = new Set([checksum, sha(raw), sha(body.replace(/\n/g, '\r\n'))]);
       const version = file.replace(/\.sql$/, '');
       const known = applied.get(version);
       if (known !== undefined) {
-        if (known !== checksum) throw new Error(`Migration ${file} was modified after being applied (checksum mismatch)`);
+        if (!accepted.has(known)) throw new Error(`Migration ${file} was modified after being applied (checksum mismatch)`);
         result.skipped.push(version);
         continue;
       }

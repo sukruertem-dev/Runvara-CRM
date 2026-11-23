@@ -31,6 +31,7 @@ import { useApp } from '../../../lib/app-context';
 import { messageForCode } from '../../../lib/errors';
 import { endOfDayIso } from '../../../lib/format';
 import { t } from '../../../lib/i18n';
+import { useSetUiPreference } from '../../../lib/config';
 import { usePreferences } from '../../../lib/preferences';
 import { qk } from '../../../lib/query';
 import { readRecent, type RecentItem } from '../../../lib/recent';
@@ -57,7 +58,8 @@ function useDebounced<T>(value: T, ms: number): T {
 export function CommandPalette() {
   const { paletteOpen, setPaletteOpen, setNewTaskOpen, setHelpOpen } = useShell();
   const { nav, me, can } = useApp();
-  const { resolvedTheme, set } = usePreferences();
+  const { resolvedTheme } = usePreferences();
+  const setUi = useSetUiPreference();
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [recent, setRecent] = useState<RecentItem[]>([]);
@@ -116,7 +118,7 @@ export function CommandPalette() {
             {t('palette.newTask')}
           </CommandItem>
         ) : null}
-        <CommandItem value={t('palette.toggleTheme')} icon={<Moon size={16} />} onSelect={() => { set({ theme: resolvedTheme === 'dark' ? 'light' : 'dark' }); }}>
+        <CommandItem value={t('palette.toggleTheme')} icon={<Moon size={16} />} onSelect={() => { setUi({ theme: resolvedTheme === 'dark' ? 'light' : 'dark' }); }}>
           {t('palette.toggleTheme')}
         </CommandItem>
         <CommandItem

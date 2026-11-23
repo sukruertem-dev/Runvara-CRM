@@ -2,7 +2,7 @@
 
 import { PriorityBadge, SegmentBadge, StatusBadge } from '@flexa/ui';
 import type { ReactNode } from 'react';
-import { dateTime } from '../../../../lib/format';
+import { dateTime, formatNumber } from '../../../../lib/format';
 import { t, type MessageKey } from '../../../../lib/i18n';
 import type { CrmResource } from '../../../../lib/records';
 import { statusLabel } from '../../../../lib/tasks';
@@ -43,7 +43,7 @@ export function money(amount: unknown, currency: unknown): string {
   try {
     return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: typeof currency === 'string' && currency ? currency : 'TRY', maximumFractionDigits: 0 }).format(n);
   } catch {
-    return n.toLocaleString('tr-TR');
+    return formatNumber(n);
   }
 }
 

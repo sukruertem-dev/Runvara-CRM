@@ -18,10 +18,11 @@ import {
   RoleBadge,
 } from '@flexa/ui';
 import { useQueryClient } from '@tanstack/react-query';
-import { Building2, Layers, LogOut, Menu, Search, ShieldCheck, ShoppingBag } from 'lucide-react';
+import { Building2, Layers, LogOut, Menu, Search, ShieldCheck, ShoppingBag, SlidersHorizontal } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { logout } from '../../../lib/api';
 import { useApp } from '../../../lib/app-context';
+import { useSetUiPreference } from '../../../lib/config';
 import { roleLabel, t } from '../../../lib/i18n';
 import { usePreferences, type DensityPref, type SegmentPref, type ThemePref } from '../../../lib/preferences';
 import { NotificationBell } from './notifications';
@@ -74,7 +75,8 @@ function SegmentSwitcher() {
 
 function UserMenu() {
   const { me, nav } = useApp();
-  const { theme, density, set } = usePreferences();
+  const { theme, density } = usePreferences();
+  const setUi = useSetUiPreference();
   const router = useRouter();
   const roles = nav?.roles ?? me.tenant?.roles ?? [];
 
@@ -107,18 +109,21 @@ function UserMenu() {
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuLabel>{t('shell.theme')}</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={theme} onValueChange={(v) => { set({ theme: v as ThemePref }); }}>
+        <DropdownMenuRadioGroup value={theme} onValueChange={(v) => { setUi({ theme: v as ThemePref }); }}>
           <DropdownMenuRadioItem value="system">{t('shell.theme.system')}</DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="light">{t('shell.theme.light')}</DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="dark">{t('shell.theme.dark')}</DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
         <DropdownMenuLabel>{t('shell.density')}</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={density} onValueChange={(v) => { set({ density: v as DensityPref }); }}>
+        <DropdownMenuRadioGroup value={density} onValueChange={(v) => { setUi({ density: v as DensityPref }); }}>
           <DropdownMenuRadioItem value="comfortable">{t('shell.density.comfortable')}</DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="compact">{t('shell.density.compact')}</DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => { router.push('/settings/preferences'); }} data-testid="menu-preferences">
+          <SlidersHorizontal aria-hidden size={14} /> {t('prefs.title')}
+        </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => { router.push('/settings/security'); }}>
           <ShieldCheck aria-hidden size={14} /> {t('shell.security')}
         </DropdownMenuItem>
