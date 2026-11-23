@@ -15,6 +15,8 @@ let workflowId = '';
 
 test.beforeAll(async () => {
   ws = await createWorkspace('visual', 'Deniz Yönetici', 'Atlas Lojistik');
+  // The dashboard baseline shows a workspace that is already set up (no onboarding card).
+  await api('POST', '/v1/onboarding/skip', { token: ws.token });
   for (const [title, priority] of [['Teklif hazırla', 4], ['Sözleşme taslağını incele', 3], ['Müşteri toplantısı notları', 2], ['Fatura kontrolü', 1]] as const) {
     await api('POST', '/v1/tasks', { token: ws.token, body: { title, priority } });
   }

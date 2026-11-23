@@ -1,0 +1,222 @@
+{
+  "id": "retail-b2c",
+  "version": 1,
+  "nameKey": "blueprint.retail-b2c.name",
+  "descriptionKey": "blueprint.retail-b2c.description",
+  "bundle": {
+    "format": "flexa.config/1",
+    "meta": {
+      "kind": "blueprint",
+      "id": "retail-b2c",
+      "version": 1
+    },
+    "salesMode": "b2c_only",
+    "modules": [
+      "crm",
+      "sales_b2c",
+      "sales_tracking",
+      "automation_sla"
+    ],
+    "settings": {},
+    "customFields": [
+      {
+        "resourceType": "contact",
+        "key": "cf_loyalty_tier",
+        "type": "select",
+        "label": {
+          "tr": "Sadakat seviyesi",
+          "en": "Loyalty tier"
+        },
+        "options": [
+          {
+            "id": "bronze",
+            "label": {
+              "tr": "Bronz",
+              "en": "Bronze"
+            }
+          },
+          {
+            "id": "silver",
+            "label": {
+              "tr": "Gümüş",
+              "en": "Silver"
+            }
+          },
+          {
+            "id": "gold",
+            "label": {
+              "tr": "Altın",
+              "en": "Gold"
+            }
+          }
+        ]
+      },
+      {
+        "resourceType": "contact",
+        "key": "cf_birth_date",
+        "type": "date",
+        "label": {
+          "tr": "Doğum tarihi",
+          "en": "Birth date"
+        }
+      },
+      {
+        "resourceType": "contact",
+        "key": "cf_preferred_channel",
+        "type": "select",
+        "label": {
+          "tr": "Tercih edilen kanal",
+          "en": "Preferred channel"
+        },
+        "options": [
+          {
+            "id": "phone",
+            "label": {
+              "tr": "Telefon",
+              "en": "Phone"
+            }
+          },
+          {
+            "id": "email",
+            "label": {
+              "tr": "E-posta",
+              "en": "E-mail"
+            }
+          },
+          {
+            "id": "store",
+            "label": {
+              "tr": "Mağaza",
+              "en": "Store"
+            }
+          }
+        ]
+      },
+      {
+        "resourceType": "case",
+        "key": "cf_order_number",
+        "type": "text",
+        "label": {
+          "tr": "Sipariş numarası",
+          "en": "Order number"
+        }
+      },
+      {
+        "resourceType": "case",
+        "key": "cf_return_reason",
+        "type": "select",
+        "label": {
+          "tr": "İade nedeni",
+          "en": "Return reason"
+        },
+        "options": [
+          {
+            "id": "damaged",
+            "label": {
+              "tr": "Hasarlı",
+              "en": "Damaged"
+            }
+          },
+          {
+            "id": "wrong_item",
+            "label": {
+              "tr": "Yanlış ürün",
+              "en": "Wrong item"
+            }
+          },
+          {
+            "id": "changed_mind",
+            "label": {
+              "tr": "Vazgeçti",
+              "en": "Changed mind"
+            }
+          },
+          {
+            "id": "other",
+            "label": {
+              "tr": "Diğer",
+              "en": "Other"
+            }
+          }
+        ]
+      }
+    ],
+    "taskWorkflows": [],
+    "calendars": [
+      {
+        "name": "Mağaza saatleri",
+        "timezone": "Europe/Istanbul",
+        "weeklyHours": [
+          {
+            "day": 1,
+            "start": "10:00",
+            "end": "22:00"
+          },
+          {
+            "day": 2,
+            "start": "10:00",
+            "end": "22:00"
+          },
+          {
+            "day": 3,
+            "start": "10:00",
+            "end": "22:00"
+          },
+          {
+            "day": 4,
+            "start": "10:00",
+            "end": "22:00"
+          },
+          {
+            "day": 5,
+            "start": "10:00",
+            "end": "22:00"
+          },
+          {
+            "day": 6,
+            "start": "10:00",
+            "end": "22:00"
+          },
+          {
+            "day": 7,
+            "start": "12:00",
+            "end": "20:00"
+          }
+        ]
+      }
+    ],
+    "slaPolicies": [
+      {
+        "name": "Müşteri talebi",
+        "resourceType": "case",
+        "calendar": "Mağaza saatleri",
+        "firstResponseMinutes": 60,
+        "resolutionMinutes": 1440,
+        "pauseStatuses": [
+          "waiting"
+        ]
+      }
+    ],
+    "tags": [
+      {
+        "name": "VIP",
+        "colorToken": "accent"
+      },
+      {
+        "name": "İade",
+        "colorToken": "warning"
+      },
+      {
+        "name": "Kampanya",
+        "colorToken": "info"
+      }
+    ],
+    "queues": [
+      {
+        "kind": "work",
+        "name": "Müşteri hizmetleri",
+        "segment": "b2c"
+      }
+    ]
+  }
+}

@@ -25,6 +25,9 @@ async function seed(): Promise<void> {
     await q(`INSERT INTO tenant_sso_providers (tenant_id, kind, name, issuer, client_id, client_secret_enc, key_version)
              VALUES ($1, 'oidc', 'IdP', 'https://idp.example.test', 'c', '\\x00', 1)`, [t.tenant]);
     await q(`INSERT INTO audit_log (tenant_id, action, actor_type, actor_id) VALUES ($1, 'test.seed', 'system', NULL)`, [t.tenant]);
+    await q(`INSERT INTO tenant_plans (tenant_id, plan_id) VALUES ($1, 'starter') ON CONFLICT DO NOTHING`, [t.tenant]);
+    await q(`INSERT INTO tenant_usage_counters (tenant_id, day, dimension, value) VALUES ($1, current_date, 'api_requests', 1)`, [t.tenant]);
+    await q(`INSERT INTO tenant_quota_alerts (tenant_id, dimension, level, period, used, quota_limit) VALUES ($1, 'users', 'warning', '2026-11', 8, 10)`, [t.tenant]);
     const [sess] = await q(`INSERT INTO auth_sessions (user_id, amr) VALUES ($1, '{pwd}') RETURNING id`, [t.user]);
     await q(`INSERT INTO refresh_tokens (session_id, user_id, family_id, token_hash, expires_at)
              VALUES ($1, $2, $3, $4, now() + interval '1 day')`, [sess!.id, t.user, randomUUID(), Buffer.from(`rt${i}`)]);
@@ -248,5 +251,22 @@ describe('SECURITY DEFINER resolvers', () => {
 
   it('flexa_app cannot call owner-only helpers it was not granted', async () => {
     await expect(db.withAnonymous((tx) => tx.execute(sql`SELECT app.forbid_mutation()`))).rejects.toThrow();
+  });
+
+  it('survives a connection the server drops, in use or idle', async () => {
+    const small = createDb(tdb.appUrl, { max: 1, applicationName: 'flexa-drop-test' });
+    const kill = () => superQuery(tdb.superUrl, `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = 'flexa-drop-test'`, []);
+    // In use: the running transaction fails; the process does not exit on the client's 'error' event.
+    await expect(small.withAnonymous(async (tx) => {
+      await kill();
+      await tx.execute(sql`SELECT 1`);
+    })).rejects.toThrow();
+    // Idle: the pool drops the dead client and opens a new connection for the next caller.
+    await small.withAnonymous((tx) => tx.execute(sql`SELECT 1`));
+    await kill();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const r = await small.withAnonymous((tx) => tx.execute(sql`SELECT 1 AS n`));
+    expect(r.rows[0]).toEqual({ n: 1 });
+    await small.close();
   });
 });

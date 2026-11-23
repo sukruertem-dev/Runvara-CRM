@@ -16,6 +16,9 @@ export const commonEnvSchema = z.object({
   FLEXA_MASTER_KEY: base64Key32,
   OTEL_EXPORTER_OTLP_ENDPOINT: z.url().optional(),
   OTEL_SERVICE_NAME: z.string().min(1).optional(),
+  /** Shards of the domain-event queue (ADR-0014 §4). The relay and the consumers must agree; change it only
+   *  after draining the queues (runbook). */
+  EVENT_SHARDS: z.coerce.number().int().min(1).max(64).default(4),
 });
 
 export const apiEnvSchema = commonEnvSchema.extend({
@@ -53,6 +56,10 @@ export const apiEnvSchema = commonEnvSchema.extend({
   CLAMAV_PORT: z.coerce.number().int().min(1).max(65535).default(3310),
   /** Run the domain-event consumers (automation rules, schedules) in this process (ADR-0006). */
   EVENT_CONSUMERS: bool.default(false),
+  /** Events of one tenant processed at the same time in a shard (TEN-10 queue fairness). */
+  EVENT_TENANT_CONCURRENCY: z.coerce.number().int().min(1).max(64).default(2),
+  /** Scales every plan's API rate (operations knob; 1 = the plan as sold). */
+  TENANT_RATE_LIMIT_MULTIPLIER: z.coerce.number().positive().max(1000).default(1),
   /** Development/test only: webhook deliveries may target http://localhost receivers. */
   EGRESS_ALLOW_INSECURE_LOCALHOST: bool.default(false),
 }).refine((e) => !(e.NODE_ENV === 'production' && e.OIDC_ALLOW_INSECURE_LOCALHOST), {
@@ -99,3 +106,4 @@ export * from './settings/registry';
 export * from './settings/merge';
 export * from './settings/brand';
 export { contrast, hexToOklch, isHexColor, oklchToHex } from './settings/color';
+export { BLUEPRINTS } from './blueprints';

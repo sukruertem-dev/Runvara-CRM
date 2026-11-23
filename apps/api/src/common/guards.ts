@@ -1,13 +1,14 @@
 import { Inject, Injectable, type CanActivate, type ExecutionContext } from '@nestjs/common';
 import { defaultEnabledPolicies } from '@flexa/authz';
 import { and, eq, isNull, schema, sql, type DbHandle } from '@flexa/db';
-import { moduleForPath } from '@flexa/modules';
+import { effectiveLimits, isPlanId, moduleForPath } from '@flexa/modules';
 import { sha256, type TokenSigner } from '@flexa/security';
 import type { FastifyRequest } from 'fastify';
 import { ProblemError } from './problem';
 import { loadAccess } from './access-loader';
 import { segmentsForSalesMode, type Principal, type Segment, type TenantInfo, type TenantRequestContext } from './request-context';
-import { DB, REDIS, SIGNER, type Redis } from '../infra/tokens';
+import { DB, ENV, REDIS, SIGNER, type ApiEnv, type Redis } from '../infra/tokens';
+import { TenantRateLimiter } from '../modules/usage/rate-limit';
 
 export const API_KEY_PREFIX = 'fx_';
 
@@ -62,16 +63,23 @@ export async function buildTenantContext(db: DbHandle, principal: Principal & { 
       SELECT r.key FROM user_roles ur JOIN roles r ON r.tenant_id = ur.tenant_id AND r.id = ur.role_id
       WHERE ur.user_id = ${principal.userId} AND (ur.valid_until IS NULL OR ur.valid_until > now())`);
     const modules = await tx.select({ id: schema.tenantModules.moduleId }).from(schema.tenantModules).where(eq(schema.tenantModules.enabled, true));
+    const plan = (await tx.execute<{ plan_id: string; add_ons: string[]; limit_overrides: Record<string, unknown>; trial_ends_at: Date | string | null }>(
+      sql`SELECT plan_id, add_ons, limit_overrides, trial_ends_at FROM tenant_plans`)).rows[0];
     const access = await loadAccess(tx, principal.userId);
-    return { membership, tenant, roleKeys: roles.rows.map((r) => r.key), modules: modules.map((m) => m.id), ...access };
+    return { membership, tenant, plan, roleKeys: roles.rows.map((r) => r.key), modules: modules.map((m) => m.id), ...access };
   });
   if (!loaded.membership || loaded.membership.status !== 'active' || !loaded.tenant) throw new ProblemError('UNAUTHENTICATED', 'no active membership');
   if (loaded.tenant.status !== 'trial' && loaded.tenant.status !== 'active') throw new ProblemError('FORBIDDEN', 'tenant is not active');
+  // Every tenant gets its plan row when it is created (0012 gave older tenants one); none means corrupt data.
+  const p = loaded.plan;
+  const planId = p?.plan_id ?? '';
+  if (!p || !isPlanId(planId)) throw new Error(`tenant ${tenantId} has no valid plan`);
   const t = loaded.tenant;
   const tenant: TenantInfo = { id: t.id, slug: t.slug, name: t.name, status: t.status, salesMode: t.salesMode, locale: t.locale, timezone: t.timezone, currency: t.currency };
   return {
     principal,
     tenant,
+    plan: { id: planId, addOns: p.add_ons, limits: effectiveLimits(planId, p.limit_overrides), trialEndsAt: p.trial_ends_at === null ? null : new Date(p.trial_ends_at) },
     authz: {
       tenantId,
       userId: principal.userId,
@@ -116,7 +124,16 @@ export class AccessGuard implements CanActivate {
  *  (so role/module changes apply on the next request, G2) and applies the module gate (ADR-0014 §2). */
 @Injectable()
 export class TenantGuard implements CanActivate {
-  constructor(@Inject(SIGNER) private readonly signer: TokenSigner, @Inject(DB) private readonly db: DbHandle, @Inject(REDIS) private readonly redis: Redis) {}
+  private readonly limiter: TenantRateLimiter;
+
+  constructor(
+    @Inject(SIGNER) private readonly signer: TokenSigner,
+    @Inject(DB) private readonly db: DbHandle,
+    @Inject(REDIS) private readonly redis: Redis,
+    @Inject(ENV) private readonly env: ApiEnv,
+  ) {
+    this.limiter = new TenantRateLimiter(redis);
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<FastifyRequest>();
@@ -138,6 +155,13 @@ export class TenantGuard implements CanActivate {
     const ctx = await buildTenantContext(this.db, { ...principal, tenantId }, req.headers['x-segment']);
     const routeModule = moduleForPath(req.routeOptions.url ?? req.url.split('?')[0] ?? '');
     if (routeModule && !ctx.authz.enabledModules.has(routeModule)) throw new ProblemError('MODULE_DISABLED');
+    // TEN-10: one tenant (or one user, or one integration key) cannot exhaust the API for the others.
+    const m = this.env.TENANT_RATE_LIMIT_MULTIPLIER;
+    const subject = principal.apiKey ? `key:${principal.apiKey.id}` : principal.userId;
+    const rate = await this.limiter.take(tenantId, subject, Math.round(ctx.plan.limits.api_rpm * m), Math.round(ctx.plan.limits.api_rpm_per_user * m));
+    if (!rate.allowed) {
+      throw new ProblemError('RATE_LIMITED', 'workspace request rate exceeded', {}, { 'retry-after': String(Math.max(1, Math.ceil(rate.retryAfterMs / 1000))) });
+    }
     req.tenantCtx = ctx;
     return true;
   }

@@ -35,3 +35,18 @@ worker (flexa_relay) ──► BullMQ `events` (jobId = olay id) ──► autom
 
 ## Redis kaybı
 Redis kalıcılığı AOF `everysec`. Redis tamamen kaybolursa: yayınlanmış ama işlenmemiş olayları bulmak için `outbox_events` (son 7 gün, `published_at IS NOT NULL`) ile `processed_events (consumer = 'automation')` karşılaştırılır; eksik olanlar `published_at = NULL` yapılarak relay'e yeniden verilir. Tüketici idempotent olduğundan fazladan yayın zararsızdır.
+
+## Kuyruk parçaları ve tenant adaleti (P7b, TEN-10)
+- Relay her olayı tenant'ının parçasına koyar: `events-<n>`, `n = FNV-1a(tenantId) mod EVENT_SHARDS` (varsayılan 4). Eski tek `events` kuyruğu, geçiş sırasında kalan işler boşalsın diye tüketilmeye devam eder.
+- Bir parçada bir tenant en fazla `EVENT_TENANT_CONCURRENCY` (varsayılan 2) işi aynı anda işler. Sınır doluysa iş 200–500 ms gecikmeyle sıraya döner; bu bir deneme sayılmaz. Slot, Redis'te `tenant:<id>:concurrency:events` sıralı kümesinde 2 dakikalık kirayla tutulur; çöken tüketicinin slotu kira bitince boşalır.
+- **`EVENT_SHARDS` değişikliği:**
+  1. Relay'i durdurun (worker).
+  2. Tüm `events-*` ve `events` kuyrukları boşalana kadar bekleyin (BullMQ `waiting` + `delayed` = 0).
+  3. Değeri worker ve automation servislerinde **aynı anda** değiştirip başlatın.
+
+  Aksi halde bir tenant'ın olayları iki parçaya dağılır ve sıra garantisi zayıflar.
+- Gözlem: bir tenant'ın tuttuğu slot sayısı `ZCARD tenant:<id>:concurrency:events`. Sürekli dolu bir tenant ağır yük üretiyordur; diğer tenant'lar etkilenmez.
+
+## Kullanım sayaçları
+- API istekleri Redis'te `usage:<tenant>:<gün>` karmasında sayılır ve dakikada bir `tenant_usage_counters`'a aktarılır (`usage-flush`). Veritabanı yazımı başarısız olursa değerler Redis'e geri konur.
+- Saatlik `usage-snapshot` işi kullanıcı, depolama ve kayıt sayısını yazar ve kota eşiklerini denetler (`quota.threshold` olayı → Admin e-postası).

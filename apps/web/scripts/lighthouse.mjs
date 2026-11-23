@@ -64,6 +64,7 @@ async function workspace() {
   await api('POST', '/v1/auth/signup', { body: { email, password, displayName: 'Deniz Yönetici', tenantName: 'Atlas Lojistik', tenantSlug: `lh-${id}` } });
   await api('POST', '/v1/auth/email/verify', { body: { token: await verificationToken(email) } });
   const login = await api('POST', '/v1/auth/login', { body: { email, password } });
+  await api('POST', '/v1/onboarding/skip', { token: login.accessToken });
   await api('POST', '/v1/modules/crm/enable', { token: login.accessToken });
   for (let i = 1; i <= 25; i++) await api('POST', '/v1/tasks', { token: login.accessToken, body: { title: `Örnek görev ${i}`, priority: i % 5 } });
   return { email, password };

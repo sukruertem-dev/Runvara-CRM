@@ -36,9 +36,17 @@ export function createDb(connectionString: string, options: { max?: number; appl
     statement_timeout: 5_000,
     idle_in_transaction_session_timeout: 10_000,
   });
+  // A connection the server drops (restart, network reset) emits 'error'. Without a listener Node treats it as
+  // an uncaught exception and the whole process exits; the pool already discards an idle client that failed.
+  pool.on('error', () => undefined);
 
   async function inTransaction<T>(settings: Record<string, string>, fn: (db: Db) => Promise<T>): Promise<T> {
     const client = await pool.connect();
+    // The same for a client in use: the running query rejects on its own; the broken client is then
+    // destroyed instead of returned to the pool.
+    let broken: Error | undefined;
+    const onError = (e: Error): void => { broken = e; };
+    client.on('error', onError);
     try {
       await client.query('BEGIN');
       const entries = Object.entries(settings);
@@ -54,7 +62,8 @@ export function createDb(connectionString: string, options: { max?: number; appl
       await client.query('ROLLBACK').catch(() => undefined);
       throw err;
     } finally {
-      client.release();
+      client.off('error', onError);
+      client.release(broken);
     }
   }
 

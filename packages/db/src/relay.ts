@@ -31,10 +31,15 @@ export interface Relay {
 
 export function createRelay(connectionString: string): Relay {
   const pool = new pg.Pool({ connectionString, max: 2, application_name: 'flexa-relay' });
+  // Dropped connections must not crash the worker (see createDb); the outbox keeps every event meanwhile.
+  pool.on('error', () => undefined);
   let listener: pg.Client | null = null;
   return {
     async relayOnce(publish, batch = 500) {
       const client = await pool.connect();
+      let broken: Error | undefined;
+      const onError = (e: Error): void => { broken = e; };
+      client.on('error', onError);
       try {
         await client.query('BEGIN');
         const r = await client.query<OutboxRow>(
@@ -60,11 +65,14 @@ export function createRelay(connectionString: string): Relay {
         await client.query('ROLLBACK').catch(() => undefined);
         throw e;
       } finally {
-        client.release();
+        client.off('error', onError);
+        client.release(broken);
       }
     },
     async listen(onWake) {
       listener = new pg.Client({ connectionString, application_name: 'flexa-relay-listen' });
+      // A lost LISTEN connection only removes the wake-up; the loop's fallback poll keeps relaying.
+      listener.on('error', () => { listener = null; });
       await listener.connect();
       listener.on('notification', () => { onWake(); });
       await listener.query('LISTEN outbox');

@@ -21,6 +21,7 @@ import { cursorCodec, TaskListService } from '../tasks/task-list.service';
 import { loadFieldDefs, validateCustom } from '../tasks/task-fields';
 import { assertCan, assertWritable, canAssignTo, maskRegistry, maskView, recordPredicate } from '../../common/record-access';
 import { CRM, crmRegistry, crmScope, crmViewContext, readCrmRow, type CrmDef, type CrmRow, type CrmType } from './crm-objects';
+import { QuotaService } from '../usage/quota.service';
 
 export type AccountCreateBody = z.infer<typeof AccountCreate>;
 export type ContactCreateBody = z.infer<typeof ContactCreate>;
@@ -101,6 +102,7 @@ export class CrmService {
     @Inject(DB) private readonly db: DbHandle,
     @Inject(ENV) env: ApiEnv,
     private readonly taskList: TaskListService,
+    private readonly quota: QuotaService,
   ) {
     this.cursors = cursorCodec(env);
   }
@@ -180,6 +182,7 @@ export class CrmService {
     const def = CRM[type];
     if (crmScope(t, def, 'create').kind === 'none') throw new ProblemError('FORBIDDEN');
     assertWritable(t, type, body as Record<string, unknown>);
+    await this.quota.assert(tx, t, 'records', 1, 'hard');
     const me = t.principal.userId;
     let cols: Cols;
     let points: ContactPointBody[] = [];

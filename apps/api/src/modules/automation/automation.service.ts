@@ -232,7 +232,7 @@ export class AutomationService {
       const d = r.rows[0];
       if (!d) throw new ProblemError('NOT_FOUND');
       if (d.replayed_at) throw new ProblemError('CONFLICT', 'already replayed');
-      await this.queues.events.add(d.event.type ?? 'event', d.event, { ...EVENT_JOB_OPTIONS, jobId: `${d.event_id}:replay:${d.id}` });
+      await this.queues.queueFor(t.tenant.id).add(d.event.type ?? 'event', d.event, { ...EVENT_JOB_OPTIONS, jobId: `${d.event_id}:replay:${d.id}` });
       const u = await tx.execute<Parameters<typeof this.dlView>[0]>(sql`UPDATE dead_letters SET replayed_at = now(), replayed_by = ${t.principal.userId} WHERE id = ${id}
         RETURNING id, consumer, event_id, event, error, attempts, created_at, replayed_at`);
       await audit(tx, t.tenant.id, { action: 'automation.dead_letter_replayed', actorId: t.principal.userId, targetType: 'dead_letter', targetId: id, ip, details: { eventId: d.event_id } });

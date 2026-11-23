@@ -46,6 +46,11 @@ import { ConfigController } from './modules/config/config.controller';
 import { ConfigService } from './modules/config/config.service';
 import { DigestService } from './modules/records/digest.service';
 import { StreamService } from './modules/records/stream.service';
+import { BundleController } from './modules/config/bundle.controller';
+import { BundleService } from './modules/config/bundle.service';
+import { QuotaService } from './modules/usage/quota.service';
+import { UsageController } from './modules/usage/usage.controller';
+import { UsageService } from './modules/usage/usage.service';
 import { IdempotencyInterceptor } from './common/idempotency';
 import { ClamdScanner } from './infra/scanner';
 import { storageFromEnv } from './infra/storage';
@@ -59,7 +64,7 @@ export class AppModule {
         // Operation routes first: Fastify matches static segments before parameters either way, but keep it explicit.
         CrmOperationsController, AccountsController, ContactsController, LeadsController, OpportunitiesController, CasesController, NotesController,
         AccessAdminController, ...SHARES_CONTROLLERS,
-        GovernanceController, RecordItemsController, ...RECORD_EXTRAS_CONTROLLERS, AutomationController, IntegrationsController],
+        GovernanceController, RecordItemsController, ...RECORD_EXTRAS_CONTROLLERS, AutomationController, IntegrationsController, BundleController, UsageController],
       providers: [
         { provide: ENV, useValue: deps.env },
         { provide: DB, useValue: deps.db },
@@ -71,6 +76,9 @@ export class AppModule {
         AccessGuard,
         TenantGuard,
         SessionService,
+        QuotaService,
+        UsageService,
+        BundleService,
         ProvisioningService,
         AuthService,
         OidcService,

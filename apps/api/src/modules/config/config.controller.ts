@@ -14,6 +14,7 @@ import { sanitizeSvg } from '../../common/svg';
 import { ZodPipe } from '../../common/zod.pipe';
 import { DB } from '../../infra/tokens';
 import { ConfigService, type WriteScope } from './config.service';
+import { QuotaService } from '../usage/quota.service';
 
 function scopeOf(raw: string | undefined): WriteScope {
   const r = ConfigWriteScope.safeParse(raw ?? 'tenant');
@@ -31,6 +32,7 @@ export class ConfigController {
   constructor(
     private readonly config: ConfigService,
     @Inject(DB) private readonly db: DbHandle,
+    private readonly quota: QuotaService,
   ) {}
 
   @Get('config')
@@ -124,6 +126,7 @@ export class ConfigController {
     }
     const sha = createHash('sha256').update(bytes).digest();
     return this.db.withTenant(dbCtx(t), async (tx) => {
+      await this.quota.assert(tx, t, 'storage_bytes', bytes.length, 'soft');
       const row = (await tx.execute<{ id: string }>(sql`
         INSERT INTO tenant_assets (tenant_id, kind, mime, bytes, sha256, created_by)
         VALUES (${t.tenant.id}, 'logo', ${body.mime}, ${bytes}, ${sha}, ${t.principal.userId}) RETURNING id`)).rows[0];

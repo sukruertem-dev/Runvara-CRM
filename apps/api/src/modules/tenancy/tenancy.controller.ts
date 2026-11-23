@@ -1,13 +1,14 @@
-import { Controller, Get, HttpCode, Inject, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { can } from '@flexa/authz';
-import { eq, inArray, schema, sql, type DbHandle } from '@flexa/db';
-import { MODULES, planToggle } from '@flexa/modules';
+import { SalesModeUpdate, type z } from '@flexa/contracts';
+import { schema, sql, type DbHandle } from '@flexa/db';
 import { audit } from '../../common/audit';
 import { authorize } from '../../common/authorize';
 import { TenantGuard } from '../../common/guards';
-import { ProblemError } from '../../common/problem';
-import { Client, CurrentTenant, type ClientInfo, type TenantRequestContext } from '../../common/request-context';
+import { Client, CurrentTenant, dbCtx, type ClientInfo, type TenantRequestContext } from '../../common/request-context';
+import { ZodPipe } from '../../common/zod.pipe';
 import { DB } from '../../infra/tokens';
+import { moduleStates, toggleModuleTx } from './modules';
 
 @Controller('v1')
 @UseGuards(TenantGuard)
@@ -19,10 +20,18 @@ export class TenancyController {
     return t.tenant;
   }
 
+  /** Sales mode (Matrix A A01, `tenant.sales_mode.manage`). Segment visibility follows on the next request. */
+  @Put('tenant/sales-mode')
+  async salesMode(@CurrentTenant() t: TenantRequestContext, @Body(new ZodPipe(SalesModeUpdate)) body: z.infer<typeof SalesModeUpdate>, @Client() c: ClientInfo) {
+    authorize(t, 'tenant.sales_mode.manage');
+    await this.db.withTenant(dbCtx(t), async (tx) => setSalesModeTx(tx, t, body.salesMode, c.ip));
+    return { ...t.tenant, salesMode: body.salesMode };
+  }
+
   @Get('modules')
   modules(@CurrentTenant() t: TenantRequestContext) {
     if (!can(t.authz, 'tenant.modules.manage').allow) authorize(t, 'tenant.config.read', 'read');
-    return { data: this.states(t.authz.enabledModules) };
+    return { data: moduleStates(t, t.authz.enabledModules) };
   }
 
   @Post('modules/:moduleId/enable')
@@ -39,38 +48,20 @@ export class TenancyController {
 
   private async toggle(t: TenantRequestContext, moduleId: string, enable: boolean, cascade: boolean, client: ClientInfo) {
     authorize(t, 'tenant.modules.manage');
-    const userId = t.principal.userId;
-    const result = await this.db.withTenant({ tenantId: t.tenant.id, userId }, async (tx) => {
-      // Serialise concurrent toggles of the same tenant so the dependency check sees a consistent set.
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`modules:${t.tenant.id}`}, 0))`);
-      const rows = await tx.select({ id: schema.tenantModules.moduleId }).from(schema.tenantModules).where(eq(schema.tenantModules.enabled, true));
-      const current = new Set(['core', ...rows.map((r) => r.id)]);
-      const plan = planToggle(current, moduleId, enable, { cascade });
-      if (!plan.ok) {
-        const { code, ...rest } = plan.error;
-        throw new ProblemError(code, undefined, rest);
-      }
-      const now = new Date();
-      for (const id of plan.enable) {
-        await tx.insert(schema.tenantModules).values({ tenantId: t.tenant.id, moduleId: id, enabled: true, enabledBy: userId, enabledAt: now, config: {} })
-          .onConflictDoUpdate({ target: [schema.tenantModules.tenantId, schema.tenantModules.moduleId], set: { enabled: true, enabledBy: userId, enabledAt: now } });
-      }
-      if (plan.disable.length > 0) {
-        // MOD-03: disabling hides the module; its data and configuration rows are kept.
-        await tx.update(schema.tenantModules).set({ enabled: false }).where(inArray(schema.tenantModules.moduleId, plan.disable));
-      }
-      if (plan.enable.length + plan.disable.length > 0) {
-        await tx.update(schema.tenants).set({ authzEpoch: sql`${schema.tenants.authzEpoch} + 1` });
-        await audit(tx, t.tenant.id, { action: 'module.toggled', actorId: userId, targetType: 'module', ip: client.ip, details: { enabled: plan.enable, disabled: plan.disable, cascade } });
-      }
-      for (const id of plan.enable) current.add(id);
-      for (const id of plan.disable) current.delete(id);
-      return { enabled: plan.enable, disabled: plan.disable, modules: this.states(current) };
+    return this.db.withTenant(dbCtx(t), async (tx) => {
+      const r = await toggleModuleTx(tx, t, moduleId, enable, cascade, client.ip);
+      return { enabled: r.enabled, disabled: r.disabled, modules: moduleStates(t, r.current) };
     });
-    return result;
   }
+}
 
-  private states(enabled: ReadonlySet<string>) {
-    return MODULES.map((m) => ({ id: m.id, displayNameKey: m.displayNameKey, enabled: enabled.has(m.id), alwaysOn: m.alwaysOn === true, dependsOn: m.dependsOn }));
+/** Changes the sales mode inside the caller's transaction (settings and configuration import). */
+export async function setSalesModeTx(tx: Parameters<Parameters<DbHandle['withTenant']>[1]>[0], t: TenantRequestContext, salesMode: 'b2b_only' | 'b2c_only' | 'both', ip: string | null): Promise<boolean> {
+  if (t.tenant.salesMode === salesMode) {
+    const cur = (await tx.execute<{ sales_mode: string }>(sql`SELECT sales_mode FROM tenants`)).rows[0];
+    if (cur?.sales_mode === salesMode) return false;
   }
+  await tx.update(schema.tenants).set({ salesMode, authzEpoch: sql`${schema.tenants.authzEpoch} + 1` });
+  await audit(tx, t.tenant.id, { action: 'tenant.sales_mode_changed', actorId: t.principal.userId, targetType: 'tenant', targetId: t.tenant.id, ip, details: { from: t.tenant.salesMode, to: salesMode } });
+  return true;
 }

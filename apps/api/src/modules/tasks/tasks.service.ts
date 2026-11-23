@@ -25,6 +25,7 @@ import { recordActivity, viewDiff } from '../../common/activity';
 import { notify } from '../../common/notify';
 import { attachedSegment, CRM, CRM_TYPES, isCrmType, readCrmRow } from '../crm/crm-objects';
 import { compileFormulas, loadFieldDefs, taskRegistry, validateCustom, withFormulas, type FieldDefRow } from './task-fields';
+import { QuotaService } from '../usage/quota.service';
 
 type Create = z.infer<typeof TaskCreate>;
 type Patch = z.infer<typeof TaskPatch>;
@@ -174,7 +175,7 @@ function assertAssignable(t: TenantRequestContext, owner: { type: 'user' | 'queu
 
 @Injectable()
 export class TasksService {
-  constructor(@Inject(DB) private readonly db: DbHandle) {}
+  constructor(@Inject(DB) private readonly db: DbHandle, private readonly quota: QuotaService) {}
 
   ctx(t: TenantRequestContext) {
     return dbCtx(t);
@@ -211,6 +212,7 @@ export class TasksService {
     const me = t.principal.userId;
     const createScope = scopeOf(t, 'create');
     if (createScope.kind === 'none') throw new ProblemError('FORBIDDEN');
+    await this.quota.assert(tx, t, 'records', 1, 'hard');
     const owner = body.owner ?? { type: 'user' as const, id: me };
     const assignee = body.assigneeUserId ?? null;
     // Giving a task to someone else is a reassignment (Matrix A A13); until teams exist (P4) only a

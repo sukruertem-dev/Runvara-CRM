@@ -2,6 +2,7 @@
 
 import { appEn, appTr } from './messages-app';
 import { configEn, configTr } from './messages-config';
+import { platformEn, platformTr } from './messages-platform';
 import { settingsEn, settingsTr } from './messages-settings';
 import { viewsEn, viewsTr } from './messages-views';
 
@@ -112,14 +113,6 @@ const baseTr = {
   'inv.status.expired': 'Süresi doldu',
   'inv.noAccess': 'Bu sayfayı görüntüleme yetkiniz yok.',
 
-  'mod.title': 'Modül yönetimi',
-  'mod.lead': 'Çalışma alanınızda kullanılacak modülleri açıp kapatın. Kapatılan modüllerin verisi korunur.',
-  'mod.alwaysOn': 'Her zaman açık',
-  'mod.confirm.title': 'Bağımlı modüller de kapatılsın mı?',
-  'mod.confirm.yes': 'Evet, kapat',
-  'mod.confirm.no': 'Vazgeç',
-  'mod.missing.title': 'Önce şu modüllerin açılması gerekir:',
-  'mod.or': 'veya',
 
   'invite.title': 'Davet',
   'invite.lead': '{tenant} çalışma alanına davet edildiniz.',
@@ -196,7 +189,7 @@ const baseTr = {
   'reason.contains_email': 'Parola e-posta adresinizi içermemeli.',
 } as const;
 
-const tr = { ...baseTr, ...appTr, ...viewsTr, ...settingsTr, ...configTr };
+const tr = { ...baseTr, ...appTr, ...viewsTr, ...settingsTr, ...configTr, ...platformTr };
 
 export type MessageKey = keyof typeof tr;
 
@@ -307,14 +300,6 @@ const baseEn: Record<keyof typeof baseTr, string> = {
   'inv.status.expired': 'Expired',
   'inv.noAccess': 'You are not allowed to view this page.',
 
-  'mod.title': 'Module management',
-  'mod.lead': 'Turn modules on or off for your workspace. Data of disabled modules is kept.',
-  'mod.alwaysOn': 'Always on',
-  'mod.confirm.title': 'Also turn off the dependent modules?',
-  'mod.confirm.yes': 'Yes, turn off',
-  'mod.confirm.no': 'Cancel',
-  'mod.missing.title': 'These modules must be turned on first:',
-  'mod.or': 'or',
 
   'invite.title': 'Invitation',
   'invite.lead': 'You are invited to the {tenant} workspace.',
@@ -391,7 +376,7 @@ const baseEn: Record<keyof typeof baseTr, string> = {
   'reason.contains_email': 'The password must not contain your e-mail address.',
 };
 
-const en: Record<MessageKey, string> = { ...baseEn, ...appEn, ...viewsEn, ...settingsEn, ...configEn };
+const en: Record<MessageKey, string> = { ...baseEn, ...appEn, ...viewsEn, ...settingsEn, ...configEn, ...platformEn };
 
 export type Locale = 'tr' | 'en';
 

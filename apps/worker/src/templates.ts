@@ -66,5 +66,19 @@ export function render(job: MailJob): RenderedMail {
       return tr
         ? make(job.vars.subject, job.vars.body.split(PARAGRAPH_BREAK), { label: 'Kaydı aç', url: job.vars.url }, `${job.vars.tenantName} çalışma alanındaki bir otomasyon kuralı tarafından gönderildi.`)
         : make(job.vars.subject, job.vars.body.split(PARAGRAPH_BREAK), { label: 'Open record', url: job.vars.url }, `Sent by an automation rule in the ${job.vars.tenantName} workspace.`);
+    case 'quota_warning': {
+      // ADR-0014 §3: 80 % warns, 100 % stops new invitations and uploads, 120 % stops the related writes.
+      const what = (tr ? QUOTA_TR : QUOTA_EN)[job.vars.dimension];
+      const usage = `${job.vars.used} / ${job.vars.limit}`;
+      const effect = tr
+        ? { warning: 'Sınıra yaklaşıyorsunuz; şimdilik her şey çalışmaya devam ediyor.', soft: 'Sınıra ulaşıldı: yeni kullanıcı daveti ve yeni dosya yükleme durduruldu. Mevcut çalışma sürüyor.', hard: 'Sınır %20 aşıldı: yeni kayıt oluşturma durduruldu. Okuma ve dışa aktarma her zaman açıktır.' }[job.vars.level]
+        : { warning: 'You are close to the limit; everything keeps working for now.', soft: 'The limit is reached: new invitations and new uploads are stopped. Existing work continues.', hard: 'The limit is exceeded by 20 %: creating new records is stopped. Reading and exporting always stay available.' }[job.vars.level];
+      return tr
+        ? make(`${job.vars.tenantName}: ${what} kotası`, [`Kullanım: ${usage}.`, effect, 'Planınızı yükseltmek veya sınırı artırmak için Flexa desteğiyle iletişime geçin.'], { label: 'Kullanımı görüntüle', url: job.vars.url }, 'Bu e-postayı çalışma alanı yöneticisi olduğunuz için aldınız.')
+        : make(`${job.vars.tenantName}: ${what} quota`, [`Usage: ${usage}.`, effect, 'Contact Flexa support to upgrade your plan or raise the limit.'], { label: 'View usage', url: job.vars.url }, 'You receive this e-mail because you administer the workspace.');
+    }
   }
 }
+
+const QUOTA_TR: Record<string, string> = { users: 'Kullanıcı', storage_bytes: 'Depolama', records: 'Kayıt', call_minutes: 'Arama dakikası', ai_tokens: 'AI kullanımı' };
+const QUOTA_EN: Record<string, string> = { users: 'User', storage_bytes: 'Storage', records: 'Record', call_minutes: 'Call minute', ai_tokens: 'AI usage' };

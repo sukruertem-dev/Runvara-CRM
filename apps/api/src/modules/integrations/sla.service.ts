@@ -100,31 +100,45 @@ export class SlaService {
 
   async createPolicy(t: TenantRequestContext, body: z.infer<typeof SlaPolicyCreate>, ip: string) {
     authorize(t, 'tenant.config.manage');
-    return this.db.withTenant(dbCtx(t), async (tx) => {
-      if (body.criteria.trim()) {
-        try {
-          compileQuery(body.criteria, await conditionRegistry(tx, body.resourceType), { userId: t.principal.userId, timezone: t.tenant.timezone, now: new Date() });
-        } catch (e) {
-          if (e instanceof RqlError) throw new ProblemError('SLA_POLICY_INVALID', `criteria: ${e.message}`, { position: e.position });
-          throw e;
-        }
-      }
+    return this.db.withTenant(dbCtx(t), (tx) => this.createPolicyTx(tx, t, body, ip));
+  }
+
+  /** New calendar inside the caller's transaction (configuration import). The caller checks permission. */
+  async createCalendarTx(tx: Db, t: TenantRequestContext, body: z.infer<typeof BusinessCalendarInput>, ip: string): Promise<string> {
+    this.validate(body);
+    const r = await tx.execute<{ id: string }>(sql`INSERT INTO business_calendars (tenant_id, name, timezone, weekly_hours, holidays)
+      VALUES (${t.tenant.id}, ${body.name}, ${body.timezone}, ${JSON.stringify(body.weeklyHours)}::jsonb, ${JSON.stringify(body.holidays)}::jsonb) RETURNING id`);
+    const id = r.rows[0]?.id;
+    if (!id) throw new ProblemError('INTERNAL');
+    await audit(tx, t.tenant.id, { action: 'sla.calendar_created', actorId: t.principal.userId, targetType: 'business_calendar', targetId: id, ip });
+    return id;
+  }
+
+  /** New policy inside the caller's transaction (settings screen and configuration import). */
+  async createPolicyTx(tx: Db, t: TenantRequestContext, body: z.infer<typeof SlaPolicyCreate>, ip: string) {
+    if (body.criteria.trim()) {
       try {
-        const r = await tx.execute<PolicyRow>(sql`INSERT INTO sla_policies (tenant_id, name, resource_type, criteria, position, calendar_id, first_response_minutes,
-            resolution_minutes, warn_percent, pause_statuses, enabled)
-          VALUES (${t.tenant.id}, ${body.name}, ${body.resourceType}, ${body.criteria}, ${body.position}, ${body.calendarId}, ${body.firstResponseMinutes ?? null},
-            ${body.resolutionMinutes ?? null}, ${body.warnPercent}, ${`{${body.pauseStatuses.join(',')}}`}::text[], ${body.enabled}) RETURNING *`);
-        const row = r.rows[0];
-        if (!row) throw new ProblemError('INTERNAL');
-        await audit(tx, t.tenant.id, { action: 'sla.policy_created', actorId: t.principal.userId, targetType: 'sla_policy', targetId: row.id, ip, details: { name: body.name } });
-        return this.policyView(row);
+        compileQuery(body.criteria, await conditionRegistry(tx, body.resourceType), { userId: t.principal.userId, timezone: t.tenant.timezone, now: new Date() });
       } catch (e) {
-        if (e instanceof ProblemError) throw e;
-        if (isUniqueViolation(e)) throw new ProblemError('CONFLICT', `policy "${body.name}" already exists`);
-        if ((e as { cause?: { code?: string } }).cause?.code === '23503') throw new ProblemError('NOT_FOUND', 'calendar not found');
-        return mapDbError(e);
+        if (e instanceof RqlError) throw new ProblemError('SLA_POLICY_INVALID', `criteria: ${e.message}`, { position: e.position });
+        throw e;
       }
-    });
+    }
+    try {
+      const r = await tx.execute<PolicyRow>(sql`INSERT INTO sla_policies (tenant_id, name, resource_type, criteria, position, calendar_id, first_response_minutes,
+          resolution_minutes, warn_percent, pause_statuses, enabled)
+        VALUES (${t.tenant.id}, ${body.name}, ${body.resourceType}, ${body.criteria}, ${body.position}, ${body.calendarId}, ${body.firstResponseMinutes ?? null},
+          ${body.resolutionMinutes ?? null}, ${body.warnPercent}, ${`{${body.pauseStatuses.join(',')}}`}::text[], ${body.enabled}) RETURNING *`);
+      const row = r.rows[0];
+      if (!row) throw new ProblemError('INTERNAL');
+      await audit(tx, t.tenant.id, { action: 'sla.policy_created', actorId: t.principal.userId, targetType: 'sla_policy', targetId: row.id, ip, details: { name: body.name } });
+      return this.policyView(row);
+    } catch (e) {
+      if (e instanceof ProblemError) throw e;
+      if (isUniqueViolation(e)) throw new ProblemError('CONFLICT', `policy "${body.name}" already exists`);
+      if ((e as { cause?: { code?: string } }).cause?.code === '23503') throw new ProblemError('NOT_FOUND', 'calendar not found');
+      return mapDbError(e);
+    }
   }
 
   /** In-place change (If-Match). Clocks already running keep the budget and calendar they started with. */

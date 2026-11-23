@@ -22,6 +22,10 @@ export interface ConfigKeyDef {
   overridableAt: readonly ConfigScope[];
   /** Upgrades a stored value written with schema version `from` to `from + 1` (lazy on read, kept on write). */
   upgrades?: Readonly<Record<number, (v: JsonObject) => JsonObject>>;
+  /** Whether the tenant layer travels in configuration bundles (export, import, blueprints). Default true. */
+  portable?: boolean;
+  /** Properties that refer to tenant-local data (e.g. an uploaded asset) and are left out of bundles. */
+  localProperties?: readonly string[];
   /** Checks JSON Schema cannot express (IANA time zones, derivable brand colors). Returns error messages. */
   check?: (effective: JsonObject) => { path: string; message: string }[];
 }
@@ -89,6 +93,7 @@ export const CONFIG_KEYS: readonly ConfigKeyDef[] = [
       },
     },
     default: { accent: null, logoAssetId: null },
+    localProperties: ['logoAssetId'],
     check: (v) => {
       if (typeof v.accent !== 'string') return [];
       const d = deriveAccent(v.accent);
@@ -122,6 +127,24 @@ export const CONFIG_KEYS: readonly ConfigKeyDef[] = [
       properties: Object.fromEntries(NOTIFICATION_KINDS.map((k) => [k, channels])),
     },
     default: { mention: ['in_app'], assigned: ['in_app'], automation: ['in_app'] },
+  },
+  {
+    key: 'onboarding',
+    module: 'core',
+    schemaVersion: 1,
+    description: 'Onboarding state (docs/p7-plan.md §8). New tenants start pending; older tenants count as completed.',
+    overridableAt: ['tenant'],
+    portable: false,
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['status', 'blueprint'],
+      properties: {
+        status: { enum: ['pending', 'completed', 'skipped'] },
+        blueprint: { anyOf: [{ type: 'string', pattern: '^[a-z][a-z0-9-]{1,63}$' }, { type: 'null' }] },
+      },
+    },
+    default: { status: 'completed', blueprint: null },
   },
 ];
 

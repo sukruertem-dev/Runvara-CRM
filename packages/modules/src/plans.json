@@ -1,0 +1,29 @@
+{
+  "plans": [
+    {
+      "id": "trial",
+      "displayNameKey": "plan.trial.name",
+      "tier": "enterprise",
+      "trialDays": 14,
+      "limits": { "users": 10, "storage_bytes": 1073741824, "records": 10000, "call_minutes": 500, "ai_tokens": 200000, "api_rpm": 1200, "api_rpm_per_user": 600 }
+    },
+    {
+      "id": "starter",
+      "displayNameKey": "plan.starter.name",
+      "tier": "starter",
+      "limits": { "users": 10, "storage_bytes": 5368709120, "records": 50000, "call_minutes": 0, "ai_tokens": 0, "api_rpm": 1200, "api_rpm_per_user": 600 }
+    },
+    {
+      "id": "growth",
+      "displayNameKey": "plan.growth.name",
+      "tier": "growth",
+      "limits": { "users": 50, "storage_bytes": 53687091200, "records": 500000, "call_minutes": 10000, "ai_tokens": 2000000, "api_rpm": 3000, "api_rpm_per_user": 600 }
+    },
+    {
+      "id": "enterprise",
+      "displayNameKey": "plan.enterprise.name",
+      "tier": "enterprise",
+      "limits": { "users": 500, "storage_bytes": 536870912000, "records": 5000000, "call_minutes": 100000, "ai_tokens": 20000000, "api_rpm": 12000, "api_rpm_per_user": 1200 }
+    }
+  ]
+}

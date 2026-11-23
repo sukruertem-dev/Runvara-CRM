@@ -131,49 +131,64 @@ export class ConfigService {
   async write(t: TenantRequestContext, key: string, scope: WriteScope, value: JsonObject, expected: number, note: string | undefined, client: ClientInfo, revertedFrom: number | null = null) {
     const def = this.def(key, scope);
     this.canWrite(t, scope);
-    return this.db.withTenant(dbCtx(t), async (tx) => {
-      const rows = await this.heads(tx, t, def.key, true);
-      const current = rows.find((r) => r.scope_type === scope);
-      const currentVersion = current?.version ?? 0;
-      if (expected !== currentVersion) throw new ProblemError('PRECONDITION_FAILED', `current version is ${String(currentVersion)}`);
-      const effective = this.effectiveWith(def, rows, scope, value);
-      const errors = validateConfig(def, value, effective);
-      if (errors.length > 0) {
-        const contrastFailed = errors.some((e) => e.message === 'BRAND_CONTRAST_UNSATISFIABLE');
-        throw new ProblemError(contrastFailed ? 'BRAND_CONTRAST_UNSATISFIABLE' : 'CONFIG_INVALID', errors.map((e) => `${e.path}: ${e.message}`).join('; '), {
-          errors: errors.map((e) => ({ path: e.path, code: contrastFailed ? 'BRAND_CONTRAST_UNSATISFIABLE' : 'CONFIG_INVALID', message: e.message })),
-        });
-      }
-      if (def.key === 'brand' && typeof value.logoAssetId === 'string') {
-        const asset = (await tx.execute(sql`SELECT 1 FROM tenant_assets WHERE id = ${value.logoAssetId}`)).rows[0];
-        if (!asset) throw new ProblemError('CONFIG_INVALID', '/logoAssetId: unknown asset', { errors: [{ path: '/logoAssetId', code: 'CONFIG_INVALID', message: 'unknown asset' }] });
-      }
-      const before = current ? this.upgraded(def, current.value, current.schema_version) : {};
-      const version = currentVersion + 1;
-      const scopeId = this.scopeId(t, scope);
-      await tx.execute(sql`
-        INSERT INTO tenant_settings (tenant_id, scope_type, scope_id, key, version, value, schema_version, created_by, change_note, reverted_from)
-        VALUES (${t.tenant.id}, ${scope}, ${scopeId}, ${def.key}, ${version}, ${JSON.stringify(value)}::jsonb, ${def.schemaVersion},
-                ${t.principal.userId}, ${note ?? null}, ${revertedFrom})`);
-      await tx.execute(sql`
-        INSERT INTO tenant_settings_head (tenant_id, scope_type, scope_id, key, version)
-        VALUES (${t.tenant.id}, ${scope}, ${scopeId}, ${def.key}, ${version})
-        ON CONFLICT (tenant_id, scope_type, scope_id, key) DO UPDATE SET version = EXCLUDED.version`);
-      if (scope === 'tenant') await this.syncTenantColumns(tx, def.key, effective);
-      const patch = diffJson(before, value);
-      await audit(tx, t.tenant.id, {
-        action: revertedFrom === null ? 'config.changed' : 'config.reverted',
-        actorId: t.principal.userId,
-        targetType: 'config',
-        ip: client.ip,
-        details: { key: def.key, scope, version, ...(revertedFrom === null ? {} : { revertedFrom }), patch: redact(patch), note: note ?? null },
+    return this.db.withTenant(dbCtx(t), (tx) => this.writeTx(tx, t, def, scope, value, expected, note, client.ip, revertedFrom));
+  }
+
+  /** Tenant-layer values of every key that has one (bundle export and import planning). */
+  async tenantLayers(tx: Db, t: TenantRequestContext): Promise<Map<string, JsonObject>> {
+    const rows = await this.heads(tx, t);
+    const out = new Map<string, JsonObject>();
+    for (const def of CONFIG_KEYS) {
+      const row = rows.find((r) => r.key === def.key && r.scope_type === 'tenant');
+      if (row) out.set(def.key, this.upgraded(def, row.value, row.schema_version));
+    }
+    return out;
+  }
+
+  /** One validated write inside the caller's transaction. `expected` null writes on top of whatever version
+   *  is current (bundle import holds the key lock for the whole transaction). The caller checks permission. */
+  async writeTx(tx: Db, t: TenantRequestContext, def: ConfigKeyDef, scope: WriteScope, value: JsonObject, expected: number | null, note: string | undefined, ip: string, revertedFrom: number | null = null) {
+    const rows = await this.heads(tx, t, def.key, true);
+    const current = rows.find((r) => r.scope_type === scope);
+    const currentVersion = current?.version ?? 0;
+    if (expected !== null && expected !== currentVersion) throw new ProblemError('PRECONDITION_FAILED', `current version is ${String(currentVersion)}`);
+    const effective = this.effectiveWith(def, rows, scope, value);
+    const errors = validateConfig(def, value, effective);
+    if (errors.length > 0) {
+      const contrastFailed = errors.some((e) => e.message === 'BRAND_CONTRAST_UNSATISFIABLE');
+      throw new ProblemError(contrastFailed ? 'BRAND_CONTRAST_UNSATISFIABLE' : 'CONFIG_INVALID', errors.map((e) => `${e.path}: ${e.message}`).join('; '), {
+        errors: errors.map((e) => ({ path: e.path, code: contrastFailed ? 'BRAND_CONTRAST_UNSATISFIABLE' : 'CONFIG_INVALID', message: e.message })),
       });
-      // Realtime + webhooks/rules: which key changed, never its value.
-      await tx.execute(sql`INSERT INTO outbox_events (tenant_id, type, actor, payload, correlation_id)
-        VALUES (${t.tenant.id}, 'config.changed', ${JSON.stringify({ type: 'user', id: t.principal.userId })}::jsonb,
-                ${JSON.stringify({ key: def.key, scope, version, ...(scope === 'user' ? { userId: t.principal.userId } : {}) })}::jsonb, gen_random_uuid())`);
-      return this.layerView(tx, t, def, scope);
+    }
+    if (def.key === 'brand' && typeof value.logoAssetId === 'string') {
+      const asset = (await tx.execute(sql`SELECT 1 FROM tenant_assets WHERE id = ${value.logoAssetId}`)).rows[0];
+      if (!asset) throw new ProblemError('CONFIG_INVALID', '/logoAssetId: unknown asset', { errors: [{ path: '/logoAssetId', code: 'CONFIG_INVALID', message: 'unknown asset' }] });
+    }
+    const before = current ? this.upgraded(def, current.value, current.schema_version) : {};
+    const version = currentVersion + 1;
+    const scopeId = this.scopeId(t, scope);
+    await tx.execute(sql`
+      INSERT INTO tenant_settings (tenant_id, scope_type, scope_id, key, version, value, schema_version, created_by, change_note, reverted_from)
+      VALUES (${t.tenant.id}, ${scope}, ${scopeId}, ${def.key}, ${version}, ${JSON.stringify(value)}::jsonb, ${def.schemaVersion},
+              ${t.principal.userId}, ${note ?? null}, ${revertedFrom})`);
+    await tx.execute(sql`
+      INSERT INTO tenant_settings_head (tenant_id, scope_type, scope_id, key, version)
+      VALUES (${t.tenant.id}, ${scope}, ${scopeId}, ${def.key}, ${version})
+      ON CONFLICT (tenant_id, scope_type, scope_id, key) DO UPDATE SET version = EXCLUDED.version`);
+    if (scope === 'tenant') await this.syncTenantColumns(tx, def.key, effective);
+    const patch = diffJson(before, value);
+    await audit(tx, t.tenant.id, {
+      action: revertedFrom === null ? 'config.changed' : 'config.reverted',
+      actorId: t.principal.userId,
+      targetType: 'config',
+      ip,
+      details: { key: def.key, scope, version, ...(revertedFrom === null ? {} : { revertedFrom }), patch: redact(patch), note: note ?? null },
     });
+    // Realtime + webhooks/rules: which key changed, never its value.
+    await tx.execute(sql`INSERT INTO outbox_events (tenant_id, type, actor, payload, correlation_id)
+      VALUES (${t.tenant.id}, 'config.changed', ${JSON.stringify({ type: 'user', id: t.principal.userId })}::jsonb,
+              ${JSON.stringify({ key: def.key, scope, version, ...(scope === 'user' ? { userId: t.principal.userId } : {}) })}::jsonb, gen_random_uuid())`);
+    return this.layerView(tx, t, def, scope);
   }
 
   async revert(t: TenantRequestContext, key: string, scope: WriteScope, target: number, expected: number, note: string | undefined, client: ClientInfo) {

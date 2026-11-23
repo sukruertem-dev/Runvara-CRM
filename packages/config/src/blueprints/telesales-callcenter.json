@@ -1,0 +1,253 @@
+{
+  "id": "telesales-callcenter",
+  "version": 1,
+  "nameKey": "blueprint.telesales-callcenter.name",
+  "descriptionKey": "blueprint.telesales-callcenter.description",
+  "bundle": {
+    "format": "flexa.config/1",
+    "meta": {
+      "kind": "blueprint",
+      "id": "telesales-callcenter",
+      "version": 1
+    },
+    "salesMode": "both",
+    "modules": [
+      "crm",
+      "sales_b2b",
+      "sales_b2c",
+      "sales_tracking",
+      "call_center",
+      "automation_sla"
+    ],
+    "settings": {},
+    "customFields": [
+      {
+        "resourceType": "lead",
+        "key": "cf_campaign",
+        "type": "select",
+        "label": {
+          "tr": "Kampanya",
+          "en": "Campaign"
+        },
+        "options": [
+          {
+            "id": "inbound",
+            "label": {
+              "tr": "Gelen arama",
+              "en": "Inbound call"
+            }
+          },
+          {
+            "id": "outbound",
+            "label": {
+              "tr": "Dış arama",
+              "en": "Outbound call"
+            }
+          },
+          {
+            "id": "web",
+            "label": {
+              "tr": "Web formu",
+              "en": "Web form"
+            }
+          }
+        ]
+      },
+      {
+        "resourceType": "lead",
+        "key": "cf_callback_at",
+        "type": "date",
+        "label": {
+          "tr": "Geri arama tarihi",
+          "en": "Callback date"
+        }
+      },
+      {
+        "resourceType": "contact",
+        "key": "cf_best_call_time",
+        "type": "select",
+        "label": {
+          "tr": "Uygun arama zamanı",
+          "en": "Best time to call"
+        },
+        "options": [
+          {
+            "id": "morning",
+            "label": {
+              "tr": "Sabah",
+              "en": "Morning"
+            }
+          },
+          {
+            "id": "afternoon",
+            "label": {
+              "tr": "Öğleden sonra",
+              "en": "Afternoon"
+            }
+          },
+          {
+            "id": "evening",
+            "label": {
+              "tr": "Akşam",
+              "en": "Evening"
+            }
+          }
+        ]
+      }
+    ],
+    "taskWorkflows": [
+      {
+        "key": "callback",
+        "name": "Geri arama",
+        "statuses": [
+          {
+            "key": "scheduled",
+            "label": {
+              "tr": "Planlandı",
+              "en": "Scheduled"
+            },
+            "category": "open",
+            "isInitial": true
+          },
+          {
+            "key": "no_answer",
+            "label": {
+              "tr": "Ulaşılamadı",
+              "en": "No answer"
+            },
+            "category": "in_progress",
+            "colorToken": "warning"
+          },
+          {
+            "key": "reached",
+            "label": {
+              "tr": "Görüşüldü",
+              "en": "Reached"
+            },
+            "category": "closed",
+            "colorToken": "success"
+          },
+          {
+            "key": "cancelled",
+            "label": {
+              "tr": "İptal",
+              "en": "Cancelled"
+            },
+            "category": "closed"
+          }
+        ],
+        "transitions": [
+          {
+            "key": "mark_no_answer",
+            "label": {
+              "tr": "Ulaşılamadı",
+              "en": "No answer"
+            },
+            "from": "scheduled",
+            "to": "no_answer"
+          },
+          {
+            "key": "retry",
+            "label": {
+              "tr": "Yeniden planla",
+              "en": "Reschedule"
+            },
+            "from": "no_answer",
+            "to": "scheduled"
+          },
+          {
+            "key": "mark_reached",
+            "label": {
+              "tr": "Görüşüldü",
+              "en": "Reached"
+            },
+            "from": null,
+            "to": "reached"
+          },
+          {
+            "key": "cancel",
+            "label": {
+              "tr": "İptal et",
+              "en": "Cancel"
+            },
+            "from": null,
+            "to": "cancelled"
+          }
+        ]
+      }
+    ],
+    "calendars": [
+      {
+        "name": "Çağrı merkezi",
+        "timezone": "Europe/Istanbul",
+        "weeklyHours": [
+          {
+            "day": 1,
+            "start": "09:00",
+            "end": "21:00"
+          },
+          {
+            "day": 2,
+            "start": "09:00",
+            "end": "21:00"
+          },
+          {
+            "day": 3,
+            "start": "09:00",
+            "end": "21:00"
+          },
+          {
+            "day": 4,
+            "start": "09:00",
+            "end": "21:00"
+          },
+          {
+            "day": 5,
+            "start": "09:00",
+            "end": "21:00"
+          },
+          {
+            "day": 6,
+            "start": "10:00",
+            "end": "18:00"
+          }
+        ]
+      }
+    ],
+    "slaPolicies": [
+      {
+        "name": "Aday ilk temas",
+        "resourceType": "lead",
+        "calendar": "Çağrı merkezi",
+        "firstResponseMinutes": 30
+      }
+    ],
+    "tags": [
+      {
+        "name": "Sıcak",
+        "colorToken": "danger"
+      },
+      {
+        "name": "Geri aranacak",
+        "colorToken": "warning"
+      }
+    ],
+    "queues": [
+      {
+        "kind": "call",
+        "name": "Satış hattı",
+        "segment": "b2c"
+      },
+      {
+        "kind": "call",
+        "name": "Destek hattı",
+        "segment": null
+      },
+      {
+        "kind": "work",
+        "name": "Geri aramalar",
+        "segment": null
+      }
+    ]
+  }
+}

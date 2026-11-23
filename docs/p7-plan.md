@@ -101,3 +101,94 @@
 | Tenant izolasyonu | entegrasyon: A'nın ayarı ve logosu B'den görünmez; DB sızıntı testine yeni tablolar eklenir |
 | Audit ve olay | entegrasyon: `config.changed` outbox satırı + audit |
 | Erişilebilirlik | E2E axe: Genel, Marka, Geçmiş, Tercihler |
+
+---
+
+# P7b — blueprint'ler, dışa/içe aktarma, onboarding, plan/kota, gürültülü komşu
+
+> Dal `feat/p7b-blueprints`. Kaynak: CFG-04/05, MOD-01…04, TEN-09/10, ADR-0011 §3, ADR-0014 §3–4.
+
+## 7. Yapılandırma paketi (`flexa.config/1`)
+- Tek biçim hem blueprint'i hem tenant dışa aktarmasını taşır (`packages/contracts` `ConfigBundle`). Kimlikler **doğal anahtarla** eşlenir, UUID taşınmaz.
+- İçerik:
+  - `salesMode`;
+  - `modules[]` (etkin modüller);
+  - `settings{key: value}` (P7a kayıt defterindeki tenant katmanı anahtarları);
+  - `customFields[]` (`resourceType` + `key`);
+  - `taskWorkflows[]` (`key`; durumlar ve geçişler durum anahtarıyla);
+  - `calendars[]` ve `slaPolicies[]` (ad ile, politika takvimi adıyla gösterir);
+  - `tags[]` (ad);
+  - `queues[]` (`kind` + ad).
+- Taşınmayanlar (B67):
+  - CRM süreçleri ve pipeline'lar: varsayılanlar her tenant'ta tohumlanır; düzenleyici P8'de gelir.
+  - Otomasyon kuralları: bir kullanıcı adına çalışırlar; başka tenant'ta o kullanıcı yoktur.
+  - Roller ve yetki matrisi.
+  - Gizli değerler: API anahtarları, webhook sırları, logo.
+- **Plan (kuru çalıştırma):** saf fonksiyon `planBundle(current, incoming)`. Her öğe için `create`, `update`, `unchanged` veya `conflict` döner:
+  - Ayarlar sürümlü ve geri alınabilir olduğundan farklı değer `update` olur.
+  - Diğer tanımlarda aynı anahtarla farklı tanım `conflict` olur.
+  - Eksik bağımlı modül ve plan dışı modül her zaman engelleyici `conflict`tır.
+- **Uygulama:**
+  - `onConflict: 'fail' | 'keep'`. `fail` iken çakışma varsa 409 `IMPORT_CONFLICTS` döner ve hiçbir şey yazılmaz. `keep` mevcut tanımı korur ve öğeyi atlar.
+  - Tek transaction. Plan aynı transaction içinde yeniden hesaplanır; ekranda görülen plan bayatsa sonuç yine tutarlıdır.
+  - Ayar yazımları P7a motorundan geçer (sürüm + audit + olay). Diğer öğeler mevcut ayar API'lerinin doğrulamasını kullanır (workflow motoru, formül derleyici).
+  - Tek audit `config.imported`: kaynak, sayımlar.
+- **Blueprint'ler:** `packages/config/src/blueprints/`: `enterprise-b2b`, `retail-b2c`, `telesales-callcenter`. Açılışta şemayla doğrulanır; geçersiz blueprint süreci durdurur.
+
+## 8. Onboarding (B66)
+- Yeni tenant `onboarding` anahtarı (`status: pending`) ile doğar; P7b öncesi tenant'lar için platform varsayılanı `completed`'dır.
+- Admin ana sayfada "Kurulumu tamamla" kartını görür. Akış zorunlu değildir; atlanabilir (`skipped`).
+- Sihirbaz `/onboarding`:
+  1. sektör şablonu (3 kart + "boş başla");
+  2. satış modu (B2B / B2C / her ikisi);
+  3. modüller (büyük kartlar; plan ve bağımlılık uyarısı);
+  4. özet (kuru çalıştırma) → uygula.
+- Telefoni bağlantı sihirbazı P9'da eklenir.
+
+## 9. Plan, kota, kullanım (TEN-09, MOD-04)
+- Planlar kodda: `packages/modules/src/plans.json`.
+  - `trial`, `starter`, `growth` ve `enterprise`.
+  - Her planın bir modül kademesi (`tier`; katalogdaki `planEntitlement.includedIn` ile eşleşir) ve sınırları vardır.
+  - Sınır boyutları: `users`, `storage_bytes`, `records`, `call_minutes`, `ai_tokens`, `api_rpm`, `api_rpm_per_user`.
+- `tenant_plans`: plan, ek modüller (`add_ons`), sınır geçersiz kılmaları, deneme bitişi.
+  - Yeni tenant `trial` ile açılır. Göç öncesi tenant'lar `enterprise` alır; davranış değişmez.
+  - Plan değişikliği P7c'deki operatör konsolunun işidir.
+- **MOD-04:** Plan kademesine dahil olmayan modül, ek modül olarak satın alınmadıkça açılamaz (402 `MODULE_NOT_IN_PLAN`). Modül listesi her modülün plan durumunu döndürür.
+- **Ölçüm:**
+  - Anlık sayılan boyutlar: aktif üye + bekleyen davet, ek dosya ve logo baytları, ana kayıt sayısı (müşteri, kişi, aday, fırsat, vaka, görev).
+  - Sayaç boyutları: API isteği, arama dakikası, AI token'ı. Redis'te `INCRBY` ile tutulur; dakikalık iş `tenant_usage_counters`'a (gün × boyut) aktarır ve anlık değerlerin günlük görüntüsünü yazar.
+- **Eşikler (ADR-0014 §3):**
+  - %80: uyarı.
+  - %100: yumuşak. Yeni davet ve yeni yükleme engellenir (402 `QUOTA_EXCEEDED`).
+  - %120: sert. Kayıt oluşturma engellenir.
+  - Okuma ve dışa aktarma asla engellenmez.
+  - Her eşik dönem başına bir kez Admin'lere e-posta, audit (`quota.threshold`) ve olay üretir. Kabukta uyarı şeridi gösterilir.
+
+## 10. Gürültülü komşu (TEN-10)
+- **API:**
+  - Tenant başına ve kullanıcı başına token bucket (Redis Lua, atomik). Sınırlar plandan gelir.
+  - Aşımda 429 `RATE_LIMITED` + `Retry-After`.
+  - Mevcut IP başına genel sınır yerinde kalır.
+- **Kuyruk:**
+  - Olay kuyruğu `EVENT_SHARDS` (varsayılan 4) parçaya bölünür; parça `hash(tenantId) mod N` ile seçilir.
+  - Parça içinde tenant başına eşzamanlılık semaforu (Redis sıralı küme, kilit süresi dolunca kendiliğinden düşer). Dolu ise iş kısa gecikmeyle yeniden sıraya girer (`DelayedError`).
+  - Eski tek kuyruk geçiş için boşaltılarak tüketilmeye devam eder.
+- **DB:** `statement_timeout` 5 sn (P1'den beri istemci düzeyinde).
+
+## 11. Ekranlar
+- **Ayarlar → Modüller** (tasarım sistemine taşındı): katalog kartları, plan/ek modül rozeti, bağımlılık uyarısı, zincirleme kapatma onayı, satış modu seçimi.
+- **Ayarlar → Kullanım ve plan:** plan adı, deneme bitişi, ek modüller; her boyut için ölçer (kullanılan/sınır, eşik durumu); son 30 günün API isteği grafiği.
+- **Ayarlar → İçe/dışa aktarma:** dışa aktar (JSON indir); dosya seç → kuru çalıştırma tablosu (oluştur/güncelle/aynı/çakışma) → çakışma politikası → uygula; blueprint uygulama.
+- **Onboarding sihirbazı** (`/onboarding`) ve ana sayfa kartı.
+
+## 12. Testler ve kabul
+| Ölçüt | Kanıt |
+|---|---|
+| Blueprint uygulanabiliyor | entegrasyon: üç blueprint de boş tenant'ta kuru çalıştırma ve uygulama; E2E onboarding |
+| Dışa/içe aktarma | entegrasyon: A'dan dışa aktar → B'ye içe aktar → B'nin dışa aktarması eşit; çakışma raporu ve 409; `keep` |
+| Plan dışı modül | entegrasyon 402 `MODULE_NOT_IN_PLAN`; ek modülle açılır |
+| Kota | entegrasyon: davet sınırı (%100), kayıt sınırı (%120), okuma engellenmez; eşik audit/olay bir kez |
+| Hız sınırı | entegrasyon: tenant ve kullanıcı bucket'ı 429 + `Retry-After`; başka tenant etkilenmez |
+| Kuyruk adaleti | birim: parça seçimi, semafor; entegrasyon: ağır tenant'ın işleri diğer tenant'ın işini bekletmez |
+| Yetki ve izolasyon | entegrasyon: Yönetici içe aktaramaz (403); A'nın kullanımı B'den görünmez; DB sızıntı testine yeni tablolar |
+| Erişilebilirlik | E2E axe: Modüller, Kullanım, İçe/dışa aktarma, Onboarding |
