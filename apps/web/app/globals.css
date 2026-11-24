@@ -99,7 +99,7 @@
   .alert-success { background: var(--success-soft); color: var(--success); }
   .alert-warning { background: var(--warning-soft); color: var(--warning); }
   .alert svg, .field-error svg { flex: none; margin-top: 2px; }
-  .links { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1rem; font-size: var(--text-2); }
+  .links { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-top: 1rem; font-size: var(--text-2); }
 
   /* app shell */
   .topbar {

@@ -11,6 +11,10 @@ import { HealthController } from './modules/health/health.controller';
 import { InvitationsController } from './modules/invitations/invitations.controller';
 import { MeController } from './modules/me/me.controller';
 import { OidcService } from './modules/sso/oidc.service';
+import { SamlService } from './modules/sso/saml.service';
+import { SsoMembersService } from './modules/sso/sso-members.service';
+import { SsoProvidersService } from './modules/sso/sso-providers.service';
+import { SecurityPolicyService } from './modules/auth/security-policy.service';
 import { SsoController } from './modules/sso/sso.controller';
 import { ProvisioningService } from './modules/tenancy/provisioning.service';
 import { TenancyController } from './modules/tenancy/tenancy.controller';
@@ -90,7 +94,11 @@ export class AppModule {
         DeletionService,
         ProvisioningService,
         AuthService,
+        SecurityPolicyService,
+        SsoProvidersService,
+        SsoMembersService,
         OidcService,
+        SamlService,
         TasksService,
         TaskListService,
         ConfigEditService,

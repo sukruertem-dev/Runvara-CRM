@@ -177,19 +177,72 @@ export const AcceptInvitationRequest = z
   .openapi('AcceptInvitationRequest');
 export const AcceptInvitationResponse = z.object({ tenantId: Uuid, userCreated: z.boolean() }).openapi('AcceptInvitationResponse');
 
+// ---------------------------------------------------------------- single sign-on (OIDC, SAML: P7d)
+const EmailDomains = z.array(z.string().trim().toLowerCase().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/)).min(1).max(20);
+/** An X.509 certificate in PEM form (the IdP's signing certificate). */
+const PemCertificate = z.string().trim().min(100).max(10_000).regex(/^-----BEGIN CERTIFICATE-----[\s\S]+-----END CERTIFICATE-----$/, 'PEM certificate');
+const IdpCertificates = z.array(PemCertificate).min(1).max(3);
+
+const SsoProviderCommon = {
+  name: z.string().trim().min(1).max(80),
+  emailDomains: EmailDomains,
+  jitEnabled: z.boolean().default(false),
+};
 export const CreateSsoProviderRequest = z
+  .discriminatedUnion('kind', [
+    z.object({ kind: z.literal('oidc'), ...SsoProviderCommon, issuer: z.url(), clientId: z.string().min(1).max(200), clientSecret: z.string().min(1).max(500) }),
+    z.object({ kind: z.literal('saml'), ...SsoProviderCommon, idpEntityId: z.string().trim().min(1).max(500), idpSsoUrl: z.url(), idpCerts: IdpCertificates }),
+  ])
+  .openapi('CreateSsoProviderRequest');
+export const UpdateSsoProviderRequest = z
   .object({
     name: z.string().trim().min(1).max(80),
-    issuer: z.url(),
-    clientId: z.string().min(1).max(200),
+    emailDomains: EmailDomains,
+    jitEnabled: z.boolean(),
+    enabled: z.boolean(),
     clientSecret: z.string().min(1).max(500),
-    emailDomains: z.array(z.string().trim().toLowerCase().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/)).min(1).max(20),
-    jitEnabled: z.boolean().default(false),
+    idpEntityId: z.string().trim().min(1).max(500),
+    idpSsoUrl: z.url(),
+    idpCerts: IdpCertificates,
   })
-  .openapi('CreateSsoProviderRequest');
+  .partial()
+  .refine((v) => Object.keys(v).length > 0, 'nothing to change')
+  .openapi('UpdateSsoProviderRequest');
+export const SsoCertificateInfo = z
+  .object({ subject: z.string(), notAfter: z.iso.datetime(), fingerprint: z.string(), expired: z.boolean() })
+  .openapi('SsoCertificateInfo');
 export const SsoProviderResponse = z
-  .object({ id: Uuid, name: z.string(), issuer: z.string(), clientId: z.string(), emailDomains: z.array(z.string()), jitEnabled: z.boolean(), enabled: z.boolean() })
+  .object({
+    id: Uuid,
+    kind: z.enum(['oidc', 'saml']),
+    name: z.string(),
+    emailDomains: z.array(z.string()),
+    jitEnabled: z.boolean(),
+    enabled: z.boolean(),
+    startUrl: z.string(),
+    issuer: z.string().nullable(),
+    clientId: z.string().nullable(),
+    redirectUri: z.string().nullable(),
+    idpEntityId: z.string().nullable(),
+    idpSsoUrl: z.string().nullable(),
+    certificates: z.array(SsoCertificateInfo),
+    /** What the IdP administrator enters for this service provider (SAML). */
+    sp: z.object({ entityId: z.string(), acsUrl: z.string(), metadataUrl: z.string() }).nullable(),
+  })
   .openapi('SsoProviderResponse');
+export const SsoProviderListResponse = z.object({ data: z.array(SsoProviderResponse) }).openapi('SsoProviderListResponse');
+export const SsoDiscoverResponse = z
+  .object({ providers: z.array(z.object({ id: Uuid, name: z.string(), kind: z.enum(['oidc', 'saml']), startUrl: z.string() })) })
+  .openapi('SsoDiscoverResponse');
+
+// ---------------------------------------------------------------- tenant security policy remedies (P7d)
+export const StepUpRequest = z
+  .object({ code: TotpCode.optional(), recoveryCode: z.string().trim().min(8).max(20).optional() })
+  .refine((v) => (v.code === undefined) !== (v.recoveryCode === undefined), 'exactly one of code or recoveryCode')
+  .openapi('StepUpRequest');
+export const ChangePasswordRequest = z
+  .object({ currentPassword: Password, newPassword: Password, tenantId: Uuid.optional() })
+  .openapi('ChangePasswordRequest');
 
 export const HealthResponse = z.object({ status: z.enum(['ok', 'degraded']), checks: z.record(z.string(), z.enum(['ok', 'fail'])) }).openapi('HealthResponse');
 

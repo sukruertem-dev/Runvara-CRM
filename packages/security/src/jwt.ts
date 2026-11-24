@@ -15,6 +15,8 @@ export interface PurposeClaims {
   sub: string;
   purpose: 'mfa' | 'oidc_link';
   amr: string[];
+  /** Measure of the password used for the first factor, carried to the session (tenant password rules). */
+  pwd?: { length: number; mixed: boolean };
 }
 
 export type VerifyResult<T> = { ok: true; claims: T } | { ok: false; reason: 'expired' | 'invalid' };
@@ -45,7 +47,7 @@ export class TokenSigner {
   }
 
   signPurpose(claims: PurposeClaims, ttlSeconds: number): Promise<string> {
-    return this.sign({ amr: claims.amr }, claims.sub, claims.purpose, ttlSeconds);
+    return this.sign({ amr: claims.amr, ...(claims.pwd ? { pwd: claims.pwd } : {}) }, claims.sub, claims.purpose, ttlSeconds);
   }
 
   async verifyAccess(token: string): Promise<VerifyResult<AccessClaims>> {
@@ -63,7 +65,9 @@ export class TokenSigner {
     const r = await this.verify(token, purpose);
     if (!r.ok) return r;
     if (typeof r.payload.sub !== 'string' || !Array.isArray(r.payload.amr)) return { ok: false, reason: 'invalid' };
-    return { ok: true, claims: { sub: r.payload.sub, purpose, amr: r.payload.amr.map(String) } };
+    const pwd = r.payload.pwd as { length?: unknown; mixed?: unknown } | undefined;
+    const profile = pwd && typeof pwd.length === 'number' && typeof pwd.mixed === 'boolean' ? { length: pwd.length, mixed: pwd.mixed } : undefined;
+    return { ok: true, claims: { sub: r.payload.sub, purpose, amr: r.payload.amr.map(String), ...(profile ? { pwd: profile } : {}) } };
   }
 
   private sign(payload: Record<string, unknown>, sub: string, audience: string, ttlSeconds: number): Promise<string> {

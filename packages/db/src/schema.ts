@@ -152,12 +152,17 @@ export const tenantKeys = pgTable(
 export const tenantSsoProviders = pgTable('tenant_sso_providers', {
   id: id(),
   tenantId: uuid('tenant_id').notNull(),
-  kind: text('kind', { enum: ['oidc'] }).notNull(),
+  kind: text('kind', { enum: ['oidc', 'saml'] }).notNull(),
   name: text('name').notNull(),
-  issuer: text('issuer').notNull(),
-  clientId: text('client_id').notNull(),
-  clientSecretEnc: bytea('client_secret_enc').notNull(),
-  keyVersion: integer('key_version').notNull(),
+  /** OIDC only (P7d: a CHECK per kind keeps the other kind's columns empty). */
+  issuer: text('issuer'),
+  clientId: text('client_id'),
+  clientSecretEnc: bytea('client_secret_enc'),
+  keyVersion: integer('key_version'),
+  /** SAML only. */
+  idpEntityId: text('idp_entity_id'),
+  idpSsoUrl: text('idp_sso_url'),
+  idpCerts: text('idp_certs').array(),
   emailDomains: text('email_domains').array().notNull(),
   jitEnabled: boolean('jit_enabled').notNull(),
   enabled: boolean('enabled').notNull(),
@@ -195,6 +200,8 @@ export const authSessions = pgTable('auth_sessions', {
   revokeReason: text('revoke_reason'),
   /** Set while a platform operator uses this session for approved support access (P7c). */
   supportGrantId: uuid('support_grant_id'),
+  /** Length and mix of the password the session was opened with, never the password (P7d, B77). */
+  passwordProfile: jsonb('password_profile').$type<{ length: number; mixed: boolean }>(),
 });
 
 export const refreshTokens = pgTable('refresh_tokens', {

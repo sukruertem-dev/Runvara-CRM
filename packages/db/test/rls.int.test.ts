@@ -22,8 +22,8 @@ async function seed(): Promise<void> {
              VALUES ($1, $2, 'admin', $3, $4, now() + interval '1 day')`, [t.tenant, `inv${i}@example.test`, Buffer.from(`tok${i}`), t.user]);
     await q(`INSERT INTO tenant_modules (tenant_id, module_id, enabled) VALUES ($1, 'core', true)`, [t.tenant]);
     await q(`INSERT INTO tenant_keys (tenant_id, version, wrapped_dek) VALUES ($1, 1, '\\x00')`, [t.tenant]);
-    await q(`INSERT INTO tenant_sso_providers (tenant_id, kind, name, issuer, client_id, client_secret_enc, key_version)
-             VALUES ($1, 'oidc', 'IdP', 'https://idp.example.test', 'c', '\\x00', 1)`, [t.tenant]);
+    await q(`INSERT INTO tenant_sso_providers (tenant_id, kind, name, issuer, client_id, client_secret_enc, key_version, email_domains)
+             VALUES ($1, 'oidc', 'IdP', 'https://idp.example.test', 'c', '\\x00', 1, ARRAY[$2::text])`, [t.tenant, `tenant${i}.example.test`]);
     await q(`INSERT INTO audit_log (tenant_id, action, actor_type, actor_id) VALUES ($1, 'test.seed', 'system', NULL)`, [t.tenant]);
     await q(`INSERT INTO tenant_plans (tenant_id, plan_id) VALUES ($1, 'starter') ON CONFLICT DO NOTHING`, [t.tenant]);
     await q(`INSERT INTO tenant_usage_counters (tenant_id, day, dimension, value) VALUES ($1, current_date, 'api_requests', 1)`, [t.tenant]);

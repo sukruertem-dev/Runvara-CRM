@@ -1,5 +1,43 @@
 # İlerleme
 
+## P7d — G1: tenant SSO (SAML) ve güvenlik politikaları · 2026-11-23 · ✅ (CI PR'da çalışacak)
+
+> P7'nin son adımı (`docs/p7-plan.md` §18–22, TEN-04). P7 tamamlandı.
+
+### Yapılanlar
+- **Güvenlik politikası** (`security` ayar anahtarı, sürümlü, paketlere girmez):
+  - iki adımlı doğrulama: kimseden / yalnızca Admin'lerden / herkesten; SSO ikinci adım sayılabilir (B79);
+  - parola: en az uzunluk (12–64), karma zorunluluğu, geçerlilik süresi (0 veya 30–365 gün);
+  - oturum: işlemsiz kapanma (15 dk – 30 gün), en uzun oturum (1–720 saat);
+  - SSO zorunlu; Admin'ler için parola yedeği (varsayılan açık).
+  - Yazan kişiyi dışarıda bırakacak ayar reddedilir (422 `SECURITY_POLICY_LOCKOUT`): kendi 2FA'sı yokken 2FA zorunluluğu; etkin sağlayıcı yokken ya da yazan SSO ile girmemişken (yedek kapalı) SSO zorunluluğu. SSO zorunluyken son etkin sağlayıcı kapatılamaz ve silinemez.
+- **Giriş kapısı** (B76): politika, oturum tenant'a bağlanırken değerlendirilir (giriş, seçim, yenileme, SSO dönüşü).
+  - Engeller: 403 `TENANT_SSO_REQUIRED` (sağlayıcılarla), `TENANT_MFA_REQUIRED` (`enrolled`), `PASSWORD_CHANGE_REQUIRED` (`reasons`, `rules`).
+  - Girişte tenant açılmazsa oturum tenant'sız açılır; yenilemede sıkılaşan politika oturumu tenant'sız bırakır.
+  - Oturum süresi yenilemede denetlenir; süre aşımı oturumu kapatır (`policy_idle`, `policy_max_age`).
+  - Çözümler: 2FA kurulumu oturuma `otp` ekler; `POST /v1/auth/step-up`; `POST /v1/me/password` (mevcut parola, isteğe bağlı tenant kuralı, diğer oturumları kapatır).
+  - Parola kuralı için girişte yalnızca parolanın uzunluğu ve karma olup olmadığı oturuma yazılır, parola değil (B77).
+- **SAML 2.0** (`@node-saml/node-saml`, B78):
+  - SP metadata, SP başlatmalı giriş (HTTP-Redirect), ACS (HTTP-POST);
+  - imzalı assertion zorunlu, Issuer ve Audience denetimi, `InResponseTo` tek kullanımlık, tekrar gönderilen assertion reddi (Redis), 2 dk saat kayması;
+  - e-posta öznitelikten ya da e-posta biçimli NameID'den; alan adı ve JIT OIDC ile ortak kod.
+- **Sağlayıcı yönetimi:** OIDC ve SAML için oluşturma, düzenleme (ad, alan adları, JIT, etkin, OIDC sırrı, SAML sertifikaları ile döndürme), silme; hepsi audit'te (değerler değil alan adları). E-posta alan adına göre sağlayıcı bulma (`POST /v1/auth/sso/discover`).
+- **Göç** `0014_security.sql`: SAML sütunları ve tür başına CHECK, `auth_sessions.password_profile`, `app.sso_providers_for_domain`, oturum açılış ve son kullanımını da döndüren `find_refresh_token`.
+- **Ekranlar:**
+  - **Ayarlar → Güvenlik politikaları:** dört bölüm, kendini dışarıda bırakma uyarısı, değişiklik önizlemesi ve sürüm.
+  - **Ayarlar → Tek oturum açma:** sağlayıcı listesi, OIDC/SAML ekleme ve düzenleme, SP bilgileri (kopyala), sertifika bitiş tarihleri, etkinleştir/kapat, sil.
+  - **Giriş:** "SSO ile giriş" (e-posta → sağlayıcı → yönlendirme).
+  - **Çalışma alanı seçimi:** engel paneli ve yerinde çözüm (2FA kurulumu, doğrulama kodu ya da kurtarma kodu, parola değiştirme, SSO düğmeleri). Tek çalışma alanı varsa hemen denenir.
+  - **Hesabım → Güvenlik:** parola değiştirme; 2FA kurulumu ortak bileşene taşındı.
+
+### Testler
+- API entegrasyon (tüm paket 149/149):
+  - Yeni `security-policy.int.test.ts` (8): kendini dışarıda bırakma; 2FA engeli girişte, seçimde ve yenilemede; kurulum ve step-up; yalnızca Admin kuralı; parola kuralı ve değiştirme (diğer oturumlar kapanır, ölçü saklanır, parola değil); parola yaşı; aralık dışı değerler; işlemsiz ve en uzun oturum; SSO zorunlu (sağlayıcı şartı, Admin yedeği, son sağlayıcı korunur); paket dışı.
+  - Yeni `saml.int.test.ts` (6): test IdP'nin imzaladığı yanıtla giriş ve metadata; imzasız, yabancı anahtarla imzalı, yanlış audience, yanlış issuer ve süresi geçmiş yanıtların reddi; tekrar, istek dışı ve başka sağlayıcının isteğine yanıt reddi; alan adı ve JIT; sağlayıcı bulma, sertifika döndürme, tür uyuşmazlığı, kapatma, silme, audit; yalnızca Admin.
+  - `oidc.int.test.ts` sağlayıcı türüyle güncellendi (5/5).
+- E2E `security.spec.ts` 2 senaryo (axe her ekranda): 2FA politikası → üye engellenir → yerinde kurar → girer; SAML sağlayıcı, SP bilgileri, giriş ekranında keşif ve IdP'ye yönlendirme, kapatma, silme.
+- Lint, tip denetimi ve birim testleri temiz. Kontrast, matris ve katalog denetimleri PASS.
+
 ## P7c — G1: operatör konsolu, destek erişimi, tenant yaşam döngüsü, dışa aktarma ve silme · 2026-11-23 · ✅ (CI PR'da çalışacak)
 
 > P7'nin üçüncü adımı (`docs/p7-plan.md` §13–17). SAML ve parola/2FA politikaları **P7d**'ye ayrıldı.

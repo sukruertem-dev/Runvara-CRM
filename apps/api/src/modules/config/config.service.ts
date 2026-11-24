@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { can } from '@flexa/authz';
 import {
   CONFIG_KEYS, configKey, deriveAccent, diffJson, mergeLayer, resolveLayers, upgradeValue, validateConfig,
-  type ConfigKeyDef, type JsonObject, type LayerValue, type PatchOp,
+  type ConfigKeyDef, type JsonObject, type LayerValue, type PatchOp, type SecurityPolicy,
 } from '@flexa/config';
 import { sql, type Db, type DbHandle } from '@flexa/db';
 import { audit } from '../../common/audit';
@@ -160,6 +160,7 @@ export class ConfigService {
         errors: errors.map((e) => ({ path: e.path, code: contrastFailed ? 'BRAND_CONTRAST_UNSATISFIABLE' : 'CONFIG_INVALID', message: e.message })),
       });
     }
+    if (def.key === 'security' && scope === 'tenant') await this.assertNoLockout(tx, t, effective);
     if (def.key === 'brand' && typeof value.logoAssetId === 'string') {
       const asset = (await tx.execute(sql`SELECT 1 FROM tenant_assets WHERE id = ${value.logoAssetId}`)).rows[0];
       if (!asset) throw new ProblemError('CONFIG_INVALID', '/logoAssetId: unknown asset', { errors: [{ path: '/logoAssetId', code: 'CONFIG_INVALID', message: 'unknown asset' }] });
@@ -286,6 +287,22 @@ export class ConfigService {
       updatedAt: row ? new Date(row.created_at).toISOString() : null,
       updatedBy: row ? who(row.created_by, row.created_by_name) : null,
     };
+  }
+
+  /** A security policy the writer could not satisfy would lock them (and maybe everyone) out (P7d §18). */
+  private async assertNoLockout(tx: Db, t: TenantRequestContext, effective: JsonObject): Promise<void> {
+    const policy = effective as unknown as SecurityPolicy;
+    const reasons: string[] = [];
+    if (policy.mfa.require !== 'off') {
+      const enrolled = (await tx.execute<{ on: boolean }>(sql`SELECT totp_enabled_at IS NOT NULL AS on FROM user_mfa WHERE user_id = ${t.principal.userId}`)).rows[0]?.on === true;
+      if (!enrolled) reasons.push('self_mfa');
+    }
+    if (policy.sso.required) {
+      const enabled = (await tx.execute<{ n: number }>(sql`SELECT count(*)::int AS n FROM tenant_sso_providers WHERE enabled`)).rows[0]?.n ?? 0;
+      if (enabled === 0) reasons.push('no_provider');
+      else if (!policy.sso.adminPasswordFallback && !t.principal.amr.some((a) => a === 'oidc' || a === 'saml')) reasons.push('self_sso');
+    }
+    if (reasons.length > 0) throw new ProblemError('SECURITY_POLICY_LOCKOUT', `the policy would lock you out: ${reasons.join(', ')}`, { reasons });
   }
 
   private async syncTenantColumns(tx: Db, key: string, effective: JsonObject): Promise<void> {

@@ -8,6 +8,7 @@ import { authEvent } from '../../common/audit';
 import { ProblemError } from '../../common/problem';
 import type { ClientInfo } from '../../common/request-context';
 import { DB, ENV, SIGNER } from '../../infra/tokens';
+import { SecurityPolicyService } from './security-policy.service';
 
 /** A rotated refresh token is accepted once more within this window if its successor was never used (B52). */
 const REFRESH_REUSE_GRACE_MS = 30_000;
@@ -48,6 +49,7 @@ export class SessionService {
     @Inject(ENV) private readonly env: ApiEnv,
     @Inject(DB) private readonly db: DbHandle,
     @Inject(SIGNER) private readonly signer: TokenSigner,
+    private readonly policy: SecurityPolicyService,
   ) {
     // __Host- prefix requires Secure; plain name is used only when COOKIE_SECURE=false (local http tests).
     this.refreshCookie = env.COOKIE_SECURE ? '__Host-fx_rt' : 'fx_rt';
@@ -83,29 +85,66 @@ export class SessionService {
     return { accessToken, expiresIn: ttl, csrfToken: createCsrfToken(this.env.CSRF_SECRET, familyId), tenant };
   }
 
-  /** New session + refresh token family after a completed primary (and, if enrolled, second) factor. */
-  async start(userId: string, amr: string[], client: ClientInfo, reply: FastifyReply, preferredTenant?: string): Promise<IssuedSession & { tenants: TenantSummaryRow[] }> {
+  /** New session + refresh token family after a completed primary (and, if enrolled, second) factor. The
+   *  session opens the preferred (or only) tenant when that tenant's security policy lets it; otherwise it
+   *  opens without a tenant and the person resolves the block from tenant selection (P7d). */
+  async start(userId: string, amr: string[], client: ClientInfo, reply: FastifyReply, preferredTenant?: string, passwordProfile?: { length: number; mixed: boolean }): Promise<IssuedSession & { tenants: TenantSummaryRow[] }> {
     const tenants = await this.listTenants(userId);
-    const tenant = (preferredTenant ? tenants.find((t) => t.id === preferredTenant) : undefined) ?? (tenants.length === 1 ? (tenants[0] ?? null) : null);
+    let tenant = (preferredTenant ? tenants.find((t) => t.id === preferredTenant) : undefined) ?? (tenants.length === 1 ? (tenants[0] ?? null) : null);
     const familyId = randomUUID();
     const refresh = randomToken();
     const sessionId = await this.db.withUser(userId, async (tx) => {
-      const s = one(await tx.insert(schema.authSessions).values({ userId, tenantId: tenant?.id ?? null, amr, ip: client.ip, userAgent: client.userAgent }).returning({ id: schema.authSessions.id }), 'session');
+      const s = one(await tx.insert(schema.authSessions).values({ userId, tenantId: null, amr, ip: client.ip, userAgent: client.userAgent, passwordProfile: passwordProfile ?? null }).returning({ id: schema.authSessions.id }), 'session');
       await tx.insert(schema.refreshTokens).values({ sessionId: s.id, userId, familyId, tokenHash: sha256(refresh), expiresAt: this.refreshExpiry() });
       return s.id;
     });
+    if (tenant && (await this.policy.check({ userId, sessionId, tenantId: tenant.id, roles: tenant.roles, amr }))) tenant = null;
+    if (tenant) await this.bindTenant(userId, sessionId, tenant.id);
     this.setCookies(reply, refresh, familyId);
     await authEvent(this.db, { kind: 'auth.login', userId, tenantId: tenant?.id ?? null, ip: client.ip, userAgent: client.userAgent, details: { amr } });
     return { ...(await this.accessFor(userId, sessionId, tenant, amr, familyId)), tenants };
   }
 
-  /** Switches the session's tenant (membership re-checked) and issues a tenant-bound access token. */
-  async selectTenant(userId: string, sessionId: string, amr: string[], tenantId: string, req: FastifyRequest): Promise<IssuedSession> {
+  /** Switches the session's tenant (membership and the tenant's security policy checked) and issues a
+   *  tenant-bound access token. The session's methods come from its row: a second factor added after sign-in
+   *  (enrolment, step-up) counts without a new token. */
+  async selectTenant(userId: string, sessionId: string, tenantId: string, req: FastifyRequest): Promise<IssuedSession> {
     const tenant = (await this.listTenants(userId)).find((t) => t.id === tenantId);
     if (!tenant) throw new ProblemError('NOT_FOUND');
-    await this.db.withUser(userId, (tx) => tx.update(schema.authSessions).set({ tenantId, lastUsedAt: new Date() }).where(eq(schema.authSessions.id, sessionId)));
+    const amr = await this.sessionAmr(userId, sessionId);
+    const block = await this.policy.check({ userId, sessionId, tenantId, roles: tenant.roles, amr });
+    if (block) throw block;
+    await this.bindTenant(userId, sessionId, tenantId);
     const familyId = await this.currentFamily(req);
     return this.accessFor(userId, sessionId, tenant, amr, familyId ?? sessionId);
+  }
+
+  /** A tenant-less access token for the session with its current methods (after a step-up). */
+  async reissue(userId: string, sessionId: string, req: FastifyRequest): Promise<IssuedSession> {
+    const amr = await this.sessionAmr(userId, sessionId);
+    const familyId = await this.currentFamily(req);
+    return this.accessFor(userId, sessionId, null, amr, familyId ?? sessionId);
+  }
+
+  /** Records a second factor proven during the session (TOTP enrolment, step-up). */
+  async addAmr(userId: string, sessionId: string, method: 'otp' | 'recovery'): Promise<void> {
+    await this.db.withUser(userId, (tx) => tx.execute(sql`
+      UPDATE auth_sessions SET amr = array_append(amr, ${method}) WHERE id = ${sessionId} AND NOT (${method} = ANY (amr))`));
+  }
+
+  /** The measure of a password just set in this session (B77). */
+  async setPasswordProfile(userId: string, sessionId: string, profile: { length: number; mixed: boolean }): Promise<void> {
+    await this.db.withUser(userId, (tx) => tx.update(schema.authSessions).set({ passwordProfile: profile }).where(eq(schema.authSessions.id, sessionId)));
+  }
+
+  private async sessionAmr(userId: string, sessionId: string): Promise<string[]> {
+    const [s] = await this.db.withUser(userId, (tx) => tx.select({ amr: schema.authSessions.amr }).from(schema.authSessions).where(eq(schema.authSessions.id, sessionId)));
+    if (!s) throw new ProblemError('UNAUTHENTICATED');
+    return s.amr;
+  }
+
+  private async bindTenant(userId: string, sessionId: string, tenantId: string | null): Promise<void> {
+    await this.db.withUser(userId, (tx) => tx.update(schema.authSessions).set({ tenantId, lastUsedAt: new Date() }).where(eq(schema.authSessions.id, sessionId)));
   }
 
   /** Refresh rotation with reuse detection (ADR-0009). */
@@ -133,7 +172,7 @@ export class SessionService {
       });
       if (recovered) {
         this.setCookies(reply, next, row.family_id);
-        return this.accessFor(row.user_id, row.session_id, await this.sessionTenant(row.user_id, row.session_id, row.session_tenant_id, row.session_amr), row.session_amr, row.family_id);
+        return this.accessFor(row.user_id, row.session_id, await this.gatedSessionTenant(row.user_id, row.session_id, row.session_tenant_id, row.session_amr), row.session_amr, row.family_id);
       }
     }
     if (row.used_at) {
@@ -147,6 +186,15 @@ export class SessionService {
       this.clearCookies(reply);
       throw new ProblemError('REFRESH_INVALID');
     }
+    // Tenant session length (P7d): idle time since the last refresh and age since sign-in.
+    if (row.session_tenant_id && !row.session_amr.includes(SUPPORT_AMR)) {
+      const expired = await this.policy.lifetimeExceeded(row.session_tenant_id, new Date(row.session_created_at), new Date(row.session_last_used_at));
+      if (expired) {
+        await this.revokeSession(row.user_id, row.session_id, expired);
+        this.clearCookies(reply);
+        throw new ProblemError('REFRESH_INVALID', 'the workspace ended this session (session length policy)');
+      }
+    }
     const next = randomToken();
     const rotated = await this.db.withUser(row.user_id, async (tx) => {
       const used = await tx.update(schema.refreshTokens).set({ usedAt: new Date() })
@@ -159,7 +207,17 @@ export class SessionService {
     });
     if (!rotated) throw new ProblemError('REFRESH_INVALID');
     this.setCookies(reply, next, row.family_id);
-    return this.accessFor(row.user_id, row.session_id, await this.sessionTenant(row.user_id, row.session_id, row.session_tenant_id, row.session_amr), row.session_amr, row.family_id);
+    return this.accessFor(row.user_id, row.session_id, await this.gatedSessionTenant(row.user_id, row.session_id, row.session_tenant_id, row.session_amr), row.session_amr, row.family_id);
+  }
+
+  /** The refreshed token's tenant, after the tenant's security policy: a session that no longer satisfies it
+   *  (the policy was tightened) continues without a tenant and the person resolves the block (B76). */
+  private async gatedSessionTenant(userId: string, sessionId: string, tenantId: string | null, amr: string[]): Promise<TenantSummaryRow | null> {
+    const tenant = await this.sessionTenant(userId, sessionId, tenantId, amr);
+    if (!tenant || amr.includes(SUPPORT_AMR)) return tenant;
+    if (!(await this.policy.check({ userId, sessionId, tenantId: tenant.id, roles: tenant.roles, amr }))) return tenant;
+    await this.bindTenant(userId, sessionId, null);
+    return null;
   }
 
   /** The tenant a refreshed token is bound to: a membership, or for a support session the approved grant's
@@ -233,6 +291,7 @@ export class SessionService {
       const r = await tx.execute<{
         token_id: string; session_id: string; user_id: string; family_id: string; expires_at: Date;
         used_at: Date | null; session_revoked: boolean; session_tenant_id: string | null; session_amr: string[];
+        session_created_at: Date | string; session_last_used_at: Date | string;
       }>(sql`SELECT * FROM app.find_refresh_token(${sha256(token)})`);
       const row = r.rows[0];
       return row ? { ...row, expires_at: new Date(row.expires_at) } : null;

@@ -264,3 +264,70 @@ Yeni `leaks.int.test.ts` iki tenant ile şunları denetler:
 - **Ayarlar → Veri ve silme:** dışa aktarma talebi ve indirme, çalışma alanını silme (adres onayı), bekleme süresi.
 - **Bekleyen silme ekranı:** giriş yapan Admin'e kalan süre, iptal ve dışa aktarma.
 
+
+---
+
+# P7d — Tenant SSO (SAML) ve güvenlik politikaları (TEN-04)
+
+## 18. Güvenlik politikası anahtarı `security`
+Yapılandırma kayıt defterine yeni anahtar (yalnızca tenant katmanı, sürümlü, geri alınabilir). Paketlere girmez (`portable: false`): başka bir tenant'a taşınan "SSO zorunlu" ayarı orada sağlayıcı yokken herkesi dışarıda bırakırdı.
+
+| Alan | Değerler | Varsayılan |
+|---|---|---|
+| `mfa.require` | `off` · `admins` · `all` | `off` |
+| `mfa.ssoSatisfies` | SSO girişi ikinci faktör sayılır mı (IdP kendi MFA'sını uygular) | `true` |
+| `password.minLength` | 12–64 | 12 |
+| `password.requireMixed` | büyük harf + küçük harf + rakam | `false` |
+| `password.maxAgeDays` | 0 (kapalı) veya 30–365 | 0 |
+| `session.idleMinutes` | 15–43 200 | 10 080 (7 gün) |
+| `session.maxHours` | 1–720 | 720 (30 gün) |
+| `sso.required` | üyeler yalnızca SSO ile girer | `false` |
+| `sso.adminPasswordFallback` | Admin'ler parolayla girebilir (acil durum) | `true` |
+
+Yazma sırasında kendini dışarıda bırakma denetimi (422 `SECURITY_POLICY_LOCKOUT`):
+- `mfa.require` açılırken yazan kişinin 2FA'sı yoksa;
+- `sso.required` açılırken etkin sağlayıcı yoksa, ya da yazan kişi SSO ile girmemiş ve Admin yedeği kapalıysa.
+
+## 19. Tenant'a giriş kapısı
+Politika, oturumun bir tenant'a bağlandığı her anda değerlendirilir: giriş, tenant seçimi, yenileme, SSO dönüşü. Destek oturumu (operatörün kendi kuralları, P7c) ve API anahtarları kapsam dışıdır.
+
+Sıra ve sonuç (403):
+1. **SSO** — `sso.required` ve oturum `oidc`/`saml` ile açılmamışsa (Admin yedeği hariç) → `TENANT_SSO_REQUIRED`, gövdede tenant'ın etkin sağlayıcıları.
+2. **2FA** — politika kişiyi kapsıyor ve oturumda `otp`/`recovery` yoksa (SSO, `ssoSatisfies` ile sayılır) → `TENANT_MFA_REQUIRED`, gövdede `enrolled`.
+3. **Parola** — oturum parolayla açıldıysa: girişte ölçülen uzunluk/karma (parolanın kendisi değil, B77) politikaya uymuyor ya da parola `maxAgeDays`'ten eski → `PASSWORD_CHANGE_REQUIRED`, gövdede `reasons` (`too_short`, `needs_mixed`, `expired`).
+
+Davranış:
+- **Giriş:** tenant kapıdan geçmezse oturum tenant'sız açılır; kişi tenant seçim ekranına düşer.
+- **Tenant seçimi:** 403 ve sorun kodu; ekran çözümü gösterir.
+- **Yenileme:** tenant'a bağlı oturum artık geçemiyorsa (politika sıkılaştı) yeni belirteç tenant'sız verilir. Etki en geç erişim belirtecinin ömründe (10 dk) görülür (B76).
+- **Oturum süresi:** yenilemede son kullanım `idleMinutes`'tan, açılış `maxHours`'tan eskiyse oturum kapanır (`revoke_reason = policy_idle | policy_max_age`) ve `REFRESH_INVALID` döner.
+
+Çözüm uç noktaları:
+- `POST /v1/me/mfa/totp/confirm` başarılı olunca oturuma `otp` eklenir (sahiplik az önce kanıtlandı).
+- `POST /v1/auth/step-up` (TOTP ya da kurtarma kodu): 2FA'sı olan ama oturumu ikinci faktörsüz açılan kişi (ör. politika sonradan açıldı).
+- `POST /v1/me/password` (mevcut + yeni parola, isteğe bağlı `tenantId` ile o tenant'ın kuralı): parola değişir, diğer oturumlar kapanır, bu oturumun parola ölçüsü güncellenir.
+- Tenant seçimi oturumun yöntemlerini belirteçten değil oturum satırından okur; çözümden sonra yeniden seçim yeterlidir.
+
+## 20. SAML 2.0 (`@node-saml/node-saml`)
+- `tenant_sso_providers.kind` `saml` alır: `idp_entity_id`, `idp_sso_url`, `idp_certs` (döndürme için birden çok). OIDC alanları SAML için boştur (tür başına CHECK).
+- SP: entity ID `…/v1/auth/saml/<id>/metadata`, ACS `…/v1/auth/saml/<id>/acs` (HTTP-POST). Metadata uç noktası XML döner.
+- Akış: `GET …/start` → AuthnRequest (HTTP-Redirect); istek kimliği Redis'te 10 dk. ACS doğrulaması:
+  - imzalı assertion zorunlu (`wantAssertionsSigned`), yanıt imzası isteğe bağlı;
+  - `Issuer` = IdP entity ID, `Audience` = SP entity ID;
+  - `InResponseTo` her zaman denetlenir ve tek kullanımlıktır; IdP başlatmalı giriş yoktur (B78);
+  - assertion kimliği süresi bitene kadar Redis'te tutulur; ikinci gönderim reddedilir;
+  - saat kayması 2 dk.
+- E-posta: `email` / `mail` / `urn:oid:0.9.2342.19200300.100.1.3` özniteliği ya da `emailAddress` biçimli NameID. Alan adı sağlayıcının listesinde olmalıdır. Üyelik eşlemesi ve JIT OIDC ile ortak koddur.
+- Sağlayıcı yönetimi: liste, oluşturma (OIDC/SAML), düzenleme (ad, alan adları, JIT, etkin, SAML sertifikaları, OIDC sırrı), silme. Hepsi audit'e yazılır.
+- Girişte e-postaya göre sağlayıcı bulma: `POST /v1/auth/sso/discover` e-posta alan adına göre etkin sağlayıcıları (ad, tür, başlatma adresi) döner; hangi tenant olduğunu söylemez.
+
+## 21. Ekranlar
+- **Ayarlar → Güvenlik politikaları** (`/settings/policies`): dört bölümlü form, değişiklik önizlemesi, kendini dışarıda bırakma uyarısı, sürüm geçmişi (P7a ayar altyapısı).
+- **Ayarlar → Tek oturum açma** (`/settings/sso`): sağlayıcı listesi; OIDC/SAML oluşturma; SAML için SP bilgileri (entity ID, ACS, metadata adresi, kopyala); düzenle, etkinleştir/kapat, sil.
+- **Giriş:** "SSO ile giriş" (e-posta → sağlayıcı bulma → yönlendirme).
+- **Erişim engeli** (tenant seçimi): kodun açıklaması ve yerinde çözüm — 2FA kurulumu, 2FA doğrulaması, parola değiştirme, SSO düğmeleri.
+- **Hesabım → Güvenlik:** parola değiştirme formu.
+
+## 22. Testler ve kabul
+- API: `security-policy.int.test.ts` — her kural, giriş/seçim/yenileme davranışı, çözüm uç noktaları, kendini dışarıda bırakma, oturum süreleri. `saml.int.test.ts` — imzalı yanıtla giriş, imzasız/yanlış sertifika/yanlış audience/yanlış issuer/eski/tekrar/istek dışı yanıtın reddi, alan adı ve JIT, metadata.
+- E2E `security.spec.ts`: politikayı aç → üye engellenir → 2FA kurar → girer; SAML sağlayıcı oluşturma ve SP bilgileri; axe her ekranda.
