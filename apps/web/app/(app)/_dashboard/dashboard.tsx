@@ -16,7 +16,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
-import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { request } from '../../../lib/api';
 import { useApp } from '../../../lib/app-context';
 import { t, type MessageKey } from '../../../lib/i18n';
@@ -179,6 +179,9 @@ export function Dashboard() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const layout = useQuery({ queryKey: rk.dashboard, queryFn: () => request<Layout>('/v1/me/dashboard') });
+  // Query results re-render synchronously; mounting every widget in that one pass blocks the main thread on phones.
+  // Deferring only the first appearance lets React split it. Later layout changes (saving) are not delayed.
+  const ready = useDeferredValue(layout.data !== undefined);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Widget[]>([]);
   const enabled = useMemo(() => new Set(nav?.modules.map((m) => m.id) ?? []), [nav]);
@@ -198,8 +201,8 @@ export function Dashboard() {
   });
 
 
-  if (layout.isLoading) return <Skeleton className="h-64" />;
   if (layout.error) return <ErrorState title={t('common.loadError')} retryLabel={t('common.retry')} onRetry={() => void layout.refetch()} />;
+  if (!ready) return <Skeleton className="h-64" />;
   const widgets = (editing ? draft : (layout.data?.widgets ?? [])).filter((w) => available(w.kind));
   const missing = KINDS.filter((k) => available(k) && !draft.some((w) => w.kind === k));
 
