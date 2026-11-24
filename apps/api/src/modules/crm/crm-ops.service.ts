@@ -157,6 +157,7 @@ export class CrmOpsService {
       if (type === 'account') {
         count('opportunities', (await tx.execute(sql`UPDATE opportunities SET account_id = ${survivor.id}, version = version + 1 WHERE account_id = ANY(${losersArr}::uuid[])`)).rowCount);
         count('cases', (await tx.execute(sql`UPDATE cases SET account_id = ${survivor.id}, version = version + 1 WHERE account_id = ANY(${losersArr}::uuid[])`)).rowCount);
+        count('priceLists', (await tx.execute(sql`UPDATE price_lists SET account_id = ${survivor.id}, version = version + 1 WHERE account_id = ANY(${losersArr}::uuid[])`)).rowCount);
         await tx.execute(sql`UPDATE accounts SET parent_account_id = NULL WHERE id = ${survivor.id} AND parent_account_id = ANY(${losersArr}::uuid[])`);
         count('childAccounts', (await tx.execute(sql`UPDATE accounts SET parent_account_id = ${survivor.id}, version = version + 1
           WHERE parent_account_id = ANY(${losersArr}::uuid[]) AND NOT (id = ANY(${losersArr}::uuid[]))`)).rowCount);

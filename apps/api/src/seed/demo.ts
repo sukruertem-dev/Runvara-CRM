@@ -119,6 +119,33 @@ export async function seedDemo(app: NestFastifyApplication, mailer: Mailbox, pas
       contacts.push(String(c.id));
     }
 
+    // Team, product catalogue and prices: a general list, a B2B list and one customer agreement.
+    const mert = users.get('mert');
+    if (!mert) throw new Error('seed users missing');
+    const team = await admin('POST', '/v1/teams', { name: 'Kurumsal Satış' });
+    await admin('PUT', `/v1/teams/${String(team.id)}/members/${mert.id}`, { role: 'manager' });
+    for (const rep of [can, zeynep]) await admin('PUT', `/v1/teams/${String(team.id)}/members/${rep.id}`, { role: 'member' });
+    const tax = await admin('POST', '/v1/tax-rates', { name: 'KDV %20', rate: '20' });
+    const catalog: [string, string, string, string, string][] = [
+      ['LIS-CRM', 'CRM lisansı (yıllık)', 'Lisans', '2200', '4800'],
+      ['LIS-CC', 'Çağrı merkezi lisansı (yıllık)', 'Lisans', '3100', '7200'],
+      ['HZM-KUR', 'Kurulum hizmeti', 'Hizmet', '9000', '18000'],
+      ['HZM-EGT', 'Eğitim (gün)', 'Hizmet', '4500', '9500'],
+    ];
+    const listOf = async (body: Json) => String((await admin('POST', '/v1/price-lists', { currency: 'TRY', ...body })).id);
+    const general = await listOf({ name: 'Genel liste' });
+    const b2bList = await listOf({ name: 'B2B 2026', segment: 'b2b' });
+    const agreement = await listOf({ name: 'Anadolu Lojistik anlaşması', accountId: accounts[0]?.id });
+    for (const [sku, name, category, cost, price] of catalog) {
+      const p = await admin('POST', '/v1/products', { sku, name, category, taxRateId: tax.id, segments: ['b2b', 'b2c'], cost: { amount: cost, currency: 'TRY' } });
+      const set = (list: string, breaks: [string, number][]) =>
+        admin('PUT', `/v1/price-lists/${list}/products/${String(p.id)}`, { breaks: breaks.map(([minQty, factor]) => ({ minQty, unitPrice: (Number(price) * factor).toFixed(2) })) });
+      await set(general, [['1', 1]]);
+      await set(b2bList, [['1', 0.95], ['10', 0.9], ['50', 0.85]]);
+      if (sku.startsWith('LIS')) await set(agreement, [['1', 0.8]]);
+    }
+    await admin('PUT', '/v1/fx-rates', { base: 'USD', quote: 'TRY', validOn: '2026-01-01', rate: '42.5' });
+
     // Opportunities across the pipeline.
     const stages = ['to_qualification', 'to_proposal', 'to_negotiation', 'win', null] as const;
     for (const [i, acc] of accounts.entries()) {

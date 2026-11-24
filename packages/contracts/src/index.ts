@@ -14,3 +14,4 @@ export * from './views';
 export * from './config';
 export * from './bundle';
 export * from './operator';
+export * from './catalog';

@@ -44,6 +44,9 @@ import { ApiKeysService } from './modules/integrations/api-keys.service';
 import { IntegrationsController } from './modules/integrations/integrations.controller';
 import { SlaService } from './modules/integrations/sla.service';
 import { WebhooksService } from './modules/integrations/webhooks.service';
+import { CatalogController } from './modules/catalog/catalog.controller';
+import { CatalogService } from './modules/catalog/catalog.service';
+import { PricingService } from './modules/catalog/pricing.service';
 import { ViewsController } from './modules/views/views.controller';
 import { ViewsService } from './modules/views/views.service';
 import { ConfigController } from './modules/config/config.controller';
@@ -74,7 +77,7 @@ export class AppModule {
         // Operation routes first: Fastify matches static segments before parameters either way, but keep it explicit.
         CrmOperationsController, AccountsController, ContactsController, LeadsController, OpportunitiesController, CasesController, NotesController,
         AccessAdminController, ...SHARES_CONTROLLERS,
-        GovernanceController, RecordItemsController, ...RECORD_EXTRAS_CONTROLLERS, AutomationController, IntegrationsController, BundleController, UsageController, OperatorController, SupportAccessController, PrivacyController],
+        GovernanceController, RecordItemsController, ...RECORD_EXTRAS_CONTROLLERS, AutomationController, IntegrationsController, BundleController, UsageController, OperatorController, SupportAccessController, PrivacyController, CatalogController],
       providers: [
         { provide: ENV, useValue: deps.env },
         { provide: DB, useValue: deps.db },
@@ -92,6 +95,8 @@ export class AppModule {
         OperatorService,
         ExportsService,
         DeletionService,
+        CatalogService,
+        PricingService,
         ProvisioningService,
         AuthService,
         SecurityPolicyService,

@@ -10,6 +10,7 @@ import * as V from './views';
 import * as G from './config';
 import * as B from './bundle';
 import * as O from './operator';
+import * as K from './catalog';
 
 export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 export type AuthMode = 'none' | 'access' | 'tenant' | 'refresh_cookie';
@@ -332,5 +333,22 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   { method: 'get', path: '/v1/tenant/deletion', summary: 'Deletion state and grace period', tag: 'tenant', auth: 'tenant', responses: { 200: O.TenantDeletionState }, errors: [401, 403] },
   { method: 'post', path: '/v1/tenant/deletion', summary: 'Schedule the workspace for deletion after the grace period', tag: 'tenant', auth: 'tenant', body: O.TenantDeletionRequest, responses: { 200: O.TenantDeletionState }, errors: [400, 401, 403, 422] },
   { method: 'post', path: '/v1/tenant/deletion/cancel', summary: 'Cancel a scheduled deletion during the grace period', tag: 'tenant', auth: 'tenant', responses: { 200: O.TenantDeletionState }, errors: [401, 403, 422] },
+  { method: 'get', path: '/v1/tax-rates', summary: 'Tax rates', tag: 'catalog', auth: 'tenant', responses: { 200: K.TaxRateListResponse }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/tax-rates', summary: 'Add a tax rate', tag: 'catalog', auth: 'tenant', body: K.TaxRateCreate, responses: { 201: K.TaxRateView }, errors: [400, 401, 403, 404, 409] },
+  { method: 'patch', path: '/v1/tax-rates/{id}', summary: 'Change a tax rate (If-Match)', tag: 'catalog', auth: 'tenant', body: K.TaxRatePatch, responses: { 200: K.TaxRateView }, errors: [400, 401, 403, 404, 409, 412, 428] },
+  { method: 'get', path: '/v1/products', summary: 'Products (?q=&active=&cursor=&limit=)', tag: 'catalog', auth: 'tenant', responses: { 200: K.ProductListResponse }, errors: [400, 401, 403, 404] },
+  { method: 'post', path: '/v1/products', summary: 'Add a product', tag: 'catalog', auth: 'tenant', body: K.ProductCreate, responses: { 201: K.ProductView }, errors: [400, 401, 403, 404, 409, 422] },
+  { method: 'get', path: '/v1/products/{id}', summary: 'One product', tag: 'catalog', auth: 'tenant', responses: { 200: K.ProductView }, errors: [401, 403, 404] },
+  { method: 'patch', path: '/v1/products/{id}', summary: 'Change or deactivate a product (If-Match)', tag: 'catalog', auth: 'tenant', body: K.ProductPatch, responses: { 200: K.ProductView }, errors: [400, 401, 403, 404, 409, 412, 422, 428] },
+  { method: 'get', path: '/v1/price-lists', summary: 'Price lists (customer lists only with the customer)', tag: 'catalog', auth: 'tenant', responses: { 200: K.PriceListListResponse }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/price-lists', summary: 'Add a price list', tag: 'catalog', auth: 'tenant', body: K.PriceListCreate, responses: { 201: K.PriceListView }, errors: [400, 401, 403, 404, 422] },
+  { method: 'patch', path: '/v1/price-lists/{id}', summary: 'Change or deactivate a price list (If-Match)', tag: 'catalog', auth: 'tenant', body: K.PriceListPatch, responses: { 200: K.PriceListView }, errors: [400, 401, 403, 404, 412, 428] },
+  { method: 'get', path: '/v1/price-lists/{id}/items', summary: 'Prices of a list by product', tag: 'catalog', auth: 'tenant', responses: { 200: K.PriceListItemsResponse }, errors: [400, 401, 403, 404] },
+  { method: 'put', path: '/v1/price-lists/{id}/products/{productId}', summary: 'Replace the prices of a product in a list (empty removes it)', tag: 'catalog', auth: 'tenant', body: K.PriceListItemSet, responses: { 204: null }, errors: [400, 401, 403, 404] },
+  { method: 'get', path: '/v1/fx-rates', summary: 'Exchange rates, newest first', tag: 'catalog', auth: 'tenant', responses: { 200: K.FxRateListResponse }, errors: [401, 403, 404] },
+  { method: 'put', path: '/v1/fx-rates', summary: 'Set the exchange rate of a day', tag: 'catalog', auth: 'tenant', body: K.FxRate, responses: { 204: null }, errors: [400, 401, 403, 404] },
+  { method: 'delete', path: '/v1/fx-rates', summary: 'Remove an exchange rate (?base=&quote=&validOn=)', tag: 'catalog', auth: 'tenant', responses: { 204: null }, errors: [400, 401, 403, 404] },
+  { method: 'post', path: '/v1/prices/resolve', summary: 'Which unit price applies to each product (customer, segment, general list; quantity breaks; currency)', tag: 'catalog', auth: 'tenant', body: K.PriceResolveRequest, responses: { 200: K.PriceResolveResponse }, errors: [400, 401, 403, 404, 422] },
+  { method: 'put', path: '/v1/users/{id}/primary-team', summary: 'Choose which of their teams is the primary one', tag: 'access', auth: 'tenant', body: K.PrimaryTeamSet, responses: { 204: null }, errors: [400, 401, 403, 404, 422] },
   { method: 'get', path: '/v1/stream', summary: 'Server-sent events: record changes and notifications the caller may see (Last-Event-ID replay)', tag: 'stream', auth: 'tenant', responses: { 200: null }, errors: [401] },
 ];

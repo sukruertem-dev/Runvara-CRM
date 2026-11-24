@@ -359,6 +359,9 @@
           "/v1/cases",
           "/v1/products",
           "/v1/price-lists",
+          "/v1/tax-rates",
+          "/v1/fx-rates",
+          "/v1/prices",
           "/v1/pipelines"
         ]
       },
@@ -370,6 +373,15 @@
           "icon": "users",
           "requires": [
             "*record*.read"
+          ]
+        },
+        {
+          "id": "products",
+          "labelKey": "module.crm.menu.products",
+          "path": "/products",
+          "icon": "package",
+          "requires": [
+            "catalog.product.manage"
           ]
         }
       ],
