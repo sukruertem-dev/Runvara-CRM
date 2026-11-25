@@ -127,3 +127,6 @@
 | B89 | Anınca erişim ver | Yalnızca doğrudan kişi anmasında ve kaydı paylaşabilen (düzenleyebilen) kişi için; okuma paylaşımı, segment dışına verilmez. Anma kaldırılınca paylaşım kalır, elle kaldırılır. Otomasyon erişim vermez | p8-plan §14 |
 | B90 | Anma sınırları | Dakikada 30 anma (ekip tek sayılır), ekip en çok 100 kişi | p8-plan §14 |
 | B91 | Seçici taraması | İstek başına ada uyan en çok 60 üye denetlenir, ilk 8 uygun kişi döner; daha fazlası için arama daraltılır | p8-plan §15 |
+| B93 | Sessiz saatte push | Gönderilmez ve sonradan da gönderilmez (bildirim uygulamada bekler); e-posta sessiz saat bitince gider | p8-plan §17 |
+| B94 | E-posta yedeği | Kişinin açık akışı (çevrimiçi işareti) varken gönderilmez | p8-plan §17 |
+| B95 | Teslim ölçümü | İstemci onayı %10 örneklenir; satırlar 30 gün saklanır, kayıt ya da içerik taşımaz | p8-plan §19 |
