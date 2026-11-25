@@ -2,6 +2,7 @@
   "name": "@flexa/web",
   "version": "0.1.0",
   "private": true,
+  "license": "UNLICENSED",
   "scripts": {
     "brand": "node ../../packages/brand/copy.mjs public",
     "predev": "node ../../packages/brand/copy.mjs public",

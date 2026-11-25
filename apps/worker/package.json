@@ -2,6 +2,7 @@
   "name": "@flexa/worker",
   "version": "0.1.0",
   "private": true,
+  "license": "UNLICENSED",
   "type": "commonjs",
   "main": "dist/main.js",
   "scripts": {

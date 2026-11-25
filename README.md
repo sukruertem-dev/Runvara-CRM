@@ -49,3 +49,6 @@ docs/           ADR'ler, ER, API, olaylar, riskler, varsayımlar, izlenebilirlik
 
 ## Güvenlik kuralları (özet)
 Tenant bağlamı yalnızca imzalı token'dan gelir; uygulama veritabanı rolü RLS'i atlayamaz; yetki kararı yalnızca `@flexa/authz` üzerinden verilir. Ayrıntı: [`CLAUDE.md`](CLAUDE.md), [`docs/adr/`](docs/adr/README.md).
+
+## Lisans
+Tescilli yazılım; tüm hakları saklıdır. Ayrıntı: [`LICENSE`](LICENSE).
