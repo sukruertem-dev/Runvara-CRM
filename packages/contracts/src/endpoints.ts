@@ -363,5 +363,11 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   { method: 'post', path: '/v1/targets', summary: 'Set a target for a person, team or segment', tag: 'targets', auth: 'tenant', body: P.TargetCreate, responses: { 201: P.TargetView }, errors: [400, 401, 403, 404, 409, 422] },
   { method: 'patch', path: '/v1/targets/{id}', summary: 'Change the target value (If-Match)', tag: 'targets', auth: 'tenant', body: P.TargetPatch, responses: { 200: P.TargetView }, errors: [400, 401, 403, 404, 412, 428] },
   { method: 'delete', path: '/v1/targets/{id}', summary: 'Delete a target', tag: 'targets', auth: 'tenant', responses: { 204: null }, errors: [401, 403, 404] },
+  { method: 'get', path: '/v1/tasks/{id}/mentionable', summary: 'People and teams that can be mentioned on the record (?q=&source=)', tag: 'tasks', auth: 'tenant', responses: { 200: R.MentionableResponse }, errors: [400, 401, 403, 404] },
+  { method: 'get', path: '/v1/accounts/{id}/mentionable', summary: 'People and teams that can be mentioned on the record (?q=&source=)', tag: 'accounts', auth: 'tenant', responses: { 200: R.MentionableResponse }, errors: [400, 401, 403, 404] },
+  { method: 'get', path: '/v1/contacts/{id}/mentionable', summary: 'People and teams that can be mentioned on the record (?q=&source=)', tag: 'contacts', auth: 'tenant', responses: { 200: R.MentionableResponse }, errors: [400, 401, 403, 404] },
+  { method: 'get', path: '/v1/leads/{id}/mentionable', summary: 'People and teams that can be mentioned on the record (?q=&source=)', tag: 'leads', auth: 'tenant', responses: { 200: R.MentionableResponse }, errors: [400, 401, 403, 404] },
+  { method: 'get', path: '/v1/opportunities/{id}/mentionable', summary: 'People and teams that can be mentioned on the record (?q=&source=)', tag: 'opportunities', auth: 'tenant', responses: { 200: R.MentionableResponse }, errors: [400, 401, 403, 404] },
+  { method: 'get', path: '/v1/cases/{id}/mentionable', summary: 'People and teams that can be mentioned on the record (?q=&source=)', tag: 'cases', auth: 'tenant', responses: { 200: R.MentionableResponse }, errors: [400, 401, 403, 404] },
   { method: 'get', path: '/v1/stream', summary: 'Server-sent events: record changes and notifications the caller may see (Last-Event-ID replay)', tag: 'stream', auth: 'tenant', responses: { 200: null }, errors: [401] },
 ];

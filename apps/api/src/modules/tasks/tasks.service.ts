@@ -26,6 +26,7 @@ import { notify } from '../../common/notify';
 import { attachedSegment, CRM, CRM_TYPES, isCrmType, readCrmRow } from '../crm/crm-objects';
 import { compileFormulas, loadFieldDefs, taskRegistry, validateCustom, withFormulas, type FieldDefRow } from './task-fields';
 import { QuotaService } from '../usage/quota.service';
+import { syncMentions } from '../records/mentions';
 
 type Create = z.infer<typeof TaskCreate>;
 type Patch = z.infer<typeof TaskPatch>;
@@ -261,6 +262,7 @@ export class TasksService {
       }).returning({ id: schema.tasks.id }), 'task');
       if (body.tagIds?.length) await tx.insert(schema.taskTags).values(body.tagIds.map((tagId) => ({ tenantId: t.tenant.id, taskId: row.id, tagId })));
       await recordActivity(tx, t, { type: 'task', id: row.id, kind: 'created' });
+      if (body.description) await syncMentions(tx, t, { type: 'task', id: row.id }, 'description', row.id, null, body.description);
       await this.notifyAssignees(tx, t, row.id, [owner.type === 'user' ? owner.id : null, assignee]);
       return row.id;
     } catch (e) {
@@ -346,6 +348,7 @@ export class TasksService {
         await tx.delete(schema.taskTags).where(eq(schema.taskTags.taskId, row.id));
         if (body.tagIds.length) await tx.insert(schema.taskTags).values(body.tagIds.map((tagId) => ({ tenantId: t.tenant.id, taskId: row.id, tagId })));
       }
+      if (body.description !== undefined) await syncMentions(tx, t, { type: 'task', id: row.id }, 'description', row.id, row.description, body.description);
       // Timeline diff in API terms; the post-update row is read without the read predicate (it may have been given away).
       const vc = await this.viewContext(tx);
       const after = await tx.execute<TaskRow>(sql`${TASK_SELECT} WHERE t.id = ${row.id}`);

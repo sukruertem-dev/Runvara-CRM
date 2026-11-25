@@ -3,8 +3,11 @@ import { recordScope, type RecordResource } from '@flexa/authz';
 import type { NoteCreate, NotePatch, z } from '@flexa/contracts';
 import { sql, type Db, type DbHandle } from '@flexa/db';
 import { ProblemError } from '../../common/problem';
+import { renderRichText } from '../../common/rich-text';
 import { dbCtx, type TenantRequestContext } from '../../common/request-context';
 import { DB } from '../../infra/tokens';
+import type { ShareType } from '../../common/record-access';
+import { syncMentions } from '../records/mentions';
 import { TasksService } from '../tasks/tasks.service';
 import { attachedSegment, CRM, iso, isCrmType, readCrmRow } from './crm-objects';
 
@@ -64,8 +67,24 @@ export class NotesService {
         RETURNING id, related_type, related_id, body, body_text, visibility, author_id, created_at, updated_at`);
       const row = r.rows[0];
       if (!row) throw new ProblemError('INTERNAL');
+      await this.mentions(tx, t, row, null);
       return view(row);
     });
+  }
+
+  /** Mentions of a note; nobody else reads a private one, so it mentions nobody. */
+  private async mentions(tx: Db, t: TenantRequestContext, n: NoteRow, previous: NoteRow | null): Promise<void> {
+    const before = previous?.visibility === 'standard' ? previous.body : null;
+    const target = { type: n.related_type as ShareType, id: n.related_id };
+    if (n.visibility === 'standard') {
+      await syncMentions(tx, t, target, 'note', n.id, before, n.body);
+      return;
+    }
+    if (n.body) {
+      const m = renderRichText(n.body).mentions;
+      if (m.users.size + m.teams.size > 0) throw new ProblemError('VALIDATION_FAILED', 'a private note cannot mention anyone');
+    }
+    await syncMentions(tx, t, target, 'note', n.id, before, null);
   }
 
   private async readNote(tx: Db, t: TenantRequestContext, id: string): Promise<NoteRow> {
@@ -90,6 +109,7 @@ export class NotesService {
         RETURNING id, related_type, related_id, body, body_text, visibility, author_id, created_at, updated_at`);
       const row = r.rows[0];
       if (!row) throw new ProblemError('NOT_FOUND');
+      await this.mentions(tx, t, row, n);
       return view(row);
     });
   }
@@ -100,6 +120,7 @@ export class NotesService {
       const archiveAll = recordScope(t.authz, 'archive', this.resourceOf(n.related_type)).kind === 'all';
       if (n.author_id !== t.principal.userId && !archiveAll) throw new ProblemError('FORBIDDEN');
       await tx.execute(sql`UPDATE notes SET deleted_at = now() WHERE id = ${id}`);
+      await syncMentions(tx, t, { type: n.related_type as ShareType, id: n.related_id }, 'note', id, n.body, null);
     });
   }
 }

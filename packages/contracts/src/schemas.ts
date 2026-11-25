@@ -109,6 +109,7 @@ export const UI_CAPABILITIES = [
   'fields.cost_margin.read',
   'sales_tracking.target.manage',
   'sales_b2b.quote.create',
+  'mentions.create',
 ] as const;
 
 export const NavigationResponse = z
