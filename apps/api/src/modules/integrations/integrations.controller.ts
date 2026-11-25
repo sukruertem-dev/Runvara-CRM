@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Headers, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
-import { ApiKeyCreate, BusinessCalendarInput, SlaPolicyCreate, SlaPolicyPatch, WebhookCreate, WebhookPatch, type z } from '@flexa/contracts';
+import { ApiKeyCreate, BusinessCalendarInput, SlaPolicyCreate, SlaPolicyPatch, StreamAck, WebhookCreate, WebhookPatch, type z } from '@flexa/contracts';
 import type { FastifyReply } from 'fastify';
 import { TenantGuard } from '../../common/guards';
 import { requireIfMatch } from '../../common/http-helpers';
@@ -127,6 +127,12 @@ export class IntegrationsController {
   }
 
   // Server-sent events
+  @Post('stream/ack')
+  @HttpCode(204)
+  async ack(@CurrentTenant() t: TenantRequestContext, @Body(new ZodPipe(StreamAck)) body: z.infer<typeof StreamAck>): Promise<void> {
+    await this.stream.ack(t, body.eventId);
+  }
+
   @Get('stream')
   async streamEvents(@CurrentTenant() t: TenantRequestContext, @Headers('last-event-id') lastEventId: string | undefined, @Res() reply: FastifyReply): Promise<void> {
     reply.hijack();

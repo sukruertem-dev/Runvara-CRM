@@ -161,6 +161,24 @@ export const CONFIG_KEYS: readonly ConfigKeyDef[] = [
     default: { deletionGraceDays: 30 },
   },
   {
+    key: 'notifications.quiet',
+    module: 'core',
+    schemaVersion: 1,
+    description: 'Do-not-disturb hours in the person’s time zone (MEN-07): no push, no e-mail, no toast; notices wait in the app.',
+    overridableAt: ['tenant', 'user'],
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['enabled', 'from', 'to'],
+      properties: {
+        enabled: { type: 'boolean' },
+        from: { type: 'string', pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' },
+        to: { type: 'string', pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' },
+      },
+    },
+    default: { enabled: false, from: '22:00', to: '07:00' },
+  },
+  {
     key: 'mentions',
     module: 'core',
     schemaVersion: 1,

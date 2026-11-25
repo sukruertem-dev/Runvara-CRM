@@ -1,9 +1,10 @@
 'use client';
 
 import type { CommentListResponse, TimelineResponse } from '@flexa/contracts';
-import { Avatar, Button, RichTextEditor, RichTextView, Skeleton, type RichTextLabels, type RichTextValue } from '@flexa/ui';
+import { Avatar, Button, RichTextEditor, RichTextView, Skeleton, Tabs, cn, type RichTextLabels, type RichTextValue } from '@flexa/ui';
 import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { useMemo, useState, type ReactNode } from 'react';
+import { useAnchor, useFocusAnchor } from '../../lib/anchor';
 import { request } from '../../lib/api';
 import { dateTime, relativeTime } from '../../lib/format';
 import { t, tOptional } from '../../lib/i18n';
@@ -11,6 +12,9 @@ import { useMentions } from '../../lib/mentions';
 import { useMutationErrorToast } from '../(app)/tasks/_parts/cells';
 
 type Out<T extends { _output: unknown }> = T['_output'];
+
+/** Shown where a link points (the element is focused by script only). */
+export const anchorClass = 'scroll-mt-24 rounded-input focus:outline-2 focus:outline-offset-4 focus:outline-accent';
 
 /** Shared building blocks of record pages (tasks and CRM records): sections, field rows, comments, timeline. */
 export const editorLabels = (): RichTextLabels => ({
@@ -77,12 +81,27 @@ export function TimelineList({ record, names }: { record: RecordRef; names: Map<
   );
 }
 
+/** Comments, notes and activity of a record; a link to a note opens its tab. */
+export function ActivityTabs({ children }: { children: ReactNode }) {
+  const anchor = useAnchor();
+  const [tab, setTab] = useState('comments');
+  const [followed, setFollowed] = useState('');
+  if (anchor !== followed) {
+    setFollowed(anchor);
+    if (anchor.startsWith('note-')) setTab('notes');
+    else if (anchor.startsWith('comment-')) setTab('comments');
+  }
+  return <Tabs value={tab} onValueChange={setTab}>{children}</Tabs>;
+}
+
 /** The description editor of a record, with mentions (`path` as in RecordRef). */
 export function DescriptionEditor({ path, value, editable = true, onSave }: { path: string; value: RichTextValue['doc'] | null; editable?: boolean; onSave: (patch: { description: RichTextValue['doc'] | null; descriptionText: string | null }) => void }) {
   const docs = useMemo(() => [value], [value]);
   const { config, labelOf } = useMentions(path, 'description', docs);
+  const anchor = useAnchor();
+  useFocusAnchor(anchor === 'description' ? anchor : '', true);
   return (
-    <div id="description">
+    <div id="description" className={anchorClass}>
       <RichTextEditor
         aria-label={t('task.description')}
         value={value}
@@ -119,6 +138,8 @@ export function CommentsPanel({ record }: { record: RecordRef }) {
   const comments = useMemo(() => (q.data?.data ?? []).filter((c) => !c.deleted), [q.data]);
   const docs = useMemo(() => comments.map((c) => c.body), [comments]);
   const { config, labelOf } = useMentions(record.path, 'comment', docs);
+  const anchor = useAnchor();
+  useFocusAnchor(anchor.startsWith('comment-') ? anchor : '', comments.length > 0);
   return (
     <div className="flex flex-col gap-4">
       {q.isLoading ? (
@@ -128,7 +149,7 @@ export function CommentsPanel({ record }: { record: RecordRef }) {
       ) : (
         <ul className="m-0 flex list-none flex-col gap-3 p-0" data-testid="comments">
           {comments.map((c) => (
-            <li key={c.id} id={`comment-${c.id}`} className="flex gap-3">
+            <li key={c.id} id={`comment-${c.id}`} className={cn('flex gap-3', anchorClass)}>
               <Avatar name={c.author?.displayName ?? '?'} size={28} decorative />
               <div className="min-w-0 flex-1 rounded-input bg-subtle px-3 py-2">
                 <p className="m-0 text-xs text-fg-muted">

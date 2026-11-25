@@ -16,3 +16,4 @@ blob-report/
 storybook-static/
 lighthouse-report/
 test-results-visual/
+notification-latency.json

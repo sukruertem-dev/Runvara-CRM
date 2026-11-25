@@ -5,6 +5,7 @@ import { createDb, type DbHandle } from '@flexa/db';
 import { generateTotpCode, TokenSigner } from '@flexa/security';
 import { randomBytes } from 'node:crypto';
 import { Redis } from 'ioredis';
+import webpush from 'web-push';
 import { createApp } from '../src/app';
 import type { ApiDeps, Mailer } from '../src/infra/tokens';
 
@@ -45,6 +46,8 @@ export interface Harness {
   close(): Promise<void>;
 }
 
+const VAPID = webpush.generateVAPIDKeys();
+
 export async function startHarness(overrides: Record<string, string> = {}, deps: Pick<ApiDeps, 'scanner' | 'storage'> = {}): Promise<Harness> {
   const env = loadEnv(apiEnvSchema, {
     NODE_ENV: 'test',
@@ -64,6 +67,8 @@ export async function startHarness(overrides: Record<string, string> = {}, deps:
     TENANT_RATE_LIMIT_MULTIPLIER: '100',
     OIDC_ALLOW_INSECURE_LOCALHOST: 'true',
     EGRESS_ALLOW_INSECURE_LOCALHOST: 'true',
+    VAPID_PUBLIC_KEY: VAPID.publicKey,
+    VAPID_PRIVATE_KEY: VAPID.privateKey,
     S3_ENDPOINT: process.env.TEST_S3_ENDPOINT,
     S3_BUCKET: 'flexa-test',
     S3_ACCESS_KEY_ID: 'test',

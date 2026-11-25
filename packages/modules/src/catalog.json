@@ -187,6 +187,7 @@
           "/v1/roles",
           "/v1/entitlements",
           "/v1/notifications",
+          "/v1/push",
           "/v1/mentions",
           "/v1/config",
           "/v1/modules",

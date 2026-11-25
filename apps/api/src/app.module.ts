@@ -54,6 +54,8 @@ import { ViewsController } from './modules/views/views.controller';
 import { ViewsService } from './modules/views/views.service';
 import { ConfigController } from './modules/config/config.controller';
 import { ConfigService } from './modules/config/config.service';
+import { DeliveryService } from './modules/records/delivery.service';
+import { PushService } from './modules/records/push.service';
 import { DigestService } from './modules/records/digest.service';
 import { StreamService } from './modules/records/stream.service';
 import { BundleController } from './modules/config/bundle.controller';
@@ -120,6 +122,8 @@ export class AppModule {
         RecordsService,
         AttachmentsService,
         NotificationsService,
+        DeliveryService,
+        PushService,
         AutomationRunner,
         AutomationQueues,
         AutomationService,

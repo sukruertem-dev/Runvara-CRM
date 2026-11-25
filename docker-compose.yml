@@ -90,6 +90,9 @@ services:
       CORS_ORIGINS: http://localhost:${FLEXA_WEB_PORT:-3000}
       JWT_PRIVATE_KEY_B64: ${JWT_PRIVATE_KEY_B64}
       CSRF_SECRET: ${CSRF_SECRET}
+      # Web push (optional): scripts/dev-env.mjs writes a pair; empty = push off.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       # Local stack runs over plain http; production must keep the default (true).
       COOKIE_SECURE: "false"
       TRUST_PROXY: "true"

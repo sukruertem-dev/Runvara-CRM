@@ -13,7 +13,8 @@
     "lint": "eslint app lib e2e",
     "e2e": "playwright test --project=chromium",
     "e2e:visual": "node ../../scripts/e2e-visual.mjs",
-    "lighthouse": "node scripts/lighthouse.mjs"
+    "lighthouse": "node scripts/lighthouse.mjs",
+    "notification-latency": "node scripts/notification-latency.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "6.3.1",

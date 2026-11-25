@@ -369,5 +369,11 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   { method: 'get', path: '/v1/leads/{id}/mentionable', summary: 'People and teams that can be mentioned on the record (?q=&source=)', tag: 'leads', auth: 'tenant', responses: { 200: R.MentionableResponse }, errors: [400, 401, 403, 404] },
   { method: 'get', path: '/v1/opportunities/{id}/mentionable', summary: 'People and teams that can be mentioned on the record (?q=&source=)', tag: 'opportunities', auth: 'tenant', responses: { 200: R.MentionableResponse }, errors: [400, 401, 403, 404] },
   { method: 'get', path: '/v1/cases/{id}/mentionable', summary: 'People and teams that can be mentioned on the record (?q=&source=)', tag: 'cases', auth: 'tenant', responses: { 200: R.MentionableResponse }, errors: [400, 401, 403, 404] },
+  { method: 'get', path: '/v1/notifications/{id}', summary: 'One own notification (access re-checked now)', tag: 'notifications', auth: 'tenant', responses: { 200: R.NotificationView }, errors: [401, 404] },
+  { method: 'get', path: '/v1/push/config', summary: 'Web push key; null when push is not configured', tag: 'notifications', auth: 'tenant', responses: { 200: R.PushConfig }, errors: [401] },
+  { method: 'post', path: '/v1/push/subscriptions', summary: 'Register this browser for web push', tag: 'notifications', auth: 'tenant', body: R.PushSubscribe, responses: { 204: null }, errors: [400, 401, 503] },
+  { method: 'post', path: '/v1/push/unsubscribe', summary: 'Forget a browser', tag: 'notifications', auth: 'tenant', body: R.PushUnsubscribe, responses: { 204: null }, errors: [400, 401] },
+  { method: 'post', path: '/v1/stream/ack', summary: 'A client received a notification event (sampled; latency measurement)', tag: 'stream', auth: 'tenant', body: R.StreamAck, responses: { 204: null }, errors: [400, 401] },
+  { method: 'get', path: '/v1/operator/delivery', summary: 'Operator: notification delivery counts and latency by channel (?minutes=)', tag: 'operator', auth: 'access', responses: { 200: R.DeliveryStats }, errors: [400, 401, 403] },
   { method: 'get', path: '/v1/stream', summary: 'Server-sent events: record changes and notifications the caller may see (Last-Event-ID replay)', tag: 'stream', auth: 'tenant', responses: { 200: null }, errors: [401] },
 ];

@@ -1,7 +1,7 @@
 'use client';
 
 import type { NoteListResponse } from '@flexa/contracts';
-import { Avatar, Badge, Button, Checkbox, ErrorState, IconButton, RichTextEditor, RichTextView, Skeleton, useToast, type RichTextValue } from '@flexa/ui';
+import { Avatar, Badge, Button, Checkbox, ErrorState, IconButton, RichTextEditor, RichTextView, Skeleton, cn, useToast, type RichTextValue } from '@flexa/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -12,7 +12,8 @@ import { t } from '../../lib/i18n';
 import { useMentions } from '../../lib/mentions';
 import { useDirectory } from '../../lib/tasks';
 import { useMutationErrorToast } from '../(app)/tasks/_parts/cells';
-import { editorLabels } from './record-parts';
+import { useAnchor, useFocusAnchor } from '../../lib/anchor';
+import { anchorClass, editorLabels } from './record-parts';
 
 type Notes = (typeof NoteListResponse)['_output'];
 
@@ -28,6 +29,8 @@ export function NotesPanel({ type, id, path }: { type: string; id: string; path:
   const names = useDirectory(notes.map((n) => n.authorId));
   const docs = useMemo(() => notes.map((n) => n.body), [notes]);
   const { config, labelOf } = useMentions(path, 'note', docs);
+  const anchor = useAnchor();
+  useFocusAnchor(anchor.startsWith('note-') ? anchor : '', notes.length > 0);
   const [draft, setDraft] = useState<RichTextValue | null>(null);
   const [isPrivate, setPrivate] = useState(false);
   const [resetKey, setResetKey] = useState(0);
@@ -60,7 +63,7 @@ export function NotesPanel({ type, id, path }: { type: string; id: string; path:
           {notes.map((n) => {
             const who = names.get(n.authorId) ?? t('common.unknownUser');
             return (
-              <li key={n.id} id={`note-${n.id}`} className="flex gap-3">
+              <li key={n.id} id={`note-${n.id}`} className={cn('flex gap-3', anchorClass)}>
                 <Avatar name={who} size={28} decorative />
                 <div className="min-w-0 flex-1 rounded-input border border-line px-3 py-2">
                   <div className="flex items-center gap-2 text-xs text-fg-muted">
