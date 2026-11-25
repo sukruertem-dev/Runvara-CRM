@@ -24,6 +24,7 @@ import { logout } from '../../../lib/api';
 import { useApp } from '../../../lib/app-context';
 import { useSetUiPreference } from '../../../lib/config';
 import { roleLabel, t } from '../../../lib/i18n';
+import { disablePush } from '../../../lib/notifications';
 import { usePreferences, type DensityPref, type SegmentPref, type ThemePref } from '../../../lib/preferences';
 import { NotificationBell } from './notifications';
 import { useShell } from './shell-context';
@@ -81,6 +82,8 @@ function UserMenu() {
   const roles = nav?.roles ?? me.tenant?.roles ?? [];
 
   async function onLogout(): Promise<void> {
+    // The next person at this computer gets no notices of this one.
+    await disablePush().catch(() => undefined);
     try {
       await logout();
     } catch {

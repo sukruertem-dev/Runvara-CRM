@@ -2,7 +2,7 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { openStream } from './api';
+import { openStream, request } from './api';
 import { invalidateForEvent } from './query';
 
 /** One SSE message from GET /v1/stream (ADR-0007). Record events carry no field values, only names. */
@@ -125,6 +125,10 @@ export function RealtimeProvider({ children, enabled }: { children: ReactNode; e
             }
             const event: StreamEvent = { ...parsed, id: msg.id, type: msg.event };
             invalidateForEvent(qc, event);
+            // One in ten notices is acknowledged: the latency people see (MEN-06).
+            if (event.type === 'notification.created' && event.id && Math.random() < 0.1) {
+              void request('/v1/stream/ack', { method: 'POST', body: { eventId: event.id } }).catch(() => undefined);
+            }
             for (const l of listeners.current) l(event);
           }
         } catch {

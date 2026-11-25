@@ -1,14 +1,16 @@
 'use client';
 
 import type { NotificationListResponse } from '@flexa/contracts';
-import { Avatar, Button, cn, EmptyState, focusRing, IconButton, Popover, PopoverContent, PopoverTrigger, Skeleton, Tabs, TabsList, TabsTrigger } from '@flexa/ui';
+import { Avatar, Button, cn, EmptyState, focusRing, IconButton, Popover, PopoverContent, PopoverTrigger, Skeleton, Tabs, TabsList, TabsTrigger, useToast } from '@flexa/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AtSign, Bell, BellOff, CheckCheck, Lock, Stamp, UserCheck, Zap } from 'lucide-react';
+import { AtSign, Bell, BellOff, CheckCheck, Lock, Settings2, Stamp, UserCheck, Zap } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { request } from '../../../lib/api';
 import { relativeTime } from '../../../lib/format';
 import { t } from '../../../lib/i18n';
+import { appLink, notificationText, useInterruption } from '../../../lib/notifications';
 import { qk } from '../../../lib/query';
 import { useRealtimeEvent } from '../../../lib/realtime';
 
@@ -17,15 +19,6 @@ type NotificationList = Out<typeof NotificationListResponse>;
 type Notification = NotificationList['data'][number];
 
 const KIND_ICON = { mention: AtSign, assigned: UserCheck, automation: Zap, approval: Stamp } as const;
-
-/** In-app route for a notification's record (tasks today; other record pages arrive with their screens). */
-function hrefFor(n: Notification): string | null {
-  if (!n.accessible || !n.record) return null;
-  if (n.kind === 'approval') return '/approvals';
-  if (n.record.type === 'target') return '/targets';
-  if (n.record.type === 'task') return `/tasks/${n.record.id}`;
-  return null;
-}
 
 /**
  * Bell + notification centre (§10.5.5): mentions on top via the "Anıldım" filter, unread marked with the
@@ -37,10 +30,14 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<'all' | 'mention'>('all');
   const [fresh, setFresh] = useState(false);
+  const { toast } = useToast();
+  const { silent } = useInterruption();
+  // Notices already here when the list was last seen; null until the first answer.
+  const known = useRef<Set<string> | null>(null);
   const list = useQuery({ queryKey: qk.notifications, queryFn: () => request<NotificationList>('/v1/notifications?limit=50') });
 
   useRealtimeEvent((e) => {
-    if (e.type === 'notification.created') setFresh(true);
+    if (e.type === 'notification.created' && !silent()) setFresh(true);
   });
 
   const markRead = useMutation({
@@ -59,12 +56,31 @@ export function NotificationBell() {
 
   function openItem(n: Notification): void {
     if (!n.readAt) markRead.mutate(n.id);
-    const href = hrefFor(n);
+    const href = appLink(n.link);
     if (href) {
       setOpen(false);
       router.push(href);
     }
   }
+
+  // A new notice is said once on screen, unless the person asked for quiet or is looking at the list.
+  useEffect(() => {
+    const rows = list.data?.data;
+    if (!rows) return;
+    const seen = known.current;
+    known.current = new Set(rows.map((n) => n.id));
+    if (!seen || open || silent()) return;
+    const news = rows.filter((n) => !seen.has(n.id) && !n.readAt && n.accessible);
+    for (const n of news.slice(0, 2)) {
+      toast({
+        kind: 'info',
+        title: `${t(`notif.kind.${n.kind}`)}${n.actor?.displayName ? ` · ${n.actor.displayName}` : ''}`,
+        description: notificationText(n),
+        action: { label: t('notif.openItem'), onAction: () => { openItem(n); } },
+      });
+    }
+    // Only a new answer of the list announces anything.
+  }, [list.data]);
 
   return (
     <Popover
@@ -88,16 +104,19 @@ export function NotificationBell() {
           <Button variant="ghost" size="sm" disabled={unread === 0 || markAll.isPending} onClick={() => { markAll.mutate(); }} icon={<CheckCheck aria-hidden size={14} />}>
             {t('notif.markAll')}
           </Button>
+          <IconButton size="sm" label={t('settings.notifications')} asChild>
+            <Link href="/settings/notifications" onClick={() => { setOpen(false); }}><Settings2 aria-hidden size={14} /></Link>
+          </IconButton>
         </div>
         <Tabs value={filter} onValueChange={(v) => { setFilter(v === 'mention' ? 'mention' : 'all'); }} className="px-4">
           <TabsList label={t('notif.title')}>
-            <TabsTrigger value="all">{t('notif.all')}</TabsTrigger>
-            <TabsTrigger value="mention">
+            <TabsTrigger value="all" aria-controls="notification-panel">{t('notif.all')}</TabsTrigger>
+            <TabsTrigger value="mention" aria-controls="notification-panel">
               <AtSign aria-hidden size={14} /> {t('notif.mentions')}
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        <div className="min-h-0 flex-1 overflow-y-auto p-2" role="list">
+        <div id="notification-panel" role="tabpanel" aria-label={filter === 'mention' ? t('notif.mentions') : t('notif.all')} className="min-h-0 flex-1 overflow-y-auto p-2">
           {list.isLoading ? (
             <div className="flex flex-col gap-2 p-2">
               <Skeleton className="h-12" />
@@ -106,7 +125,8 @@ export function NotificationBell() {
           ) : sorted.length === 0 ? (
             <EmptyState icon={BellOff} title={t('notif.empty')} description={t('notif.emptyBody')} />
           ) : (
-            sorted.map((n) => {
+            <div role="list">
+            {sorted.map((n) => {
               const Icon = KIND_ICON[n.kind];
               return (
                 <div role="listitem" key={n.id}>
@@ -125,7 +145,7 @@ export function NotificationBell() {
                         {t(`notif.kind.${n.kind}`)} · {relativeTime(n.createdAt)}
                       </span>
                       {n.accessible ? (
-                        <span className={cn('block truncate text-sm', !n.readAt && 'font-semibold')}>{n.record?.type === 'target' ? t('notif.targetRisk') : n.source?.type === 'approval_request' ? t('notif.approvalAsk', { title: n.title ?? '' }) : n.source?.type === 'approval_decision' ? t('notif.approvalDone', { title: n.title ?? '' }) : (n.title ?? n.message ?? '')}</span>
+                        <span className={cn('block truncate text-sm', !n.readAt && 'font-semibold')}>{notificationText(n)}</span>
                       ) : (
                         <span className="flex items-center gap-1 text-sm text-fg-muted">
                           <Lock aria-hidden size={12} /> {t('notif.inaccessible')}
@@ -138,7 +158,8 @@ export function NotificationBell() {
                   </button>
                 </div>
               );
-            })
+            })}
+            </div>
           )}
         </div>
       </PopoverContent>
