@@ -30,7 +30,7 @@ export interface ConfigKeyDef {
   check?: (effective: JsonObject) => { path: string; message: string }[];
 }
 
-export const NOTIFICATION_KINDS = ['mention', 'assigned', 'automation'] as const;
+export const NOTIFICATION_KINDS = ['mention', 'assigned', 'automation', 'approval'] as const;
 export const NOTIFICATION_CHANNELS = ['in_app', 'email'] as const;
 
 const timeZones = new Set(Intl.supportedValuesOf('timeZone'));
@@ -126,7 +126,7 @@ export const CONFIG_KEYS: readonly ConfigKeyDef[] = [
       required: [...NOTIFICATION_KINDS],
       properties: Object.fromEntries(NOTIFICATION_KINDS.map((k) => [k, channels])),
     },
-    default: { mention: ['in_app'], assigned: ['in_app'], automation: ['in_app'] },
+    default: { mention: ['in_app'], assigned: ['in_app'], automation: ['in_app'], approval: ['in_app'] },
   },
   {
     key: 'onboarding',
@@ -159,6 +159,37 @@ export const CONFIG_KEYS: readonly ConfigKeyDef[] = [
       properties: { deletionGraceDays: { type: 'integer', minimum: 7, maximum: 90 } },
     },
     default: { deletionGraceDays: 30 },
+  },
+  {
+    key: 'approvals',
+    module: 'core',
+    schemaVersion: 1,
+    description: 'Discount approval (ADR-0021): the discount that needs no approval, the default limit of a manager, and the hours until a request moves up.',
+    overridableAt: ['tenant'],
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['discount'],
+      properties: {
+        discount: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['freePercent', 'managerPercent', 'timeoutHours'],
+          properties: {
+            freePercent: { type: 'number', minimum: 0, maximum: 100 },
+            managerPercent: { type: 'number', minimum: 0, maximum: 100 },
+            timeoutHours: { type: 'integer', minimum: 1, maximum: 720 },
+          },
+        },
+      },
+    },
+    default: { discount: { freePercent: 8, managerPercent: 15, timeoutHours: 24 } },
+    check: (v) => {
+      const d = v.discount as { freePercent?: unknown; managerPercent?: unknown } | undefined;
+      return typeof d?.freePercent === 'number' && typeof d.managerPercent === 'number' && d.managerPercent < d.freePercent
+        ? [{ path: '/discount/managerPercent', message: 'must not be below freePercent' }]
+        : [];
+    },
   },
   {
     key: 'security',

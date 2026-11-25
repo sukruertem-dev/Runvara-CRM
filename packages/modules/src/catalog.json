@@ -203,6 +203,7 @@
           "/v1/attachments",
           "/v1/delegations",
           "/v1/access-requests",
+          "/v1/approvals",
           "/v1/authz"
         ]
       },
@@ -214,6 +215,15 @@
           "icon": "check-square",
           "requires": [
             "core.task.read"
+          ]
+        },
+        {
+          "id": "approvals",
+          "labelKey": "module.core.menu.approvals",
+          "path": "/approvals",
+          "icon": "stamp",
+          "requires": [
+            "sales_b2b.quote.create"
           ]
         }
       ],
@@ -242,7 +252,10 @@
           "notification.created",
           "module.toggled",
           "config.changed",
-          "authz.changed"
+          "authz.changed",
+          "approval.requested",
+          "approval.decided",
+          "approval.escalated"
         ],
         "consumes": [
           "*.*"
@@ -691,8 +704,7 @@
       "routes": {
         "apiPrefixes": [
           "/v1/targets",
-          "/v1/manager",
-          "/v1/approvals"
+          "/v1/manager"
         ]
       },
       "menu": [

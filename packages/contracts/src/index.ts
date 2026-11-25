@@ -15,3 +15,4 @@ export * from './config';
 export * from './bundle';
 export * from './operator';
 export * from './catalog';
+export * from './approvals';
