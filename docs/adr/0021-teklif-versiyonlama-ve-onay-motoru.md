@@ -17,3 +17,9 @@
 
 ## Sonuç
 G3 kabul kriteri "Yönetici kendi limitini aşanı onaylayamaz" motorun seçici kuralı ile **yapısal olarak** sağlanır (yetkisiz kişiye atama yapılmaz) ve ayrıca karar anında `can()` ile tekrar kontrol edilir.
+
+## Uygulama notu (P8b, 2026-11-25)
+- `approval_rules` tablosu yerine kurallar yapılandırma motorunda: `approvals` anahtarı (sürüm, diff, geri alma hazır gelir). Kişiye özel limitler `approval_limits` tablosunda.
+- Eskalasyon geçmişi `approval_steps` (yalnızca eklenebilir). Son seviyede (Admin) süre dolarsa talep `expired` olur.
+- Talep edenin kendi yetkisi içindeki talep "otomatik onaylı" kaydedilir; bu bir karar değildir, `decided_by` boştur.
+- Yetki talepleri (`access_requests`) P4b akışında kaldı (B88).

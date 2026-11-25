@@ -50,3 +50,37 @@ Tutarlar `numeric`; çevrilen birim fiyat 4 haneye yuvarlanır (B80).
 | Ekip verisi yetki kapsamına göre izole | `catalog.int.test.ts`, `authz.int.test.ts` |
 | Maliyet/marj yetkisize sızmıyor | `catalog.int.test.ts` |
 | Ekranlar axe ile denetleniyor | `catalog.spec.ts` |
+
+# P8b — onay motoru ve hedefler
+
+## 7. Onay talebi ve yönlendirme
+- Konu şimdilik **B2B fırsatında iskonto**; teklif (P9) aynı motoru kullanır. Talep eden fırsatı düzenleyebilmelidir; kayıt başına tek bekleyen talep.
+- Yol: talep edenin birincil ekibi → üst ekipler. Her ekipte yöneticiler (talep eden hariç) içinden limiti yeten **ve** fırsatı görebilen; birden çoksa en az bekleyeni olan. Kimse yoksa **herhangi bir Admin**.
+- Talep edenin kendi yetkisi (onaysız iskonto, yönetici limiti, Admin) yetiyorsa talep anında onaylı, "otomatik" kaydedilir (B84).
+- Karar: atanan kişi ya da Admin; kendi talebi olamaz (DB CHECK de engeller); limit, izin ve kayda erişim karar anında yeniden denetlenir. Reddetmek limit gerektirmez.
+- Süre dolunca bir üst ekip, sonra Admin, Admin'de de dolarsa `expired` (onaysız kapanır).
+
+## 8. Kurallar ve limitler
+- `approvals` ayar anahtarı (sürümlü): onaysız iskonto, yöneticinin varsayılan limiti, yanıt süresi (B85). `managerPercent ≥ freePercent`.
+- `approval_limits`: kişiye özel limit, yalnızca Admin yazar.
+
+## 9. Olay, bildirim, geçmiş
+- `approval.requested|decided|escalated`, `discount.approval_requested`: konu kaydı üzerinde; oran ve gerekçe olayda yer almaz.
+- Bildirim türü `approval`; karar ya da yönlendirme değişince onaycının okunmamış bildirimi geri çekilir.
+- `approval_steps` yalnızca eklenebilir.
+
+## 10. Hedefler
+- Kişi / ekip (alt ekiplerle) / segment × ay / çeyrek × kazanılan tutar, kazanılan fırsat, kapatılan görev. Gerçekleşme okuma anında, tenant saat dilimiyle hesaplanır; farklı para birimi toplanmaz, sayısı bildirilir (B86).
+- Okuma A19: kendi / yönettikleri / hepsi. Yazma: Admin hepsi; Yönetici yalnızca yönettikleri, kendisi için değil.
+- `target.at_risk`: dönemin en az %25'i geçmiş ve gerçekleşme geçen sürenin %75'inin altındaysa, hedef başına bir kez (B87).
+
+## 11. Ekranlar
+Onaylar (`/approvals`), fırsatta iskonto paneli, Ayarlar → Onay kuralları, Hedefler (`/targets`).
+
+## 12. Kabul (P8b)
+| Kriter | Kanıt |
+|---|---|
+| Onay motoru limit aşımında doğru onaylayıcıya yönlendiriyor; Yönetici limitini aşanı onaylayamıyor (G3) | `approvals.int.test.ts` |
+| Zaman aşımı ve eskalasyon | `approvals.int.test.ts` |
+| Ekip ve hedef verileri yetki kapsamına göre izole (G3) | `approvals.int.test.ts` |
+| Ekranlar axe ile denetleniyor | `approvals.spec.ts` |

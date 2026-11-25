@@ -1,5 +1,21 @@
 # İlerleme
 
+## P8b — G3: onay motoru ve hedefler · 2026-11-25 · ✅ (CI PR'da çalışacak)
+
+> `docs/p8-plan.md` §7–12. Bununla G3 tamam; sıradaki P8c (mention).
+
+### Yapılanlar
+- **Onay motoru** (B2B fırsatında iskonto): limiti yeten ve kaydı görebilen en yakın yöneticiye yönlendirme, yoksa Admin; kendi yetkisi içindeyse otomatik (B84); süre dolunca üst seviye, Admin'de `expired`; geri çekme, toplu karar, yalnızca eklenebilir geçmiş, olaylar ve `approval` bildirimi.
+- **Kurallar:** `approvals` ayar anahtarı ve kişiye özel limitler (B85).
+- **Hedefler:** kişi / ekip / segment × ay / çeyrek; gerçekleşme, riskli hedef olayı ve bildirimi (B86, B87).
+- **Göç** `0016_approvals.sql`. `/v1/approvals` core modülüne taşındı.
+- **Ekranlar:** Onaylar, fırsatta iskonto paneli, Ayarlar → Onay kuralları, Hedefler.
+
+### Testler
+- API entegrasyon 170: tam koşuda 169 geçti; kalan `plans.int.test.ts` kira süresi testi tek başına geçti, payı büyütüldü (yeni `approvals.int.test.ts`, 11). DB 21/21.
+- E2E 33/33, üretim görüntüsüyle (yeni `approvals.spec.ts`, 2; axe); görsel regresyon 4/4.
+- Lint, tip denetimi, birim testleri temiz; kontrast, matris ve katalog denetimleri PASS.
+
 ## P8a — G3: ürün kataloğu, fiyat listeleri, ekip ekranları · 2026-11-24 · ✅ (CI PR'da çalışacak)
 
 > P8'in ilk adımı (`docs/p8-plan.md`). P8b: onay motoru ve hedefler; P8c: mention; P8d: bildirim kanalları.
