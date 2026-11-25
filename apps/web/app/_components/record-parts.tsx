@@ -1,12 +1,13 @@
 'use client';
 
 import type { CommentListResponse, TimelineResponse } from '@flexa/contracts';
-import { Avatar, Button, RichTextEditor, Skeleton, type RichTextLabels, type RichTextValue } from '@flexa/ui';
+import { Avatar, Button, RichTextEditor, RichTextView, Skeleton, type RichTextLabels, type RichTextValue } from '@flexa/ui';
 import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { request } from '../../lib/api';
 import { dateTime, relativeTime } from '../../lib/format';
 import { t, tOptional } from '../../lib/i18n';
+import { useMentions } from '../../lib/mentions';
 import { useMutationErrorToast } from '../(app)/tasks/_parts/cells';
 
 type Out<T extends { _output: unknown }> = T['_output'];
@@ -76,6 +77,29 @@ export function TimelineList({ record, names }: { record: RecordRef; names: Map<
   );
 }
 
+/** The description editor of a record, with mentions (`path` as in RecordRef). */
+export function DescriptionEditor({ path, value, editable = true, onSave }: { path: string; value: RichTextValue['doc'] | null; editable?: boolean; onSave: (patch: { description: RichTextValue['doc'] | null; descriptionText: string | null }) => void }) {
+  const docs = useMemo(() => [value], [value]);
+  const { config, labelOf } = useMentions(path, 'description', docs);
+  return (
+    <div id="description">
+      <RichTextEditor
+        aria-label={t('task.description')}
+        value={value}
+        editable={editable}
+        placeholder={t('task.descriptionPlaceholder')}
+        labels={editorLabels()}
+        labelOf={labelOf}
+        {...(config && editable ? { mentions: config } : {})}
+        onBlur={(v) => {
+          const empty = v.text.trim() === '';
+          if (JSON.stringify(value) !== JSON.stringify(empty ? null : v.doc)) onSave({ description: empty ? null : v.doc, descriptionText: empty ? null : v.text });
+        }}
+      />
+    </div>
+  );
+}
+
 export function CommentsPanel({ record }: { record: RecordRef }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: record.keyOf('comments'), queryFn: ({ signal }) => request<Out<typeof CommentListResponse>>(`/v1/${record.path}/comments`, { signal }) });
@@ -92,7 +116,9 @@ export function CommentsPanel({ record }: { record: RecordRef }) {
     },
     onError,
   });
-  const comments = (q.data?.data ?? []).filter((c) => !c.deleted);
+  const comments = useMemo(() => (q.data?.data ?? []).filter((c) => !c.deleted), [q.data]);
+  const docs = useMemo(() => comments.map((c) => c.body), [comments]);
+  const { config, labelOf } = useMentions(record.path, 'comment', docs);
   return (
     <div className="flex flex-col gap-4">
       {q.isLoading ? (
@@ -102,14 +128,13 @@ export function CommentsPanel({ record }: { record: RecordRef }) {
       ) : (
         <ul className="m-0 flex list-none flex-col gap-3 p-0" data-testid="comments">
           {comments.map((c) => (
-            <li key={c.id} className="flex gap-3">
+            <li key={c.id} id={`comment-${c.id}`} className="flex gap-3">
               <Avatar name={c.author?.displayName ?? '?'} size={28} decorative />
               <div className="min-w-0 flex-1 rounded-input bg-subtle px-3 py-2">
                 <p className="m-0 text-xs text-fg-muted">
                   <strong className="text-fg">{c.author?.displayName ?? t('common.unknownUser')}</strong> · {relativeTime(c.createdAt)}
                 </p>
-                {/* Plain text only: stored rich text is rendered by the editor, never as HTML. */}
-                <p className="m-0 mt-1 whitespace-pre-wrap text-sm">{c.bodyText}</p>
+                <RichTextView doc={c.body} labelOf={labelOf} className="mt-1" />
               </div>
             </li>
           ))}
@@ -123,7 +148,7 @@ export function CommentsPanel({ record }: { record: RecordRef }) {
         }}
         className="flex flex-col gap-2"
       >
-        <RichTextEditor key={resetKey} aria-label={t('task.commentPlaceholder')} value={null} onChange={setDraft} placeholder={t('task.commentPlaceholder')} labels={editorLabels()} />
+        <RichTextEditor key={resetKey} aria-label={t('task.commentPlaceholder')} value={null} onChange={setDraft} placeholder={t('task.commentPlaceholder')} labels={editorLabels()} {...(config ? { mentions: config } : {})} />
         <div className="flex justify-end">
           <Button type="submit" size="sm" loading={add.isPending} disabled={!draft?.text.trim()}>
             {t('task.commentSend')}

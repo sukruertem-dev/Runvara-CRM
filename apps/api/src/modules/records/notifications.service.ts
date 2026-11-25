@@ -72,7 +72,7 @@ export class NotificationsService {
           record: x.accessible ? { type: x.record_type, id: x.record_id } : null,
           source: x.accessible ? { type: x.source_type, id: x.source_id } : null,
           actor: x.accessible && x.actor_id ? { id: x.actor_id, displayName: x.actor_name } : null,
-          link: x.accessible ? `/r/${x.record_type}/${x.record_id}${x.source_type === 'comment' ? `#comment-${x.source_id}` : ''}` : null,
+          link: x.accessible ? `/r/${x.record_type}/${x.record_id}${x.source_type === 'comment' || x.source_type === 'note' ? `#${x.source_type}-${x.source_id}` : x.source_type === 'description' ? '#description' : ''}` : null,
           createdAt: new Date(x.created_at).toISOString(),
           readAt: x.read_at ? new Date(x.read_at).toISOString() : null,
         })),

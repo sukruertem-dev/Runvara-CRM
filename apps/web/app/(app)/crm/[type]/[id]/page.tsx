@@ -11,7 +11,6 @@ import {
   EmptyState,
   ErrorState,
   Input,
-  RichTextEditor,
   SegmentBadge,
   Skeleton,
   StatusBadge,
@@ -39,7 +38,8 @@ import { PATH, rk, usePipelines, useRecordList, type CrmResource } from '../../.
 import { statusLabel, useDirectory, useWorkflows, type Task, type TaskPage } from '../../../../../lib/tasks';
 import { PageContainer } from '../../../../_components/app-shell';
 import { DiscountPanel } from '../../../../_components/discount-panel';
-import { CommentsPanel, editorLabels, FieldRow, Section, TimelineList, type RecordRef } from '../../../../_components/record-parts';
+import { NotesPanel } from '../../../../_components/notes-panel';
+import { CommentsPanel, DescriptionEditor, FieldRow, Section, TimelineList, type RecordRef } from '../../../../_components/record-parts';
 import { money, recordName, type CrmRecord } from '../../_parts/columns';
 
 const TYPES: CrmResource[] = ['account', 'contact', 'lead', 'opportunity', 'case'];
@@ -336,26 +336,21 @@ export default function CrmRecordPage() {
         <div className="flex min-w-0 flex-col gap-4">
           {'description' in r ? (
             <Section title={t('task.description')}>
-              <RichTextEditor
-                aria-label={t('task.description')}
-                value={(r['description'] as RichTextValue['doc'] | null) ?? null}
-                placeholder={t('task.descriptionPlaceholder')}
-                labels={editorLabels()}
-                onBlur={(v) => {
-                  const empty = v.text.trim() === '';
-                  if (JSON.stringify(r['description'] ?? null) !== JSON.stringify(empty ? null : v.doc)) save.mutate({ description: empty ? null : v.doc, descriptionText: empty ? null : v.text });
-                }}
-              />
+              <DescriptionEditor path={`${PATH[type]}/${r.id}`} value={(r['description'] as RichTextValue['doc'] | null) ?? null} onSave={(patch) => { save.mutate(patch); }} />
             </Section>
           ) : null}
           <section className="rounded-card border border-line bg-surface p-4">
             <Tabs defaultValue="comments">
               <TabsList label={t('task.activity')}>
                 <TabsTrigger value="comments">{t('task.comments')}</TabsTrigger>
+                <TabsTrigger value="notes">{t('note.tab')}</TabsTrigger>
                 <TabsTrigger value="activity">{t('task.activity')}</TabsTrigger>
               </TabsList>
               <TabsContent value="comments" className="pt-4">
                 <CommentsPanel record={ref} />
+              </TabsContent>
+              <TabsContent value="notes" className="pt-4">
+                <NotesPanel type={type} id={r.id} path={`${PATH[type]}/${r.id}`} />
               </TabsContent>
               <TabsContent value="activity" className="pt-4">
                 <TimelineList record={ref} names={names} />

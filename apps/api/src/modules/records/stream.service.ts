@@ -6,7 +6,8 @@ import { buildTenantContext } from '../../common/guards';
 import type { ShareType } from '../../common/record-access';
 import { dbCtx, type TenantRequestContext } from '../../common/request-context';
 import { DB, REDIS, type Redis } from '../../infra/tokens';
-import { RecordsService, RECORD_TYPES } from './records.service';
+import { canReadRecord } from './mentions';
+import { RECORD_TYPES } from './records.service';
 
 const HEARTBEAT_MS = 20_000;
 const CONTEXT_TTL_MS = 15_000;
@@ -32,7 +33,7 @@ export class StreamService implements OnApplicationShutdown {
   private subscriber: Redis | null = null;
   private heartbeat: NodeJS.Timeout | null = null;
 
-  constructor(@Inject(DB) private readonly db: DbHandle, @Inject(REDIS) private readonly redis: Redis, private readonly records: RecordsService) {}
+  constructor(@Inject(DB) private readonly db: DbHandle, @Inject(REDIS) private readonly redis: Redis) {}
 
   private ensureSubscriber(): Redis {
     if (this.subscriber) return this.subscriber;
@@ -128,7 +129,7 @@ export class StreamService implements OnApplicationShutdown {
       }
     }
     const resource = event.resource;
-    return this.db.withTenant(dbCtx(conn.ctx), (tx) => this.records.canRead(tx, conn.ctx, resource.type as ShareType, resource.id));
+    return this.db.withTenant(dbCtx(conn.ctx), (tx) => canReadRecord(tx, conn.ctx, resource.type as ShareType, resource.id));
   }
 
   private async deliver(conn: Connection, event: DomainEvent): Promise<void> {

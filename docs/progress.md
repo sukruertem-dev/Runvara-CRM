@@ -1,5 +1,24 @@
 # İlerleme
 
+## P8c — G6: mention'ın yaygınlaştırılması · 2026-11-25 · ✅ (CI PR'da çalışacak)
+
+> `docs/p8-plan.md` §13–16. Sıradaki P8d (bildirim kanalları, derin bağlantı, gecikme ölçümü).
+
+### Yapılanlar
+- **Yorum, not ve açıklamada anma** tek uygulamayla; yalnızca yeni anılanlar denetlenir ve bildirilir, kaldırılanlar geri çekilir; alan yetkisi hesaba katılır; açıklama içeriği doğrulanır.
+- **"Anınca erişim ver"** ayarı (varsayılan kapalı, B89) ve sınırlar (B90).
+- **Seçici** uç noktası ve editörde `@` listesi (klavye, ekran okuyucu); ad saklanmaz.
+- **Ekranlar:** Notlar sekmesi; biçimli yorum gösterimi; ayar Genel sayfasında.
+- **Göç** `0017_mentions.sql`.
+
+### Testler
+- API entegrasyon 179/179 (yeni `mentions.int.test.ts`, 9); DB 21/21.
+- E2E 35/35, üretim görüntüsüyle (yeni `mentions.spec.ts`, 2; axe); görsel regresyon 4/4.
+- Lint, tip denetimi, birim testleri temiz; kontrast, matris ve katalog denetimleri PASS.
+
+### Notlar
+- `team` kapsamı yalnızca ekip üyelerinin sahip olduğu kayıtları kapsar: Yönetici, ekibi dışından kendisine atanan görevi ya da ekipsizken kendi kaydını göremez (P4'ten beri; ayrı ele alınacak).
+
 ## P8b — G3: onay motoru ve hedefler · 2026-11-25 · ✅ (CI PR'da çalışacak)
 
 > `docs/p8-plan.md` §7–12. Bununla G3 tamam; sıradaki P8c (mention).

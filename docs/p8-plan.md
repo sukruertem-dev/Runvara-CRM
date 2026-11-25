@@ -84,3 +84,27 @@ Onaylar (`/approvals`), fırsatta iskonto paneli, Ayarlar → Onay kuralları, H
 | Zaman aşımı ve eskalasyon | `approvals.int.test.ts` |
 | Ekip ve hedef verileri yetki kapsamına göre izole (G3) | `approvals.int.test.ts` |
 | Ekranlar axe ile denetleniyor | `approvals.spec.ts` |
+
+# P8c — mention
+
+## 13. Kapsam
+- Yorum, not ve açıklama (görev + CRM kayıtları) tek uygulamayı kullanır (`records/mentions.ts`). Çağrı, teklif ve iade notları modülleriyle gelir (P9–P10).
+- Düzenlemede yalnızca **yeni** anılanlar denetlenir ve bildirilir; kaldırılanın anması ve okunmamış bildirimi geri çekilir. Erişimini yitirmiş eski bir anma, sonraki düzenlemeyi engellemez.
+- Erişim kişi başına yetki motoruyla: segment, kayıt kapsamı, açıklamada ayrıca alan yetkisi.
+- Açıklama içeriği yorum gibi doğrulanır. Özel not kimseyi anamaz; not özele çevrilince anmaları geri çekilir.
+
+## 14. "Anınca erişim ver" ve sınırlar
+- `mentions.grantAccess` (tenant, varsayılan kapalı): kaydı paylaşabilen kişi, erişimi olmayan birini anınca okuma paylaşımı oluşur (`source = mention`, audit). Segment dışına verilmez; yazma reddedilirse hiçbir erişim verilmez (B89).
+- Kişi başına dakikada 30 anma; en çok 100 kişilik ekip (B90).
+
+## 15. Seçici ve ekranlar
+- `GET /v1/{koleksiyon}/{id}/mentionable?q=&source=`: kaydı okuyabilenler, sonra ekipler (B91).
+- Editörde `@`: odak editörde kalır; oklar, Enter/Tab, Escape. Çip adı saklanmaz, okunurken çözülür.
+- Görev ve CRM kayıtlarında **Notlar** sekmesi; yorumlar biçimleriyle gösterilir (bilinen düğümlerden, HTML'den değil).
+
+## 16. Kabul (P8c)
+| Kriter | Kanıt |
+|---|---|
+| Erişimi olmayan kullanıcı anılamıyor (arayüz ve API) | `mentions.int.test.ts`, `mentions.spec.ts` |
+| Düzenlemede aynı kişi tekrar bildirilmiyor; silinen mention'ın bildirimi geri çekiliyor | `mentions.int.test.ts` |
+| Tenant A'daki mention tenant B kullanıcısına ulaşmıyor | `mentions.int.test.ts`, `leaks.int.test.ts` |

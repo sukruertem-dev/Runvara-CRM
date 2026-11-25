@@ -83,6 +83,9 @@ export function renderRichText(doc: unknown): RenderedRichText {
       case 'hardBreak':
         textParts.push('\n');
         return '<br>';
+      case 'horizontalRule':
+        textParts.push('\n');
+        return '<hr>';
       case 'heading': {
         const level = (n.attrs as { level?: unknown } | undefined)?.level;
         const l = level === 1 || level === 2 || level === 3 ? level : 3;

@@ -47,5 +47,6 @@ export {
 } from './components/display';
 export { DatePicker, toIsoDate, fromIsoDate } from './components/date-picker';
 export { CommandDialog, CommandGroup, CommandItem, CommandEmpty, CommandLoading } from './components/command';
+export { RichTextView, mentionedIds, type MentionConfig, type MentionItem } from './components/mention';
 export { RichTextEditor, type RichTextValue, type RichTextLabels } from './components/rich-text';
 export { ModuleIcon, MODULE_ICON_NAMES } from './components/icon';
