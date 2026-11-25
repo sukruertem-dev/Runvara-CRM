@@ -34,6 +34,12 @@ Faz 4'teki OWD, rol hiyerarşisi ve sharing rule'lar **kapsamı genişleten** ek
 
 - Kapsam sırası (delegasyon/yetki verme karşılaştırması için): `own < {queue, team} < segment < all`; `queue` ve `team` birbirinin üstü değildir.
 
+**Not (2026-11-25): `team` ve `queue`, `own`'u içerir.** Yukarıdaki sıra kayıt predicate'inde de geçerlidir: `team` veya `queue` kapsamı olan izin, `own` terimlerini de üretir (`owner_user_id`, `created_by`, görevde `assignee_user_id` ve üyesi olunan iş kuyruğunun görevleri). Önceki uygulama `team` için yalnızca `owner_user_id = ANY(:teamMemberIds)` üretiyordu; bu yüzden Yönetici, ekibi dışından kendisine atanan görevi ve hiçbir ekipte değilse kendi kayıtlarını göremiyordu.
+- Kural tek yerde, `packages/authz` `recordScope()` içinde (`scopeCovers`) uygulanır; liste, sayım, tekil okuma, düzenleme, arşivleme, yeniden atama ve "bu kişi okuyabilir mi" denetimleri (anma, bildirim, otomasyon) aynı sonucu kullanır.
+- Genişleme yalnızca kişinin kendisi içindir: ekip arkadaşına *atanan* ya da onun *oluşturduğu*, sahibi ekip dışı olan kayıt `team` kapsamına girmez.
+- Yeniden atama hedefi (`canAssignTo`) değişmez: `team` → ekip üyeleri, `queue` → kendi kuyrukları.
+- Segment ve modül koşulları önceliklidir; kendi kaydı da olsa yetkisiz segment 404 verir.
+
 ### 3. API
 ```ts
 can(ctx: AuthzContext, action: PermissionKey, resource: ResourceRef): Decision

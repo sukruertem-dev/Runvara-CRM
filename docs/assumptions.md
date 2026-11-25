@@ -124,3 +124,4 @@
 | B86 | Hedef gerçekleşmesi | Kazanılan = kapalı aşama ve olasılık > 0, kapanış tarihi dönem içinde, sahibi sayılır; görev atanana, yoksa sahibine. Para birimi farklı tutar toplanmaz, sayısı gösterilir. Segment yetkisi dışındaki kayıt sayılmaz | p8-plan §10 |
 | B87 | Riskli hedef | Dönemin %25'i geçmiş ve gerçekleşme < geçen süre × 0,75; hedef başına bir bildirim (hedef değişirse yeniden) | p8-plan §10 |
 | B88 | Yetki talepleri | P4b akışı korunur (Admin ya da yöneten Yönetici); onay motoruna taşınmaz | p8-plan §7 |
+| B92 | Kapsam sırası kayıt predicate'inde | `team` ve `queue` kapsamı kişinin kendi kayıtlarını (sahibi, oluşturanı, görevde atananı veya iş kuyruğu) her eylemde kapsar: Yönetici, ekibi dışından kendisine atanan görevi okur, düzenler ve arşivleyebilir. Yeniden atama hedefleri değişmez (ekip üyeleri / kendi kuyrukları) | ADR-0004 §2 notu |

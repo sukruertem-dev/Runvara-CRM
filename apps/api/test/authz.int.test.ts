@@ -45,9 +45,10 @@ const team = async (admin: Client, name = uniq('Ekip ')) => String(ok(await admi
 type Grant = { mode: string; scope: string | string[]; resources?: string[]; permissions?: string[] };
 type Row = { permissions: string[]; grants: Record<string, Grant | undefined> };
 const ROWS = (matrix as { rows: Row[] }).rows;
-type Situation = 'own' | 'teammate' | 'other' | 'hidden_segment';
+type Situation = 'own' | 'created' | 'teammate' | 'other' | 'hidden_segment';
 
-function oracle(role: string, action: 'read' | 'update' | 'archive' | 'create', situation: Situation, resource = 'crm.account'): boolean {
+function oracle(role: string, action: 'read' | 'update' | 'archive' | 'create', situation: Situation, opts: { teamless?: boolean } = {}): boolean {
+  const resource = 'crm.account';
   if (situation === 'hidden_segment') return false;
   const perm = `*record*.${action}`;
   const scopes = new Set<string>();
@@ -60,44 +61,49 @@ function oracle(role: string, action: 'read' | 'update' | 'archive' | 'create', 
   }
   if (action === 'create') return scopes.size > 0;
   if (scopes.has('all') || scopes.has('segment')) return true;
-  if (scopes.has('own') && situation === 'own') return true;
-  // The actor belongs to the team, so `team` covers both its own and its teammate's records (accounts have no queue).
-  if (scopes.has('team') && (situation === 'own' || situation === 'teammate')) return true;
+  // Scope order own < {queue, team} (ADR-0004 §2): every scope covers the actor's own records, team or not.
+  if (situation === 'own' || situation === 'created') return scopes.size > 0;
+  if (situation === 'teammate') return scopes.has('team') && !opts.teamless;
   return false;
 }
 
 describe('generated from permission-matrix.yaml: role × action × situation (G2 kabul)', () => {
-  const roles = ['admin', 'manager', 'sales_rep', 'call_agent', 'analyst'] as const;
+  const cases: { role: 'admin' | 'manager' | 'sales_rep' | 'call_agent' | 'analyst'; teamless?: boolean }[] = [
+    { role: 'admin' }, { role: 'manager' }, { role: 'manager', teamless: true }, { role: 'sales_rep' }, { role: 'call_agent' }, { role: 'analyst' },
+  ];
 
-  for (const role of roles) {
-    it(`${role}: read / update / archive / create on accounts match the matrix, including list counts`, async () => {
+  for (const { role, teamless = false } of cases) {
+    it(`${role}${teamless ? ' (no team)' : ''}: read / update / archive / create on accounts match the matrix, including list counts`, async () => {
       const { c: admin } = await workspace();
       const teamT = await team(admin);
       const teamU = await team(admin);
-      const actor = await member(admin, role, { segments: ['b2b'], teamId: teamT, teamRole: role === 'manager' ? 'manager' : 'member' });
+      const actor = await member(admin, role, { segments: ['b2b'], ...(teamless ? {} : { teamId: teamT, teamRole: role === 'manager' ? 'manager' : 'member' }) });
       const mate = await member(admin, 'sales_rep', { segments: ['b2b'], teamId: teamT });
       const other = await member(admin, 'sales_rep', { segments: ['b2b'], teamId: teamU });
       const rec: Record<Situation, string> = {
         own: String(ok(await admin.post('/v1/accounts', { name: uniq('Kendi '), segments: ['b2b'], ownerUserId: actor.userId }), 201).id),
+        created: String(ok(await admin.post('/v1/accounts', { name: uniq('Açtığı '), segments: ['b2b'], ownerUserId: other.userId }), 201).id),
         teammate: String(ok(await admin.post('/v1/accounts', { name: uniq('Ekip '), segments: ['b2b'], ownerUserId: mate.userId }), 201).id),
         other: String(ok(await admin.post('/v1/accounts', { name: uniq('Diğer '), segments: ['b2b'], ownerUserId: other.userId }), 201).id),
         hidden_segment: String(ok(await admin.post('/v1/accounts', { name: uniq('B2C '), segments: ['b2c'], ownerUserId: actor.userId }), 201).id),
       };
 
+      await superQuery(SUPER(), 'UPDATE accounts SET created_by = $1 WHERE id = $2', [actor.userId, rec.created]);
+
       const visible: string[] = [];
       for (const situation of Object.keys(rec) as Situation[]) {
         const id = rec[situation];
-        const canRead = oracle(role, 'read', situation);
+        const canRead = oracle(role, 'read', situation, { teamless });
         const read = await actor.c.get(`/v1/accounts/${id}`);
         expect(read.status, `${role} read ${situation}`).toBe(canRead ? 200 : 404);
         if (canRead) visible.push(id);
         const patch = await actor.c.patchJson(`/v1/accounts/${id}`, { industry: 'Test' }, `"${Number(read.body.version ?? 1)}"`);
-        expect(patch.status, `${role} update ${situation}`).toBe(!canRead ? 404 : oracle(role, 'update', situation) ? 200 : 403);
+        expect(patch.status, `${role} update ${situation}`).toBe(!canRead ? 404 : oracle(role, 'update', situation, { teamless }) ? 200 : 403);
       }
       // Archive last (it hides the record): own record only, so other expectations are unaffected.
       const own = await actor.c.get(`/v1/accounts/${rec.own}`);
       const del = await actor.c.deleteWithIfMatch(`/v1/accounts/${rec.own}`, `"${Number(own.body.version ?? 1)}"`);
-      expect(del.status, `${role} archive own`).toBe(!oracle(role, 'read', 'own') ? 404 : oracle(role, 'archive', 'own') ? 204 : 403);
+      expect(del.status, `${role} archive own`).toBe(!oracle(role, 'read', 'own', { teamless }) ? 404 : oracle(role, 'archive', 'own', { teamless }) ? 204 : 403);
       const archived = del.status === 204;
 
       // Lists and counts contain exactly the readable records — no post-filtering, so totals are exact.
@@ -108,7 +114,7 @@ describe('generated from permission-matrix.yaml: role × action × situation (G2
       expect(ids(all).sort(), `${role} list`).toEqual([...expected].sort());
 
       const create = await actor.c.post('/v1/accounts', { name: uniq('Yeni '), segments: ['b2b'] });
-      expect(create.status, `${role} create`).toBe(oracle(role, 'create', 'own') ? 201 : 403);
+      expect(create.status, `${role} create`).toBe(oracle(role, 'create', 'own', { teamless }) ? 201 : 403);
     });
   }
 });
@@ -169,6 +175,82 @@ describe('decision scenarios (10.4.4)', () => {
     expect((await admin.get(`/v1/accounts/${String(both.id)}`, { 'x-segment': 'b2c' })).status).toBe(200);
     expect((await admin.get(url, { 'x-segment': 'b2b' })).status).toBe(404);
     expect((await rep.c.get('/v1/accounts', { 'x-segment': 'b2c' })).body.data).toEqual([]);
+  });
+});
+
+describe('team and queue scopes include own records (ADR-0004 §2: own < {queue, team})', () => {
+  const version = (r: { body: Json }) => `"${Number(r.body.version)}"`;
+
+  it('a manager works on a task assigned to them by someone outside their teams', async () => {
+    const { c: admin, adminId } = await workspace();
+    const teamT = await team(admin);
+    const mgr = await member(admin, 'manager', { teamId: teamT, teamRole: 'manager' });
+    const mate = await member(admin, 'sales_rep', { teamId: teamT });
+    const other = await member(admin, 'sales_rep');
+    const task = ok(await admin.post('/v1/tasks', { title: 'Dışarıdan atanan', assigneeUserId: mgr.userId }), 201);
+    const foreign = ok(await admin.post('/v1/tasks', { title: 'İlgisiz' }), 201);
+    const mates = ok(await admin.post('/v1/tasks', { title: 'Ekip arkadaşına atanan', assigneeUserId: mate.userId }), 201);
+    const url = `/v1/tasks/${String(task.id)}`;
+
+    const read = await mgr.c.get(url);
+    expect(read.status).toBe(200);
+    const list = ok(await mgr.c.get('/v1/tasks?count=true'));
+    expect((list.data as Json[]).map((x) => x.id)).toEqual([task.id]);
+    expect(list.meta).toEqual({ total: 1 });
+    // Only the caller's own assignment is added: the team term stays on the owner.
+    expect((await mgr.c.get(`/v1/tasks/${String(foreign.id)}`)).status).toBe(404);
+    expect((await mgr.c.get(`/v1/tasks/${String(mates.id)}`)).status).toBe(404);
+
+    ok(await mgr.c.patchJson(url, { title: 'Güncellendi' }, version(read)));
+    // Reassignment targets are unchanged: team members (and oneself), nobody else.
+    const again = await mgr.c.get(url);
+    expect((await mgr.c.patchJson(url, { assigneeUserId: other.userId }, version(again))).status).toBe(403);
+    expect((await mgr.c.patchJson(url, { owner: { type: 'user', id: adminId }, assigneeUserId: adminId }, version(again))).status).toBe(403);
+    ok(await mgr.c.patchJson(url, { owner: { type: 'user', id: mate.userId } }, version(again)));
+    const archived = await mgr.c.get(url);
+    expect((await mgr.c.deleteWithIfMatch(url, version(archived))).status).toBe(204);
+  });
+
+  it('losing the assignment takes the access away on the next request', async () => {
+    const { c: admin } = await workspace();
+    const mgr = await member(admin, 'manager');
+    const task = ok(await admin.post('/v1/tasks', { title: 'Geri alınan', assigneeUserId: mgr.userId }), 201);
+    const url = `/v1/tasks/${String(task.id)}`;
+    expect((await mgr.c.get(url)).status).toBe(200);
+    ok(await admin.patchJson(url, { assigneeUserId: null }, '"1"'));
+    expect((await mgr.c.get(url)).status).toBe(404);
+  });
+
+  it('a manager in no team works on their own records but cannot give them to others', async () => {
+    const { c: admin } = await workspace();
+    const mgr = await member(admin, 'manager');
+    const other = await member(admin, 'sales_rep');
+    const task = ok(await mgr.c.post('/v1/tasks', { title: 'Kendi görevim' }), 201);
+    const acc = ok(await mgr.c.post('/v1/accounts', { name: 'Kendi müşterim', segments: ['b2b'] }), 201);
+    const taskUrl = `/v1/tasks/${String(task.id)}`;
+    const accUrl = `/v1/accounts/${String(acc.id)}`;
+    for (const [list, id] of [['/v1/tasks', task.id], ['/v1/accounts', acc.id]] as const) {
+      const l = ok(await mgr.c.get(`${list}?count=true`));
+      expect((l.data as Json[]).map((x) => x.id)).toEqual([id]);
+      expect(l.meta).toEqual({ total: 1 });
+    }
+    ok(await mgr.c.patchJson(taskUrl, { title: 'Yeni ad' }, '"1"'));
+    ok(await mgr.c.patchJson(accUrl, { industry: 'Enerji' }, '"1"'));
+    expect((await mgr.c.patchJson(taskUrl, { owner: { type: 'user', id: other.userId } }, '"2"')).status).toBe(403);
+    expect((await mgr.c.patchJson(accUrl, { ownerUserId: other.userId }, '"2"')).status).toBe(403);
+    expect((await mgr.c.deleteWithIfMatch(taskUrl, '"2"')).status).toBe(204);
+    expect((await mgr.c.deleteWithIfMatch(accUrl, '"2"')).status).toBe(204);
+  });
+
+  it('a queue-only grant (tenant matrix edit) still covers own records', async () => {
+    const { c: admin } = await workspace();
+    ok(await admin.put('/v1/authz/matrix', { changes: [{ roleKey: 'call_agent', permission: '*record*.read', grant: { mode: 'full', scope: 'queue' } }] }));
+    const agent = await member(admin, 'call_agent');
+    const mine = ok(await admin.post('/v1/tasks', { title: 'Atanan', assigneeUserId: agent.userId }), 201);
+    ok(await admin.post('/v1/tasks', { title: 'İlgisiz' }), 201);
+    const list = ok(await agent.c.get('/v1/tasks?count=true'));
+    expect((list.data as Json[]).map((x) => x.id)).toEqual([mine.id]);
+    expect(list.meta).toEqual({ total: 1 });
   });
 });
 
