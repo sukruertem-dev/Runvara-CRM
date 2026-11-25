@@ -11,6 +11,7 @@ import * as G from './config';
 import * as B from './bundle';
 import * as O from './operator';
 import * as K from './catalog';
+import * as P from './approvals';
 
 export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 export type AuthMode = 'none' | 'access' | 'tenant' | 'refresh_cookie';
@@ -350,5 +351,17 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   { method: 'delete', path: '/v1/fx-rates', summary: 'Remove an exchange rate (?base=&quote=&validOn=)', tag: 'catalog', auth: 'tenant', responses: { 204: null }, errors: [400, 401, 403, 404] },
   { method: 'post', path: '/v1/prices/resolve', summary: 'Which unit price applies to each product (customer, segment, general list; quantity breaks; currency)', tag: 'catalog', auth: 'tenant', body: K.PriceResolveRequest, responses: { 200: K.PriceResolveResponse }, errors: [400, 401, 403, 404, 422] },
   { method: 'put', path: '/v1/users/{id}/primary-team', summary: 'Choose which of their teams is the primary one', tag: 'access', auth: 'tenant', body: K.PrimaryTeamSet, responses: { 204: null }, errors: [400, 401, 403, 404, 422] },
+  { method: 'get', path: '/v1/approvals', summary: 'Approval requests (?box=inbox|mine|all|subject)', tag: 'approvals', auth: 'tenant', responses: { 200: P.ApprovalListResponse }, errors: [400, 401, 404] },
+  { method: 'post', path: '/v1/approvals', summary: 'Ask for approval of a discount (approved at once within the own authority)', tag: 'approvals', auth: 'tenant', body: P.ApprovalCreate, responses: { 201: P.ApprovalView }, errors: [400, 401, 403, 404, 409, 422] },
+  { method: 'post', path: '/v1/approvals/decisions', summary: 'Decide several requests; each has its own result', tag: 'approvals', auth: 'tenant', body: P.ApprovalBulkDecision, responses: { 200: P.ApprovalBulkResult }, errors: [400, 401] },
+  { method: 'get', path: '/v1/approvals/limits', summary: 'Approval limits of team managers', tag: 'approvals', auth: 'tenant', responses: { 200: P.ApprovalLimitListResponse }, errors: [401, 403] },
+  { method: 'put', path: '/v1/approvals/limits/{userId}', summary: 'Set or clear a person’s approval limit', tag: 'approvals', auth: 'tenant', body: P.ApprovalLimitSet, responses: { 204: null }, errors: [400, 401, 403, 404] },
+  { method: 'get', path: '/v1/approvals/{id}', summary: 'One approval request with its history', tag: 'approvals', auth: 'tenant', responses: { 200: P.ApprovalView }, errors: [401, 404] },
+  { method: 'post', path: '/v1/approvals/{id}/decision', summary: 'Approve (within the limit) or reject', tag: 'approvals', auth: 'tenant', body: P.ApprovalDecision, responses: { 200: P.ApprovalView }, errors: [400, 401, 403, 404, 409] },
+  { method: 'post', path: '/v1/approvals/{id}/cancel', summary: 'Withdraw an own pending request', tag: 'approvals', auth: 'tenant', responses: { 200: P.ApprovalView }, errors: [401, 403, 404, 409] },
+  { method: 'get', path: '/v1/targets', summary: 'Targets running on a day with their attainment (?on=)', tag: 'targets', auth: 'tenant', responses: { 200: P.TargetListResponse }, errors: [400, 401, 403, 404] },
+  { method: 'post', path: '/v1/targets', summary: 'Set a target for a person, team or segment', tag: 'targets', auth: 'tenant', body: P.TargetCreate, responses: { 201: P.TargetView }, errors: [400, 401, 403, 404, 409, 422] },
+  { method: 'patch', path: '/v1/targets/{id}', summary: 'Change the target value (If-Match)', tag: 'targets', auth: 'tenant', body: P.TargetPatch, responses: { 200: P.TargetView }, errors: [400, 401, 403, 404, 412, 428] },
+  { method: 'delete', path: '/v1/targets/{id}', summary: 'Delete a target', tag: 'targets', auth: 'tenant', responses: { 204: null }, errors: [401, 403, 404] },
   { method: 'get', path: '/v1/stream', summary: 'Server-sent events: record changes and notifications the caller may see (Last-Event-ID replay)', tag: 'stream', auth: 'tenant', responses: { 200: null }, errors: [401] },
 ];

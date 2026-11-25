@@ -19,7 +19,7 @@
 | **P6b** ✅ | F6 (görünümler) | Takvim, Gantt, opportunity pipeline, CRM kayıt listeleri ve detayı, dashboard, kayıtlı görünümler + RQL filtre çubuğu | `docs/p6-plan.md` |
 | **P6c** ✅ | F6 (ayarlar) | Workflow editörü, custom field, rol/izin matrisi, otomasyon kural oluşturucu, webhook/API anahtarı, SLA/takvim ekranları; Lighthouse + ekran görüntüsü regresyonu | `docs/p6-plan.md` |
 | **P7** ✅ (P7a, P7b, P7c, P7d) | G1-kalan | Yapılandırma motoru (katman, şema, sürüm, diff, geri al), blueprint'ler, marka, plan/kota, gürültülü komşu, SSO (SAML), operatör konsolu, tenant dışa aktarma/silme + **ekranları** | Onboarding sihirbazı için gerekli · dört adım: `docs/p7-plan.md` |
-| **P8** (P8a ✅, P8b–P8d) | G3 + G6 | Ekip, ürün/fiyat, onay motoru, hedef; mention editörü + anlık bildirim (p95 < 2 sn) + **ekranları** | Satış ve çağrı modüllerinin ortak bağımlılığı · dört adım: `docs/p8-plan.md` |
+| **P8** (P8a, P8b ✅, P8c–P8d) | G3 + G6 | Ekip, ürün/fiyat, onay motoru, hedef; mention editörü + anlık bildirim (p95 < 2 sn) + **ekranları** | Satış ve çağrı modüllerinin ortak bağımlılığı · dört adım: `docs/p8-plan.md` |
 | **P9** | G4 ve/veya G5 (hedef segmente göre) | B2B (teklif, sözleşme, forecast) / B2C (sipariş, rıza, iade, kampanya, RFM) + ekranları | Q5 yanıtına göre öncelik |
 | **P10** | G7 | Telefoni ağ geçidi, simülatör, adaptörler, ekran açma, çağrı kaydı, Data Servisi + ekranları | Çağrı merkezi önceliklendirilirse P9'dan önce |
 | **P11** | F7 + G8 | Raporlama, FTS arama, içe/dışa aktarma, i18n tamamlama, Yönetici cockpit, wallboard, dialer, QA | Veri biriktiren modüller hazır |

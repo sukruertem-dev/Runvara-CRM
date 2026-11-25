@@ -9,9 +9,10 @@ import { CRM, isCrmType, type CrmType } from '../crm/crm-objects';
 import { TASK_SHAPE, taskReadPredicate } from '../tasks/tasks.service';
 
 import { notify, type NotificationKind } from '../../common/notify';
+import { targetPredicate } from '../approvals/targets.service';
 
 export { notify };
-const KINDS: readonly NotificationKind[] = ['mention', 'assigned', 'automation'];
+const KINDS: readonly NotificationKind[] = ['mention', 'assigned', 'automation', 'approval'];
 
 type Row = {
   id: string; kind: NotificationKind; source_type: string; source_id: string; record_type: string; record_id: string;
@@ -36,6 +37,7 @@ export class NotificationsService {
     const configReader = can(t.authz, 'tenant.config.read', 'read').allow;
     branches.push(sql`WHEN n.record_type = 'webhook' THEN ${configReader}`);
     titles.push(sql`WHEN n.record_type = 'webhook' THEN (SELECT w.name FROM webhook_subscriptions w WHERE w.id = n.record_id)`);
+    branches.push(sql`WHEN n.record_type = 'target' THEN EXISTS (SELECT 1 FROM sales_targets g WHERE g.id = n.record_id AND ${targetPredicate(t)})`);
     return { accessible: sql`CASE ${sql.join(branches, sql` `)} ELSE false END`, title: sql`CASE ${sql.join(titles, sql` `)} END` };
   }
 

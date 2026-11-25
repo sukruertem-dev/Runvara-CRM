@@ -3,6 +3,8 @@ import { DomainEvent, eventQueueFor, EVENTS_QUEUE, eventShardQueue } from '@flex
 import { sql, type DbHandle } from '@flexa/db';
 import { Queue, Worker, type Job } from 'bullmq';
 import { DB, ENV, REDIS, type ApiEnv, type Redis } from '../../infra/tokens';
+import { ApprovalsService } from '../approvals/approvals.service';
+import { TargetsService } from '../approvals/targets.service';
 import { SlaService } from '../integrations/sla.service';
 import { WebhooksService } from '../integrations/webhooks.service';
 import { DigestService } from '../records/digest.service';
@@ -53,6 +55,8 @@ export class AutomationQueues implements OnModuleInit, OnApplicationShutdown {
     private readonly quota: QuotaService,
     private readonly deletion: DeletionService,
     private readonly exportsService: ExportsService,
+    private readonly approvals: ApprovalsService,
+    private readonly targets: TargetsService,
   ) {
     this.events = new Queue(EVENTS_QUEUE, { connection: redis, defaultJobOptions: EVENT_JOB_OPTIONS });
     this.shards = Array.from({ length: env.EVENT_SHARDS }, (_, i) => new Queue(eventShardQueue(i), { connection: redis, defaultJobOptions: EVENT_JOB_OPTIONS }));
@@ -108,6 +112,8 @@ export class AutomationQueues implements OnModuleInit, OnApplicationShutdown {
       else if (job.name === 'usage-snapshot') await this.usage.snapshotAll();
       else if (job.name === 'tenant-purge') await this.deletion.runDue();
       else if (job.name === 'export-expire') await this.exportsService.expire();
+      else if (job.name === 'approval-due') await this.approvals.runDue();
+      else if (job.name === 'target-risk') await this.targets.scanRisk();
       else await this.sla.check();
     }, { connection: this.redis.duplicate(), concurrency: 1 });
     void this.slaCheckQueue.upsertJobScheduler('sla-check', { every: 60_000 }, { name: 'check' });
@@ -118,6 +124,9 @@ export class AutomationQueues implements OnModuleInit, OnApplicationShutdown {
     // TEN-05: tenants past their deletion grace period are purged; expired export files are removed.
     void this.slaCheckQueue.upsertJobScheduler('tenant-purge', { every: 3_600_000 }, { name: 'tenant-purge' });
     void this.slaCheckQueue.upsertJobScheduler('export-expire', { every: 3_600_000 }, { name: 'export-expire' });
+    // Approvals past their deadline move up (ADR-0021); running targets are checked hourly (target.at_risk).
+    void this.slaCheckQueue.upsertJobScheduler('approval-due', { every: 60_000 }, { name: 'approval-due' });
+    void this.slaCheckQueue.upsertJobScheduler('target-risk', { every: 3_600_000 }, { name: 'target-risk' });
     this.webhooks.startWorker();
     this.workers = [...eventWorkers, ticks, slaCheck];
   }

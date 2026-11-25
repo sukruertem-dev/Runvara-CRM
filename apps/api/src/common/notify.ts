@@ -2,13 +2,16 @@ import { sql, type Db } from '@flexa/db';
 import { uuidArray } from './record-access';
 import type { TenantRequestContext } from './request-context';
 
-export type NotificationKind = 'mention' | 'assigned' | 'automation';
+/** What a notice needs of its context: background jobs have no request. */
+type NotifyContext = { tenant: { id: string }; principal: { userId: string }; automation?: TenantRequestContext['automation'] };
+
+export type NotificationKind = 'mention' | 'assigned' | 'automation' | 'approval';
 
 /** Creates in-app notifications (one per recipient and source; duplicates are ignored). Recipients who
  *  turned the in-app channel off for the kind get none. The actor is never notified of their own action. */
 export async function notify(
   tx: Db,
-  t: TenantRequestContext,
+  t: NotifyContext,
   n: { users: readonly string[]; kind: NotificationKind; sourceType: string; sourceId: string; recordType: string; recordId: string; message?: string; includeActor?: boolean },
 ): Promise<string[]> {
   // Automation notices may address the rule owner (the acting user); human actions never notify the actor.

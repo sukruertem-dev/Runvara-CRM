@@ -119,3 +119,8 @@
 | B81 | Katalog kayıtları | Ürün, vergi oranı ve fiyat listesi silinmez, pasifleştirilir. Listenin para birimi, segmenti ve müşterisi oluşturulduktan sonra değişmez | p8-plan §1 |
 | B82 | Müşteriye özel liste | Müşteri kaydını okuyamayana görünmez; müşteriler birleştirilince liste kalan müşteriye taşınır | p8-plan §2 |
 | B83 | Birincil ekip | İlk ekip birincildir; ayrılınca kalan en eski ekip. Yönetici yalnızca, eski ve yeni birincil ekibin ikisini de yönetiyorsa değiştirebilir | p8-plan §4 |
+| B84 | Kendi yetkisi içindeki talep | Onaysız sınır, yöneticinin kendi limiti ya da Admin: talep anında onaylı ve 'otomatik' kaydedilir; kimse kendi talebine karar vermez | p8-plan §7 |
+| B85 | Onay kurallarının yeri | Kurallar `approvals` ayar anahtarında (varsayılan: onaysız %8, yönetici %15, 24 saat); ADR-0021 tablosu yerine | p8-plan §8, ADR-0021 |
+| B86 | Hedef gerçekleşmesi | Kazanılan = kapalı aşama ve olasılık > 0, kapanış tarihi dönem içinde, sahibi sayılır; görev atanana, yoksa sahibine. Para birimi farklı tutar toplanmaz, sayısı gösterilir. Segment yetkisi dışındaki kayıt sayılmaz | p8-plan §10 |
+| B87 | Riskli hedef | Dönemin %25'i geçmiş ve gerçekleşme < geçen süre × 0,75; hedef başına bir bildirim (hedef değişirse yeniden) | p8-plan §10 |
+| B88 | Yetki talepleri | P4b akışı korunur (Admin ya da yöneten Yönetici); onay motoruna taşınmaz | p8-plan §7 |
