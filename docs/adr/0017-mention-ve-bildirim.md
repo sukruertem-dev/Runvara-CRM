@@ -40,3 +40,8 @@ Kullanıcı anonimleştirmede: mention düğümleri `{kind:"user", id:<anon-id>}
 - E-posta özeti (`apps/api/src/modules/records/digest.service.ts`) 5 dakikada bir çalışır. Kapsam: kanal tercihinde `email` olan kullanıcıların 10 dakikadan eski, okunmamış, henüz e-postalanmamış bildirimleri. Kullanıcı başına tek e-posta gider (en çok 20 satır + "ve N bildirim daha").
 - Başlıklar gönderim anında yeniden yetkilendirilir; erişimi kalkan bildirim gönderilmez. Her bildirim en çok bir kez e-postalanır (`emailed_at`).
 - Bildirim oluşturma ve okuma `notification.created` / `notification.read` olaylarını üretir. Açık akışlar (ADR-0007) diğer cihazlarda sayacı ve okundu durumunu günceller (MEN-10).
+
+## Uygulama notu (P8c, 2026-11-25)
+- Mention'lar `comment`, `note` ve `description` kaynaklarında ortak `syncMentions` ile eşitlenir; yalnızca önceki belgede olmayan kişi ve ekipler denetlenir.
+- Çip adı ve okuma görünümü istemcide belge düğümlerinden kurulur; sunucunun ürettiği HTML ekranda kullanılmaz.
+- Hız sınırı anma sayısıyladır; ekip tek anma sayılır.

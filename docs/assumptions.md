@@ -124,3 +124,6 @@
 | B86 | Hedef gerçekleşmesi | Kazanılan = kapalı aşama ve olasılık > 0, kapanış tarihi dönem içinde, sahibi sayılır; görev atanana, yoksa sahibine. Para birimi farklı tutar toplanmaz, sayısı gösterilir. Segment yetkisi dışındaki kayıt sayılmaz | p8-plan §10 |
 | B87 | Riskli hedef | Dönemin %25'i geçmiş ve gerçekleşme < geçen süre × 0,75; hedef başına bir bildirim (hedef değişirse yeniden) | p8-plan §10 |
 | B88 | Yetki talepleri | P4b akışı korunur (Admin ya da yöneten Yönetici); onay motoruna taşınmaz | p8-plan §7 |
+| B89 | Anınca erişim ver | Yalnızca doğrudan kişi anmasında ve kaydı paylaşabilen (düzenleyebilen) kişi için; okuma paylaşımı, segment dışına verilmez. Anma kaldırılınca paylaşım kalır, elle kaldırılır. Otomasyon erişim vermez | p8-plan §14 |
+| B90 | Anma sınırları | Dakikada 30 anma (ekip tek sayılır), ekip en çok 100 kişi | p8-plan §14 |
+| B91 | Seçici taraması | İstek başına ada uyan en çok 60 üye denetlenir, ilk 8 uygun kişi döner; daha fazlası için arama daraltılır | p8-plan §15 |
