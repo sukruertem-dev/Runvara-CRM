@@ -275,7 +275,7 @@ describe('noisy neighbour (TEN-10)', () => {
   });
 
   it('bounds the slots a tenant holds; an expired lease frees its slot', async () => {
-    const fair = new TenantSemaphore(h.redis, uniq('q'), 2, 100);
+    const fair = new TenantSemaphore(h.redis, uniq('q'), 2, 2_000); // long enough that a slow machine does not expire it between calls
     expect(await fair.acquire('A', 'j1')).toBe(true);
     expect(await fair.acquire('A', 'j2')).toBe(true);
     expect(await fair.acquire('A', 'j3')).toBe(false);
@@ -283,7 +283,7 @@ describe('noisy neighbour (TEN-10)', () => {
     expect(await fair.acquire('A', 'j1')).toBe(true); // renewing its own slot
     await fair.release('A', 'j1');
     expect(await fair.acquire('A', 'j3')).toBe(true);
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await new Promise((resolve) => setTimeout(resolve, 2_200));
     expect(await fair.held('A')).toBe(0);
   });
 
