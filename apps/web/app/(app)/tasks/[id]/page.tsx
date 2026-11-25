@@ -11,7 +11,6 @@ import {
   EmptyState,
   ErrorState,
   Input,
-  RichTextEditor,
   Skeleton,
   StatusBadge,
   Tabs,
@@ -50,7 +49,8 @@ import {
 } from '../../../../lib/tasks';
 import { PageContainer } from '../../../_components/app-shell';
 import { PriorityCell, StatusCell, useMutationErrorToast } from '../_parts/cells';
-import { CommentsPanel, editorLabels, FieldRow, Section, TimelineList, type RecordRef } from '../../../_components/record-parts';
+import { NotesPanel } from '../../../_components/notes-panel';
+import { CommentsPanel, DescriptionEditor, FieldRow, Section, TimelineList, type RecordRef } from '../../../_components/record-parts';
 
 function RelatedPanel({ id }: { id: string }) {
   const subtasks = useTaskPart<Subtasks>(id, 'subtasks');
@@ -384,28 +384,20 @@ export default function TaskDetailPage() {
 
         <div className="flex min-w-0 flex-col gap-4">
           <Section title={t('task.description')}>
-            <RichTextEditor
-              aria-label={t('task.description')}
-              value={(data.description as RichTextValue['doc'] | null | undefined) ?? null}
-              editable={editable}
-              placeholder={t('task.descriptionPlaceholder')}
-              labels={editorLabels()}
-              onBlur={(v) => {
-                const empty = v.text.trim() === '';
-                const before = JSON.stringify(data.description ?? null);
-                const after = JSON.stringify(empty ? null : v.doc);
-                if (before !== after) save({ description: empty ? null : v.doc, descriptionText: empty ? null : v.text });
-              }}
-            />
+            <DescriptionEditor path={`tasks/${id}`} value={(data.description as RichTextValue['doc'] | null | undefined) ?? null} editable={editable} onSave={save} />
           </Section>
           <section className="rounded-card border border-line bg-surface p-4">
             <Tabs defaultValue="comments">
               <TabsList label={t('task.activity')}>
                 <TabsTrigger value="comments">{t('task.comments')}</TabsTrigger>
+                <TabsTrigger value="notes">{t('note.tab')}</TabsTrigger>
                 <TabsTrigger value="activity">{t('task.activity')}</TabsTrigger>
               </TabsList>
               <TabsContent value="comments" className="pt-4">
                 <CommentsPanel record={record} />
+              </TabsContent>
+              <TabsContent value="notes" className="pt-4">
+                <NotesPanel type="task" id={id} path={`tasks/${id}`} />
               </TabsContent>
               <TabsContent value="activity" className="pt-4">
                 <TimelineList record={record} names={names} />

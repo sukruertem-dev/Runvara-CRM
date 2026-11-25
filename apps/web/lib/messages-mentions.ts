@@ -1,0 +1,43 @@
+/** Mentions and notes (P8c, docs/p8-plan.md §15). */
+
+export const mentionsTr = {
+  'mention.list': 'Anılabilecek kişiler ve ekipler',
+  'mention.empty': 'Bu kaydı görebilen eşleşme yok',
+  'mention.team': 'Ekip · {count} kişi',
+  'mention.grants': 'Anılınca bu kaydı görebilecek',
+  'mention.unknownTeam': 'Bilinmeyen ekip',
+  'note.tab': 'Notlar',
+  'note.empty': 'Henüz not yok.',
+  'note.placeholder': 'Not yazın; birini anmak için @ kullanın',
+  'note.add': 'Not ekle',
+  'note.onlyMe': 'Yalnızca ben göreyim (kimse anılamaz)',
+  'note.private': 'Özel',
+  'note.delete': 'Notu sil',
+  'note.deleted': 'Not silindi.',
+  'config.key.mentions': 'Anmalar',
+  'config.prop.mentions.grantAccess': 'Anılınca erişim ver',
+  'config.mentions.hint': 'Açıkken, kaydı paylaşabilen biri erişimi olmayan bir kişiyi andığında o kişiye okuma erişimi verilir. Segment dışındakilere verilmez.',
+  'error.MENTION_TARGET_NO_ACCESS': 'Anılan kişilerden biri bu kaydı göremiyor.',
+  'error.LIMIT_EXCEEDED': 'İzin verilen sınır aşıldı.',
+} as const;
+
+export const mentionsEn: Record<keyof typeof mentionsTr, string> = {
+  'mention.list': 'People and teams you can mention',
+  'mention.empty': 'No match who can see this record',
+  'mention.team': 'Team · {count} people',
+  'mention.grants': 'Will be able to see this record',
+  'mention.unknownTeam': 'Unknown team',
+  'note.tab': 'Notes',
+  'note.empty': 'No notes yet.',
+  'note.placeholder': 'Write a note; use @ to mention someone',
+  'note.add': 'Add note',
+  'note.onlyMe': 'Only I can see it (nobody can be mentioned)',
+  'note.private': 'Private',
+  'note.delete': 'Delete note',
+  'note.deleted': 'Note deleted.',
+  'config.key.mentions': 'Mentions',
+  'config.prop.mentions.grantAccess': 'Mentioning grants access',
+  'config.mentions.hint': 'When on, someone who may share a record and mentions a person without access gives them read access. Never across segments.',
+  'error.MENTION_TARGET_NO_ACCESS': 'One of the mentioned people cannot see this record.',
+  'error.LIMIT_EXCEEDED': 'The allowed limit was exceeded.',
+};

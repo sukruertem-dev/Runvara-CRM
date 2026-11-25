@@ -17,6 +17,7 @@ import { aggregate, keysetPage, parseFields, pickFields, type AggregateQuery, ty
 import { ProblemError } from '../../common/problem';
 import { dbCtx, type Segment, type TenantRequestContext } from '../../common/request-context';
 import { DB, ENV } from '../../infra/tokens';
+import { syncMentions } from '../records/mentions';
 import { cursorCodec, TaskListService } from '../tasks/task-list.service';
 import { loadFieldDefs, validateCustom } from '../tasks/task-fields';
 import { assertCan, assertWritable, canAssignTo, maskRegistry, maskView, recordPredicate } from '../../common/record-access';
@@ -280,6 +281,7 @@ export class CrmService {
     for (const p of points) await this.insertPoint(tx, t, type as 'account' | 'contact' | 'lead', id, p);
     if (accountLink) await this.setAccountRole(tx, t, id, accountLink.id, accountLink.role, accountLink.isPrimary);
     await recordActivity(tx, t, { type, id, kind: 'created' });
+    if (cols.description) await syncMentions(tx, t, { type, id }, 'description', id, null, cols.description);
     if (typeof cols.owner_user_id === 'string' && cols.owner_user_id !== me) await this.assigned(tx, t, type, id, cols.owner_user_id);
     return id;
   }
@@ -404,6 +406,7 @@ export class CrmService {
     } catch (e) {
       writeError(e);
     }
+    if (has('description')) await syncMentions(tx, t, { type, id: row.id }, 'description', row.id, row.description, body.description);
     // Timeline: the field diff in API terms (masked per reader on the way out), plus an assignment event.
     const vc = await crmViewContext(tx, type);
     const afterRows = await tx.execute<CrmRow>(sql`${def.select} WHERE t.id = ${row.id}`);

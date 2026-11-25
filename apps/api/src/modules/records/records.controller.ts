@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, UseGuards, type Type } from '@nestjs/common';
-import { ActivityLogCreate, AttachmentInitiate, CommentCreate, CommentPatch, NotificationPreferencesSet, type z } from '@flexa/contracts';
+import { ActivityLogCreate, AttachmentInitiate, CommentCreate, CommentPatch, MentionableQuery, NotificationPreferencesSet, type z } from '@flexa/contracts';
 import { authorize } from '../../common/authorize';
 import { TenantGuard } from '../../common/guards';
 import type { ShareType } from '../../common/record-access';
@@ -36,6 +36,11 @@ function recordExtrasController(path: string, type: ShareType): Type {
     @Post('comments')
     comment(@CurrentTenant() t: TenantRequestContext, @Param('id', Id) id: string, @Body(new ZodPipe(CommentCreate)) body: z.infer<typeof CommentCreate>) {
       return this.records.createComment(t, type, id, body);
+    }
+
+    @Get('mentionable')
+    mentionable(@CurrentTenant() t: TenantRequestContext, @Param('id', Id) id: string, @Query(new ZodPipe(MentionableQuery)) q: z.infer<typeof MentionableQuery>) {
+      return this.records.mentionable(t, type, id, q.source, q.q);
     }
 
     @Get('attachments')

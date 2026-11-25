@@ -161,6 +161,15 @@ export const CONFIG_KEYS: readonly ConfigKeyDef[] = [
     default: { deletionGraceDays: 30 },
   },
   {
+    key: 'mentions',
+    module: 'core',
+    schemaVersion: 1,
+    description: 'Mentions (A12): whether mentioning someone without access gives them read access to the record.',
+    overridableAt: ['tenant'],
+    schema: { type: 'object', additionalProperties: false, required: ['grantAccess'], properties: { grantAccess: { type: 'boolean' } } },
+    default: { grantAccess: false },
+  },
+  {
     key: 'approvals',
     module: 'core',
     schemaVersion: 1,

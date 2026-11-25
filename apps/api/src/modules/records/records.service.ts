@@ -1,18 +1,16 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { recordScope, type RecordResource } from '@flexa/authz';
-import { can } from '@flexa/authz';
 import type { ActivityLogCreate, CommentCreate, CommentPatch, z } from '@flexa/contracts';
 import { sql, type Db, type DbHandle, type SQL } from '@flexa/db';
-import { contextForUser } from '../../common/access-loader';
 import { recordActivity } from '../../common/activity';
-import { notify } from '../../common/notify';
 import { ProblemError } from '../../common/problem';
-import { hiddenFields, recordPredicate, uuidArray, type RecordShape, type ShareType } from '../../common/record-access';
+import { hiddenFields, type RecordShape, type ShareType } from '../../common/record-access';
 import { dbCtx, type TenantRequestContext } from '../../common/request-context';
 import { renderRichText } from '../../common/rich-text';
 import { DB } from '../../infra/tokens';
 import { attachedSegment, CRM, isCrmType, readCrmRow } from '../crm/crm-objects';
-import { TASK_SHAPE, taskReadPredicate, TasksService } from '../tasks/tasks.service';
+import { TASK_SHAPE, TasksService } from '../tasks/tasks.service';
+import { mentionable, syncMentions, type MentionSource } from './mentions';
 
 export const RECORD_TYPES: readonly ShareType[] = ['task', 'account', 'contact', 'lead', 'opportunity', 'case'];
 
@@ -50,20 +48,6 @@ export class RecordsService {
 
   private assertCreate(t: TenantRequestContext, type: string): void {
     if (recordScope(t.authz, 'create', this.resourceOf(type)).kind === 'none') throw new ProblemError('FORBIDDEN');
-  }
-
-  /** Could `ctx` (another member) read the record right now? Segment, tenant and record scope included. */
-  async canRead(tx: Db, ctx: TenantRequestContext, type: ShareType, id: string): Promise<boolean> {
-    const reg = await tx.execute<{ segment: string | null; segments: string | null }>(sql`
-      SELECT segment::text, segments::text FROM record_registry WHERE record_type = ${type} AND record_id = ${id} AND deleted_at IS NULL`);
-    const r = reg.rows[0];
-    if (!r) return false;
-    if (r.segment && !ctx.segments.includes(r.segment as 'b2b' | 'b2c')) return false;
-    if (r.segments && !r.segments.replace(/[{}]/g, '').split(',').some((s) => ctx.segments.includes(s as 'b2b' | 'b2c'))) return false;
-    const shape = this.shapeOf(type);
-    const pred = type === 'task' ? await taskReadPredicate(tx, ctx) : await recordPredicate(tx, ctx, shape, 'read');
-    const hit = await tx.execute(sql`SELECT 1 FROM ${shape.from} WHERE t.id = ${id} AND t.deleted_at IS NULL AND ${pred}`);
-    return (hit.rowCount ?? 0) > 0;
   }
 
   // ------------------------------------------------------------------ timeline
@@ -153,7 +137,6 @@ export class RecordsService {
     if (!rendered.text) throw new ProblemError('VALIDATION_FAILED', 'body: empty comment');
     return this.db.withTenant(dbCtx(t), async (tx) => {
       await this.readRecord(tx, t, type, id);
-      const resolved = await this.resolveMentions(tx, t, type, id, rendered.mentions);
       const segment = await attachedSegment(tx, type, id);
       const ins = await tx.execute<{ id: string }>(sql`
         INSERT INTO comments (tenant_id, record_type, record_id, segment, body, body_html, body_text, author_id)
@@ -162,53 +145,12 @@ export class RecordsService {
       const commentId = ins.rows[0]?.id ?? '';
       await tx.execute(sql`INSERT INTO comment_revisions (tenant_id, comment_id, revision, body, body_text, edited_by)
         VALUES (${t.tenant.id}, ${commentId}, 1, ${JSON.stringify(body.body)}::jsonb, ${rendered.text}, ${t.principal.userId})`);
-      await this.addMentions(tx, t, type, id, commentId, resolved);
+      await syncMentions(tx, t, { type, id }, 'comment', commentId, null, body.body);
       await recordActivity(tx, t, { type, id, kind: 'comment', data: { commentId } });
       const [row] = await this.commentRows(tx, sql`c.id = ${commentId}`);
       if (!row) throw new ProblemError('INTERNAL');
       return this.commentView(row);
     });
-  }
-
-  /** ADR-0017 §2: user mentions must be able to read the record (otherwise 422 naming them); team
-   *  mentions expand to members who can, silently skipping the rest. */
-  private async resolveMentions(tx: Db, t: TenantRequestContext, type: ShareType, id: string, m: { users: Set<string>; teams: Set<string> }) {
-    const out = new Map<string, string | null>(); // user → via team
-    if (m.users.size === 0 && m.teams.size === 0) return out;
-    if (!can(t.authz, 'mentions.create').allow) throw new ProblemError('FORBIDDEN', 'you may not mention people');
-    const denied: string[] = [];
-    for (const u of m.users) {
-      const ctx = await contextForUser(tx, t, u);
-      if (!ctx || !(await this.canRead(tx, ctx, type, id))) denied.push(u);
-      else out.set(u, null);
-    }
-    if (denied.length) throw new ProblemError('MENTION_TARGET_NO_ACCESS', 'some mentioned people cannot see this record', { userIds: denied });
-    if (m.teams.size) {
-      const members = await tx.execute<{ team_id: string; user_id: string }>(sql`
-        SELECT team_id::text, user_id::text FROM team_members WHERE team_id = ANY(${uuidArray([...m.teams])})`);
-      const found = new Set(members.rows.map((r) => r.team_id));
-      const unknown = [...m.teams].find((x) => !found.has(x));
-      if (unknown) {
-        const exists = await tx.execute(sql`SELECT 1 FROM teams WHERE id = ${unknown}`);
-        if ((exists.rowCount ?? 0) === 0) throw new ProblemError('VALIDATION_FAILED', 'body: unknown team mentioned');
-      }
-      for (const r of members.rows) {
-        if (out.has(r.user_id)) continue;
-        const ctx = await contextForUser(tx, t, r.user_id);
-        if (ctx && (await this.canRead(tx, ctx, type, id))) out.set(r.user_id, r.team_id);
-      }
-    }
-    out.delete(t.principal.userId);
-    return out;
-  }
-
-  private async addMentions(tx: Db, t: TenantRequestContext, type: ShareType, id: string, commentId: string, users: Map<string, string | null>): Promise<void> {
-    for (const [u, via] of users) {
-      await tx.execute(sql`INSERT INTO mentions (tenant_id, source_type, source_id, record_type, record_id, mentioned_user, via_team_id, mentioned_by)
-        VALUES (${t.tenant.id}, 'comment', ${commentId}, ${type}, ${id}, ${u}, ${via}, ${t.principal.userId})
-        ON CONFLICT (tenant_id, source_type, source_id, mentioned_user) DO UPDATE SET retracted_at = NULL, via_team_id = EXCLUDED.via_team_id`);
-    }
-    await notify(tx, t, { users: [...users.keys()], kind: 'mention', sourceType: 'comment', sourceId: commentId, recordType: type, recordId: id });
   }
 
   private async ownComment(tx: Db, t: TenantRequestContext, commentId: string): Promise<CommentRow> {
@@ -227,21 +169,12 @@ export class RecordsService {
       if (row.author_id !== t.principal.userId) throw new ProblemError('FORBIDDEN', 'only the author can edit a comment');
       if (body.revision !== row.revision) throw new ProblemError('PRECONDITION_FAILED', 'the comment was edited meanwhile', { currentRevision: row.revision });
       const type = row.record_type as ShareType;
-      const resolved = await this.resolveMentions(tx, t, type, row.record_id, rendered.mentions);
-      const prev = await tx.execute<{ u: string }>(sql`SELECT mentioned_user::text AS u FROM mentions WHERE source_type = 'comment' AND source_id = ${commentId} AND retracted_at IS NULL`);
-      const before = new Set(prev.rows.map((r) => r.u));
-      const added = new Map([...resolved].filter(([u]) => !before.has(u)));
-      const removed = [...before].filter((u) => !resolved.has(u));
+      await syncMentions(tx, t, { type, id: row.record_id }, 'comment', commentId, row.body, body.body);
       const revision = row.revision + 1;
       await tx.execute(sql`UPDATE comments SET body = ${JSON.stringify(body.body)}::jsonb, body_html = ${rendered.html}, body_text = ${rendered.text},
         revision = ${revision}, edited_at = now() WHERE id = ${commentId}`);
       await tx.execute(sql`INSERT INTO comment_revisions (tenant_id, comment_id, revision, body, body_text, edited_by)
         VALUES (${t.tenant.id}, ${commentId}, ${revision}, ${JSON.stringify(body.body)}::jsonb, ${rendered.text}, ${t.principal.userId})`);
-      if (removed.length) {
-        await tx.execute(sql`UPDATE mentions SET retracted_at = now() WHERE source_type = 'comment' AND source_id = ${commentId} AND mentioned_user = ANY(${uuidArray(removed)})`);
-        await tx.execute(sql`SELECT app.retract_notifications('comment', ${commentId}::uuid, ${uuidArray(removed)})`);
-      }
-      if (added.size) await this.addMentions(tx, t, type, row.record_id, commentId, added);
       const [after] = await this.commentRows(tx, sql`c.id = ${commentId}`);
       if (!after) throw new ProblemError('INTERNAL');
       return this.commentView(after);
@@ -255,8 +188,15 @@ export class RecordsService {
       const archiveAll = recordScope(t.authz, 'archive', this.resourceOf(row.record_type)).kind === 'all';
       if (row.author_id !== t.principal.userId && !archiveAll) throw new ProblemError('FORBIDDEN');
       await tx.execute(sql`UPDATE comments SET deleted_at = now() WHERE id = ${commentId}`);
-      const users = await tx.execute<{ u: string }>(sql`UPDATE mentions SET retracted_at = now() WHERE source_type = 'comment' AND source_id = ${commentId} AND retracted_at IS NULL RETURNING mentioned_user::text AS u`);
-      if (users.rows.length) await tx.execute(sql`SELECT app.retract_notifications('comment', ${commentId}::uuid, ${uuidArray(users.rows.map((r) => r.u))})`);
+      await syncMentions(tx, t, { type: row.record_type as ShareType, id: row.record_id }, 'comment', commentId, row.body, null);
+    });
+  }
+
+  /** People and teams the `@` picker offers for a record. */
+  async mentionable(t: TenantRequestContext, type: ShareType, id: string, source: MentionSource, q: string) {
+    return this.db.withTenant(dbCtx(t), async (tx) => {
+      await this.readRecord(tx, t, type, id);
+      return mentionable(tx, t, { type, id }, source, q);
     });
   }
 

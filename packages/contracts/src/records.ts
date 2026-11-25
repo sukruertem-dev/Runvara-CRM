@@ -45,6 +45,16 @@ export const CommentRevisionListResponse = z
   .object({ data: z.array(z.object({ revision: z.number().int(), body: ProseMirrorDoc, bodyText: z.string(), editedBy: Uuid, at: z.string() })) })
   .openapi('CommentRevisionListResponse');
 
+/** The `@` picker (ADR-0017 §2): only people who can read the record, and the field for `description`. */
+export const MentionableQuery = z.object({ q: z.string().trim().max(100).default(''), source: z.enum(['comment', 'note', 'description']).default('comment') }).strict();
+export const MentionableResponse = z
+  .object({
+    /** `grantsAccess`: the person gets read access when mentioned (tenant policy, off by default). */
+    users: z.array(z.object({ id: Uuid, displayName: z.string(), grantsAccess: z.boolean() })),
+    teams: z.array(z.object({ id: Uuid, name: z.string(), memberCount: z.number().int() })),
+  })
+  .openapi('MentionableResponse');
+
 // ------------------------------------------------------------------ notifications
 export const NotificationView = z
   .object({
