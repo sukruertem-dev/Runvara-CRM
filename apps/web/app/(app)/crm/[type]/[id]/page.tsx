@@ -38,6 +38,7 @@ import { useRealtimeEvent } from '../../../../../lib/realtime';
 import { PATH, rk, usePipelines, useRecordList, type CrmResource } from '../../../../../lib/records';
 import { statusLabel, useDirectory, useWorkflows, type Task, type TaskPage } from '../../../../../lib/tasks';
 import { PageContainer } from '../../../../_components/app-shell';
+import { DiscountPanel } from '../../../../_components/discount-panel';
 import { CommentsPanel, editorLabels, FieldRow, Section, TimelineList, type RecordRef } from '../../../../_components/record-parts';
 import { money, recordName, type CrmRecord } from '../../_parts/columns';
 
@@ -362,7 +363,10 @@ export default function CrmRecordPage() {
             </Tabs>
           </section>
         </div>
-        <Related type={type} record={r} />
+        <div className="flex min-w-0 flex-col gap-4">
+          {type === 'opportunity' && r['segment'] === 'b2b' ? <DiscountPanel opportunityId={r.id} /> : null}
+          <Related type={type} record={r} />
+        </div>
       </div>
     </PageContainer>
   );

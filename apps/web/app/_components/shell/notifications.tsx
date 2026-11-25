@@ -3,7 +3,7 @@
 import type { NotificationListResponse } from '@flexa/contracts';
 import { Avatar, Button, cn, EmptyState, focusRing, IconButton, Popover, PopoverContent, PopoverTrigger, Skeleton, Tabs, TabsList, TabsTrigger } from '@flexa/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AtSign, Bell, BellOff, CheckCheck, Lock, UserCheck, Zap } from 'lucide-react';
+import { AtSign, Bell, BellOff, CheckCheck, Lock, Stamp, UserCheck, Zap } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { request } from '../../../lib/api';
@@ -16,11 +16,13 @@ type Out<T extends { _output: unknown }> = T['_output'];
 type NotificationList = Out<typeof NotificationListResponse>;
 type Notification = NotificationList['data'][number];
 
-const KIND_ICON = { mention: AtSign, assigned: UserCheck, automation: Zap } as const;
+const KIND_ICON = { mention: AtSign, assigned: UserCheck, automation: Zap, approval: Stamp } as const;
 
 /** In-app route for a notification's record (tasks today; other record pages arrive with their screens). */
 function hrefFor(n: Notification): string | null {
   if (!n.accessible || !n.record) return null;
+  if (n.kind === 'approval') return '/approvals';
+  if (n.record.type === 'target') return '/targets';
   if (n.record.type === 'task') return `/tasks/${n.record.id}`;
   return null;
 }
@@ -123,7 +125,7 @@ export function NotificationBell() {
                         {t(`notif.kind.${n.kind}`)} · {relativeTime(n.createdAt)}
                       </span>
                       {n.accessible ? (
-                        <span className={cn('block truncate text-sm', !n.readAt && 'font-semibold')}>{n.title ?? n.message ?? ''}</span>
+                        <span className={cn('block truncate text-sm', !n.readAt && 'font-semibold')}>{n.record?.type === 'target' ? t('notif.targetRisk') : n.source?.type === 'approval_request' ? t('notif.approvalAsk', { title: n.title ?? '' }) : n.source?.type === 'approval_decision' ? t('notif.approvalDone', { title: n.title ?? '' }) : (n.title ?? n.message ?? '')}</span>
                       ) : (
                         <span className="flex items-center gap-1 text-sm text-fg-muted">
                           <Lock aria-hidden size={12} /> {t('notif.inaccessible')}

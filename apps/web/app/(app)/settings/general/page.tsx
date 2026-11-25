@@ -12,7 +12,7 @@ import { ReadOnlyNotice, SettingsGate, SettingsHeader } from '../_parts/settings
 type Json = Record<string, unknown>;
 const KEYS = ['locale', 'currency', 'ui', 'notifications.defaults'] as const;
 type Key = (typeof KEYS)[number];
-const KINDS = ['mention', 'assigned', 'automation'] as const;
+const KINDS = ['mention', 'assigned', 'automation', 'approval'] as const;
 const CHANNELS = ['in_app', 'email'] as const;
 
 function list(kind: 'timeZone' | 'currency', fallback: string[]): string[] {
