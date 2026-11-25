@@ -16,3 +16,5 @@ export * from './bundle';
 export * from './operator';
 export * from './catalog';
 export * from './approvals';
+export * from './quotes';
+export * from './pricing';

@@ -14,7 +14,7 @@ import { TASK_SHAPE, taskReadPredicate } from '../tasks/tasks.service';
 // Mentions (ADR-0017 §2, docs/p8-plan.md §13–15), shared by comments, notes and descriptions. Plain functions:
 // the task, CRM and note services all call them inside their own transaction.
 
-export type MentionSource = 'comment' | 'note' | 'description';
+export type MentionSource = 'comment' | 'note' | 'description' | 'quote';
 type Mentions = RenderedRichText['mentions'];
 interface Target { type: ShareType; id: string }
 
@@ -45,9 +45,13 @@ export async function canReadRecord(tx: Db, ctx: TenantRequestContext, type: Sha
   return (hit.rowCount ?? 0) > 0;
 }
 
+/** Quotes show the opportunity's amounts. */
+const seesQuotes = (ctx: TenantRequestContext): boolean => ctx.authz.enabledModules.has('sales_b2b') && !hiddenFields(ctx, 'opportunity').has('amount');
+
 /** Reads the record and, for a description, the field as well (MEN-03). */
 async function canSeeSource(tx: Db, ctx: TenantRequestContext, target: Target, source: MentionSource): Promise<boolean> {
   if (source === 'description' && hiddenFields(ctx, target.type).has('description')) return false;
+  if (source === 'quote' && !seesQuotes(ctx)) return false;
   return canReadRecord(tx, ctx, target.type, target.id);
 }
 
@@ -117,6 +121,7 @@ async function resolve(tx: Db, t: TenantRequestContext, target: Target, source: 
  *  the field). */
 async function wouldSeeWithShare(tx: Db, ctx: TenantRequestContext, target: Target, source: MentionSource): Promise<boolean> {
   if (source === 'description' && hiddenFields(ctx, target.type).has('description')) return false;
+  if (source === 'quote' && !seesQuotes(ctx)) return false;
   const seg = await segmentsOf(tx, target);
   if (!seg || (seg.any && !seg.any.some((s) => ctx.segments.includes(s)))) return false;
   // Tried for real: the share is added, read with the target's own predicate, and taken back.

@@ -66,6 +66,13 @@ export function render(job: MailJob): RenderedMail {
       return tr
         ? make(job.vars.subject, job.vars.body.split(PARAGRAPH_BREAK), { label: 'Kaydı aç', url: job.vars.url }, `${job.vars.tenantName} çalışma alanındaki bir otomasyon kuralı tarafından gönderildi.`)
         : make(job.vars.subject, job.vars.body.split(PARAGRAPH_BREAK), { label: 'Open record', url: job.vars.url }, `Sent by an automation rule in the ${job.vars.tenantName} workspace.`);
+    case 'quote': {
+      // The sender's own words; the document is attached. No link: the customer has no account.
+      const extra = job.vars.message ? job.vars.message.split(PARAGRAPH_BREAK) : [];
+      return tr
+        ? make(`${job.vars.tenantName}: teklif ${job.vars.number}`, [...extra, `Teklifimiz ektedir. Genel toplam: ${job.vars.total}. Geçerlilik: ${job.vars.validUntil}.`], null, `${job.vars.tenantName} adına gönderildi. Yanıtınız teklifi gönderen kişiye ulaşır.`)
+        : make(`${job.vars.tenantName}: quote ${job.vars.number}`, [...extra, `Our quote is attached. Grand total: ${job.vars.total}. Valid until: ${job.vars.validUntil}.`], null, `Sent on behalf of ${job.vars.tenantName}. Your reply goes to the person who sent the quote.`);
+    }
     case 'quota_warning': {
       // ADR-0014 §3: 80 % warns, 100 % stops new invitations and uploads, 120 % stops the related writes.
       const what = (tr ? QUOTA_TR : QUOTA_EN)[job.vars.dimension];

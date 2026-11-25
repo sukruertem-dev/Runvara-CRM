@@ -188,6 +188,26 @@ export const CONFIG_KEYS: readonly ConfigKeyDef[] = [
     default: { grantAccess: false },
   },
   {
+    key: 'sales_b2b.quote_template',
+    module: 'sales_b2b',
+    schemaVersion: 1,
+    description: 'Quotes: number prefix, validity in days, and the standard introduction, terms and footer.',
+    overridableAt: ['tenant'],
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['prefix', 'validDays', 'intro', 'terms', 'footer'],
+      properties: {
+        prefix: { type: 'string', pattern: '^[A-Z0-9]{1,10}$' },
+        validDays: { type: 'integer', minimum: 1, maximum: 365 },
+        intro: { type: 'string', maxLength: 4000 },
+        terms: { type: 'string', maxLength: 8000 },
+        footer: { type: 'string', maxLength: 300 },
+      },
+    },
+    default: { prefix: 'T', validDays: 30, intro: '', terms: '', footer: '' },
+  },
+  {
     key: 'approvals',
     module: 'core',
     schemaVersion: 1,

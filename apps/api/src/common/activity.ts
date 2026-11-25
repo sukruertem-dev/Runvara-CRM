@@ -8,7 +8,7 @@ import type { TenantRequestContext } from './request-context';
 
 export type ActivityKind =
   | 'created' | 'field_changed' | 'status_changed' | 'assigned' | 'deleted' | 'restored'
-  | 'converted' | 'merged' | 'comment' | 'attachment' | 'email_log' | 'call_log';
+  | 'converted' | 'merged' | 'comment' | 'attachment' | 'email_log' | 'call_log' | 'quote';
 
 /** View fields that change on every write and carry no information of their own. */
 const VOLATILE = new Set(['version', 'updatedAt', 'updatedBy', 'createdAt', 'createdBy', 'deletedAt', 'closedAt', 'contactPoints', 'accounts', 'tagIds', 'position', 'depth']);
@@ -59,6 +59,7 @@ function eventOf(type: string, kind: ActivityKind, diff: Record<string, unknown>
     case 'merged': return { type: 'record.merged', payload: { mergedIds: data.mergedIds ?? [] } };
     case 'comment': return { type: 'comment.created', payload: { commentId: data.commentId ?? null } };
     case 'attachment': return { type: 'attachment.uploaded', payload: { attachmentId: data.attachmentId ?? null, status: data.status ?? null } };
+    case 'quote': return { type: `quote.${typeof data.action === 'string' ? data.action : 'changed'}`, payload: { quoteId: data.quoteId ?? null, version: data.version ?? null } };
     case 'email_log':
     case 'call_log': return { type: 'activity.logged', payload: { kind } };
   }

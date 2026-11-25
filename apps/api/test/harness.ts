@@ -119,6 +119,8 @@ export class Client {
     return { status: r.statusCode, body: parsed, headers: r.headers, cookies: r.cookies.map((c) => ({ name: c.name, value: c.value })) };
   }
 
+  /** The untouched response (binary bodies). */
+  raw = (method: 'GET', url: string) => this.app.getHttpAdapter().getInstance().inject({ method, url, headers: { authorization: `Bearer ${this.accessToken ?? ''}` } });
   get = (url: string, extra?: Record<string, string>) => this.req('GET', url, undefined, extra);
   post = (url: string, body?: unknown, extra?: Record<string, string>) => this.req('POST', url, body, extra);
   put = (url: string, body?: unknown) => this.req('PUT', url, body);

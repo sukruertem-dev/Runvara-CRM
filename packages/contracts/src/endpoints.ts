@@ -12,6 +12,7 @@ import * as B from './bundle';
 import * as O from './operator';
 import * as K from './catalog';
 import * as P from './approvals';
+import * as Q from './quotes';
 
 export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 export type AuthMode = 'none' | 'access' | 'tenant' | 'refresh_cookie';
@@ -359,6 +360,17 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   { method: 'get', path: '/v1/approvals/{id}', summary: 'One approval request with its history', tag: 'approvals', auth: 'tenant', responses: { 200: P.ApprovalView }, errors: [401, 404] },
   { method: 'post', path: '/v1/approvals/{id}/decision', summary: 'Approve (within the limit) or reject', tag: 'approvals', auth: 'tenant', body: P.ApprovalDecision, responses: { 200: P.ApprovalView }, errors: [400, 401, 403, 404, 409] },
   { method: 'post', path: '/v1/approvals/{id}/cancel', summary: 'Withdraw an own pending request', tag: 'approvals', auth: 'tenant', responses: { 200: P.ApprovalView }, errors: [401, 403, 404, 409] },
+  { method: 'get', path: '/v1/sales/b2b/quotes', summary: 'Quotes of readable opportunities (?opportunityId=&status=&cursor=&limit=)', tag: 'quotes', auth: 'tenant', responses: { 200: Q.QuoteListResponse }, errors: [400, 401, 404] },
+  { method: 'post', path: '/v1/sales/b2b/quotes', summary: 'Start a quote for a B2B opportunity', tag: 'quotes', auth: 'tenant', body: Q.QuoteCreate, responses: { 201: Q.QuoteView }, errors: [400, 401, 403, 404, 422] },
+  { method: 'get', path: '/v1/sales/b2b/quotes/{id}', summary: 'One quote with its current version', tag: 'quotes', auth: 'tenant', responses: { 200: Q.QuoteView }, errors: [401, 404] },
+  { method: 'put', path: '/v1/sales/b2b/quotes/{id}/draft', summary: 'Replace the content of the draft (If-Match)', tag: 'quotes', auth: 'tenant', body: Q.QuoteDraft, responses: { 200: Q.QuoteView }, errors: [400, 401, 403, 404, 409, 412, 422, 428] },
+  { method: 'put', path: '/v1/sales/b2b/quotes/{id}/note', summary: 'Internal note, with mentions', tag: 'quotes', auth: 'tenant', body: Q.QuoteNote, responses: { 200: Q.QuoteView }, errors: [400, 401, 403, 404, 422] },
+  { method: 'post', path: '/v1/sales/b2b/quotes/{id}/submit', summary: 'Fix the draft; asks for approval when the discount needs it', tag: 'quotes', auth: 'tenant', body: Q.QuoteSubmit, responses: { 200: Q.QuoteView }, errors: [400, 401, 403, 404, 409] },
+  { method: 'post', path: '/v1/sales/b2b/quotes/{id}/versions', summary: 'A new draft version copied from the current one', tag: 'quotes', auth: 'tenant', responses: { 201: Q.QuoteView }, errors: [401, 403, 404, 409] },
+  { method: 'get', path: '/v1/sales/b2b/quotes/{id}/versions/{version}', summary: 'Content of one version', tag: 'quotes', auth: 'tenant', responses: { 200: Q.QuoteVersionView }, errors: [400, 401, 404] },
+  { method: 'get', path: '/v1/sales/b2b/quotes/{id}/versions/{version}/pdf', summary: 'The document: the one sent, or a preview of a draft', tag: 'quotes', auth: 'tenant', responses: { 200: null }, errors: [400, 401, 404, 503] },
+  { method: 'post', path: '/v1/sales/b2b/quotes/{id}/send', summary: 'Send the approved version by e-mail; it becomes immutable', tag: 'quotes', auth: 'tenant', body: Q.QuoteSend, responses: { 200: Q.QuoteView }, errors: [400, 401, 403, 404, 409, 503] },
+  { method: 'post', path: '/v1/sales/b2b/quotes/{id}/outcome', summary: 'Record the customer’s answer', tag: 'quotes', auth: 'tenant', body: Q.QuoteOutcome, responses: { 200: Q.QuoteView }, errors: [400, 401, 403, 404, 409] },
   { method: 'get', path: '/v1/targets', summary: 'Targets running on a day with their attainment (?on=)', tag: 'targets', auth: 'tenant', responses: { 200: P.TargetListResponse }, errors: [400, 401, 403, 404] },
   { method: 'post', path: '/v1/targets', summary: 'Set a target for a person, team or segment', tag: 'targets', auth: 'tenant', body: P.TargetCreate, responses: { 201: P.TargetView }, errors: [400, 401, 403, 404, 409, 422] },
   { method: 'patch', path: '/v1/targets/{id}', summary: 'Change the target value (If-Match)', tag: 'targets', auth: 'tenant', body: P.TargetPatch, responses: { 200: P.TargetView }, errors: [400, 401, 403, 404, 412, 428] },
