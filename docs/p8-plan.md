@@ -108,3 +108,32 @@ Onaylar (`/approvals`), fırsatta iskonto paneli, Ayarlar → Onay kuralları, H
 | Erişimi olmayan kullanıcı anılamıyor (arayüz ve API) | `mentions.int.test.ts`, `mentions.spec.ts` |
 | Düzenlemede aynı kişi tekrar bildirilmiyor; silinen mention'ın bildirimi geri çekiliyor | `mentions.int.test.ts` |
 | Tenant A'daki mention tenant B kullanıcısına ulaşmıyor | `mentions.int.test.ts`, `leaks.int.test.ts` |
+
+# P8d — bildirim kanalları
+
+## 17. Kanallar ve sessiz saatler
+- Tür başına uygulama / push / e-posta, kişiye göre. Uygulama kanalı kapalı ama diğerleri açıksa bildirim oluşur, merkezde görünmez (`in_app = false`).
+- `notifications.quiet` (tenant varsayılanı + kişi, kişinin saat diliminde): push, e-posta ve ekran uyarısı yok; bildirim uygulamada bekler. Push sonradan gönderilmez (B93); e-posta saat bitince gider.
+- E-posta yalnızca kişi çevrimdışıyken (açık akışı yokken) ve 10 dakika okunmadıysa (B94).
+
+## 18. Web push
+- Ayrı kuyruk (`push`), 3 deneme. İçerik yok: kim, ne tür, `/n/{id}`. Gönderim anında erişim, okunmuşluk ve geri çekilme denetlenir.
+- Uç noktalar giden istek kurallarına uyar (ADR-0013). 404/410 → kayıt silinir. Tarayıcı son kaydedenindir; çıkışta kayıt silinir. Kişi başına 10 tarayıcı.
+- VAPID anahtarı yoksa push kapalıdır.
+
+## 19. Ölçüm
+- `notification_deliveries`: akışa yazım, istemci onayı (%10 örnekleme, `POST /v1/stream/ack`), push, e-posta; 30 gün saklanır. `GET /v1/operator/delivery`.
+- 5 dakikada bir: p95 > 2 sn (en az 20 örnek) ya da başarısızlık > %20 (en az 5) → `ALERT` hata günlüğü.
+- `pnpm --filter @flexa/web notification-latency`: uçtan uca ölçüm, CI adımı.
+
+## 20. Bağlantılar ve ekranlar
+- `/r/{tür}/{id}#yer` ve `/n/{id}`; kayıt sayfası doğru sekmeyi açar ve yere odaklanır.
+- Ekran uyarısı (aç eylemiyle), cihaz bazında kapatılabilir (MEN-12; görüşme sırasında P10 kullanır). Ayarlar → Bildirimler.
+
+## 21. Kabul (P8d, G6)
+| Kriter | Kanıt |
+|---|---|
+| Uçtan uca p95 < 2 sn (ölçüm çıktısıyla) | `notification-latency.mjs`, CI |
+| Bağlantısı kopan kullanıcı yeniden bağlanınca alıyor | `notifications.spec.ts`, `integrations.int.test.ts` |
+| Bildirim içeriği sızmıyor | `notification-channels.int.test.ts`, `records.int.test.ts` |
+| Tercihler ve rahatsız etme saatleri uygulanıyor | `notification-channels.int.test.ts` |

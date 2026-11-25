@@ -1,15 +1,22 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Req, UseGuards } from '@nestjs/common';
-import { OperatorPlanUpdate, OperatorTenantCreate, SupportRequestCreate, TenantTransition, type z } from '@flexa/contracts';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { DeliveryStatsQuery, OperatorPlanUpdate, OperatorTenantCreate, SupportRequestCreate, TenantTransition, type z } from '@flexa/contracts';
 import type { FastifyRequest } from 'fastify';
 import { Client, type ClientInfo } from '../../common/request-context';
 import { ZodPipe } from '../../common/zod.pipe';
 import { CurrentOperator, OperatorExitGuard, OperatorGuard, type OperatorPrincipal } from './operator.guard';
+import { DeliveryService } from '../records/delivery.service';
 import { OperatorService } from './operator.service';
 
 /** Platform operator console API (TEN-01/02/08/09, docs/p7-plan.md §13–14). */
 @Controller('v1/operator')
 export class OperatorController {
-  constructor(private readonly operator: OperatorService) {}
+  constructor(private readonly operator: OperatorService, private readonly delivery: DeliveryService) {}
+
+  @Get('delivery')
+  @UseGuards(OperatorGuard)
+  async deliveryStats(@Query(new ZodPipe(DeliveryStatsQuery)) q: z.infer<typeof DeliveryStatsQuery>) {
+    return { minutes: q.minutes, data: await this.delivery.stats(q.minutes) };
+  }
 
   @Get('tenants')
   @UseGuards(OperatorGuard)

@@ -21,6 +21,7 @@ const GROUPS: readonly { label: MessageKey; items: readonly Item[] }[] = [
     label: 'settings.group.account',
     items: [
       { href: '/settings/preferences', label: 'settings.preferences' },
+      { href: '/settings/notifications', label: 'settings.notifications' },
       { href: '/settings/security', label: 'shell.security' },
       { href: '/settings/invitations', label: 'home.invitations', anyOf: ['users.manage'] },
       { href: '/settings/teams', label: 'settings.teams', anyOf: ['teams.manage', 'teams.members.manage'] },

@@ -12,10 +12,12 @@ export interface Preferences {
   density: DensityPref;
   segment: SegmentPref;
   sidebarCollapsed: boolean;
+  /** No on-screen alerts on this device (the badge stays). */
+  doNotDisturb: boolean;
 }
 
 const KEY = 'fx.prefs';
-const DEFAULTS: Preferences = { theme: 'system', density: 'comfortable', segment: 'all', sidebarCollapsed: false };
+const DEFAULTS: Preferences = { theme: 'system', density: 'comfortable', segment: 'all', sidebarCollapsed: false, doNotDisturb: false };
 
 function read(): Preferences {
   try {
@@ -27,6 +29,7 @@ function read(): Preferences {
       density: v.density === 'compact' ? 'compact' : 'comfortable',
       segment: v.segment === 'b2b' || v.segment === 'b2c' ? v.segment : 'all',
       sidebarCollapsed: v.sidebarCollapsed === true,
+      doNotDisturb: v.doNotDisturb === true,
     };
   } catch {
     return DEFAULTS;

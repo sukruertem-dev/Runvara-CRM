@@ -74,6 +74,23 @@ export const NotificationPreferencesSet = z
   .strict()
   .openapi('NotificationPreferencesSet');
 
+// ------------------------------------------------------------------ web push and delivery measurements
+export const PushConfig = z.object({ publicKey: z.string().nullable() }).openapi('PushConfig');
+export const PushSubscribe = z
+  .object({
+    endpoint: z.url({ protocol: /^https?$/ }).max(2000),
+    expirationTime: z.number().nullable().optional(),
+    keys: z.object({ p256dh: z.string().regex(/^[A-Za-z0-9_-]{80,100}$/), auth: z.string().regex(/^[A-Za-z0-9_-]{20,30}$/) }).strict(),
+  })
+  .strict()
+  .openapi('PushSubscribe');
+export const PushUnsubscribe = z.object({ endpoint: z.string().min(10).max(2000) }).strict().openapi('PushUnsubscribe');
+export const StreamAck = z.object({ eventId: Uuid }).strict().openapi('StreamAck');
+export const DeliveryStatsQuery = z.object({ minutes: z.coerce.number().int().min(1).max(1440).default(60) }).strict();
+export const DeliveryStats = z
+  .object({ minutes: z.number().int(), data: z.array(z.object({ channel: z.string(), delivered: z.number().int(), failed: z.number().int(), p50Ms: z.number().nullable(), p95Ms: z.number().nullable() })) })
+  .openapi('DeliveryStats');
+
 // ------------------------------------------------------------------ attachments
 export const ATTACHMENT_MIME_TYPES = [
   'application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'text/plain', 'text/csv',

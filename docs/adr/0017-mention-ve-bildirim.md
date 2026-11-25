@@ -45,3 +45,8 @@ Kullanıcı anonimleştirmede: mention düğümleri `{kind:"user", id:<anon-id>}
 - Mention'lar `comment`, `note` ve `description` kaynaklarında ortak `syncMentions` ile eşitlenir; yalnızca önceki belgede olmayan kişi ve ekipler denetlenir.
 - Çip adı ve okuma görünümü istemcide belge düğümlerinden kurulur; sunucunun ürettiği HTML ekranda kullanılmaz.
 - Hız sınırı anma sayısıyladır; ekip tek anma sayılır.
+
+## Uygulama notu (P8d, 2026-11-25)
+- Push kuyruğu olay tüketicisinden ayrıdır; tekrarlanan olay aynı işi bulur. Şifreleme `web-push` ile, gönderim `safePost` ile (SSRF koruması).
+- Çevrimiçilik Redis'te kısa ömürlü işarettir (akış kalp atışı yeniler); yalnızca e-posta kararında kullanılır. Odaktaki pencerede push gösterilmez (service worker).
+- Gecikme metrikleri Prometheus yerine `notification_deliveries` tablosundan okunur; alarm `ALERT` hata günlüğüdür.

@@ -8,6 +8,9 @@ const base64Key32 = z
   .string()
   .refine((v) => Buffer.from(v, 'base64').length === 32, 'must be 32 bytes, base64 encoded');
 
+/** Optional setting that Compose passes as an empty string when unset. */
+const blank = <T extends z.ZodType>(schema: T) => z.preprocess((v) => (v === '' ? undefined : v), schema.optional());
+
 export const commonEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
@@ -62,6 +65,10 @@ export const apiEnvSchema = commonEnvSchema.extend({
   TENANT_RATE_LIMIT_MULTIPLIER: z.coerce.number().positive().max(1000).default(1),
   /** Development/test only: webhook deliveries may target http://localhost receivers. */
   EGRESS_ALLOW_INSECURE_LOCALHOST: bool.default(false),
+  /** Web push identity (VAPID, base64url P-256 pair). Without both, push is off and the other channels work. */
+  VAPID_PUBLIC_KEY: blank(z.string().regex(/^[A-Za-z0-9_-]{87}$/)),
+  VAPID_PRIVATE_KEY: blank(z.string().regex(/^[A-Za-z0-9_-]{43}$/)),
+  VAPID_SUBJECT: z.string().regex(/^(mailto:|https:)/).default('mailto:no-reply@flexa.local'),
 }).refine((e) => !(e.NODE_ENV === 'production' && e.OIDC_ALLOW_INSECURE_LOCALHOST), {
   message: 'OIDC_ALLOW_INSECURE_LOCALHOST must be false in production',
   path: ['OIDC_ALLOW_INSECURE_LOCALHOST'],
@@ -104,6 +111,7 @@ export function loadEnv<S extends z.ZodType>(schema: S, source: Record<string, s
 
 export * from './settings/registry';
 export * from './settings/merge';
+export * from './settings/quiet';
 export * from './settings/brand';
 export { contrast, hexToOklch, isHexColor, oklchToHex } from './settings/color';
 export { BLUEPRINTS } from './blueprints';

@@ -7,6 +7,8 @@ import { ApprovalsService } from '../approvals/approvals.service';
 import { TargetsService } from '../approvals/targets.service';
 import { SlaService } from '../integrations/sla.service';
 import { WebhooksService } from '../integrations/webhooks.service';
+import { DeliveryService } from '../records/delivery.service';
+import { PushService } from '../records/push.service';
 import { DigestService } from '../records/digest.service';
 import { StreamService } from '../records/stream.service';
 import { DeletionService } from '../privacy/deletion.service';
@@ -57,6 +59,8 @@ export class AutomationQueues implements OnModuleInit, OnApplicationShutdown {
     private readonly exportsService: ExportsService,
     private readonly approvals: ApprovalsService,
     private readonly targets: TargetsService,
+    private readonly push: PushService,
+    private readonly delivery: DeliveryService,
   ) {
     this.events = new Queue(EVENTS_QUEUE, { connection: redis, defaultJobOptions: EVENT_JOB_OPTIONS });
     this.shards = Array.from({ length: env.EVENT_SHARDS }, (_, i) => new Queue(eventShardQueue(i), { connection: redis, defaultJobOptions: EVENT_JOB_OPTIONS }));
@@ -113,6 +117,7 @@ export class AutomationQueues implements OnModuleInit, OnApplicationShutdown {
       else if (job.name === 'tenant-purge') await this.deletion.runDue();
       else if (job.name === 'export-expire') await this.exportsService.expire();
       else if (job.name === 'approval-due') await this.approvals.runDue();
+      else if (job.name === 'delivery-watch') await this.delivery.watch();
       else if (job.name === 'target-risk') await this.targets.scanRisk();
       else await this.sla.check();
     }, { connection: this.redis.duplicate(), concurrency: 1 });
@@ -127,7 +132,9 @@ export class AutomationQueues implements OnModuleInit, OnApplicationShutdown {
     // Approvals past their deadline move up (ADR-0021); running targets are checked hourly (target.at_risk).
     void this.slaCheckQueue.upsertJobScheduler('approval-due', { every: 60_000 }, { name: 'approval-due' });
     void this.slaCheckQueue.upsertJobScheduler('target-risk', { every: 3_600_000 }, { name: 'target-risk' });
+    void this.slaCheckQueue.upsertJobScheduler('delivery-watch', { every: 300_000 }, { name: 'delivery-watch' });
     this.webhooks.startWorker();
+    this.push.startWorker();
     this.workers = [...eventWorkers, ticks, slaCheck];
   }
 
@@ -146,6 +153,7 @@ export class AutomationQueues implements OnModuleInit, OnApplicationShutdown {
     await this.sla.process(event).catch((e: unknown) => { errors.push(e); });
     await this.webhooks.process(event).catch((e: unknown) => { errors.push(e); });
     await this.quota.process(event).catch((e: unknown) => { errors.push(e); });
+    await this.push.process(event).catch((e: unknown) => { errors.push(e); });
     // Realtime fan-out is best effort (at least once): clients refetch through REST.
     await this.stream.publish(event).catch((e: unknown) => { this.log.warn(`realtime publish failed: ${(e as Error).message}`); });
     const first = errors[0];

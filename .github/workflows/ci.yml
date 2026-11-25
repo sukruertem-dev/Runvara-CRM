@@ -70,6 +70,8 @@ jobs:
       - name: Screenshot regression (light/dark, desktop/mobile)
         run: pnpm --filter @flexa/web e2e:visual
         env: { CI: 'true' }
+      - name: Notification latency (MEN-06, p95 < 2 s end to end)
+        run: pnpm --filter @flexa/web notification-latency
       - name: Lighthouse (production build, mobile profile)
         run: pnpm --filter @flexa/web lighthouse
         env: { LH_RUNS: '3' }

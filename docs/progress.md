@@ -1,5 +1,26 @@
 # İlerleme
 
+## P8d — G6: bildirim kanalları · 2026-11-25 · ✅ (CI PR'da çalışacak)
+
+> `docs/p8-plan.md` §17–21. Bununla P8 (G3 + G6) tamam; sıradaki P9.
+
+### Yapılanlar
+- **Kanallar:** uygulama, web push, e-posta; kişi ve tür başına. **Sessiz saatler** (B93), e-posta yalnızca çevrimdışıyken (B94).
+- **Web push:** ayrı kuyruk, içeriksiz mesaj, gönderim anında yetki, SSRF koruması, cihaz yönetimi.
+- **Derin bağlantı:** `/r/{tür}/{id}#yer`, `/n/{id}`; doğru sekme ve odak. Ekran uyarısı ve cihaz bazında kapatma.
+- **Ölçüm:** `notification_deliveries`, operatör uç noktası, `ALERT` günlüğü, CI'da uçtan uca gecikme adımı.
+- **Göç** `0018_notification_channels.sql`.
+
+### Testler
+- API entegrasyon 189/189 (yeni `notification-channels.int.test.ts`, 10); DB 21/21.
+- E2E 38/38, üretim görüntüsüyle (yeni `notifications.spec.ts`, 3; axe); görsel regresyon 4/4.
+- Uçtan uca gecikme (yerel yığın, 100 örnek): p50 42 ms, p95 131 ms, en çok 388 ms.
+- Lint, tip denetimi, birim testleri temiz; kontrast, matris ve katalog denetimleri PASS.
+
+### Notlar
+- Gerçek bir push servisiyle denenmedi: testler yerel alıcıda şifreyi çözer; başsız Chromium abone olamadığından `sw.js` E2E kapsamında değil.
+- Bildirim merkezinin sekmelerindeki eski axe kusuru düzeltildi.
+
 ## P8c — G6: mention'ın yaygınlaştırılması · 2026-11-25 · ✅ (CI PR'da çalışacak)
 
 > `docs/p8-plan.md` §13–16. Sıradaki P8d (bildirim kanalları, derin bağlantı, gecikme ölçümü).

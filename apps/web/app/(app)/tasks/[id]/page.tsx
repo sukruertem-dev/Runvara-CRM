@@ -13,7 +13,6 @@ import {
   Input,
   Skeleton,
   StatusBadge,
-  Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
@@ -50,7 +49,7 @@ import {
 import { PageContainer } from '../../../_components/app-shell';
 import { PriorityCell, StatusCell, useMutationErrorToast } from '../_parts/cells';
 import { NotesPanel } from '../../../_components/notes-panel';
-import { CommentsPanel, DescriptionEditor, FieldRow, Section, TimelineList, type RecordRef } from '../../../_components/record-parts';
+import { ActivityTabs, CommentsPanel, DescriptionEditor, FieldRow, Section, TimelineList, type RecordRef } from '../../../_components/record-parts';
 
 function RelatedPanel({ id }: { id: string }) {
   const subtasks = useTaskPart<Subtasks>(id, 'subtasks');
@@ -387,7 +386,7 @@ export default function TaskDetailPage() {
             <DescriptionEditor path={`tasks/${id}`} value={(data.description as RichTextValue['doc'] | null | undefined) ?? null} editable={editable} onSave={save} />
           </Section>
           <section className="rounded-card border border-line bg-surface p-4">
-            <Tabs defaultValue="comments">
+            <ActivityTabs>
               <TabsList label={t('task.activity')}>
                 <TabsTrigger value="comments">{t('task.comments')}</TabsTrigger>
                 <TabsTrigger value="notes">{t('note.tab')}</TabsTrigger>
@@ -402,7 +401,7 @@ export default function TaskDetailPage() {
               <TabsContent value="activity" className="pt-4">
                 <TimelineList record={record} names={names} />
               </TabsContent>
-            </Tabs>
+            </ActivityTabs>
           </section>
         </div>
 

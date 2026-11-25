@@ -14,7 +14,6 @@ import {
   SegmentBadge,
   Skeleton,
   StatusBadge,
-  Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
@@ -39,7 +38,7 @@ import { statusLabel, useDirectory, useWorkflows, type Task, type TaskPage } fro
 import { PageContainer } from '../../../../_components/app-shell';
 import { DiscountPanel } from '../../../../_components/discount-panel';
 import { NotesPanel } from '../../../../_components/notes-panel';
-import { CommentsPanel, DescriptionEditor, FieldRow, Section, TimelineList, type RecordRef } from '../../../../_components/record-parts';
+import { ActivityTabs, CommentsPanel, DescriptionEditor, FieldRow, Section, TimelineList, type RecordRef } from '../../../../_components/record-parts';
 import { money, recordName, type CrmRecord } from '../../_parts/columns';
 
 const TYPES: CrmResource[] = ['account', 'contact', 'lead', 'opportunity', 'case'];
@@ -340,7 +339,7 @@ export default function CrmRecordPage() {
             </Section>
           ) : null}
           <section className="rounded-card border border-line bg-surface p-4">
-            <Tabs defaultValue="comments">
+            <ActivityTabs>
               <TabsList label={t('task.activity')}>
                 <TabsTrigger value="comments">{t('task.comments')}</TabsTrigger>
                 <TabsTrigger value="notes">{t('note.tab')}</TabsTrigger>
@@ -355,7 +354,7 @@ export default function CrmRecordPage() {
               <TabsContent value="activity" className="pt-4">
                 <TimelineList record={ref} names={names} />
               </TabsContent>
-            </Tabs>
+            </ActivityTabs>
           </section>
         </div>
         <div className="flex min-w-0 flex-col gap-4">
