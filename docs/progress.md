@@ -1,5 +1,26 @@
 # İlerleme
 
+## P8a — G3: ürün kataloğu, fiyat listeleri, ekip ekranları · 2026-11-24 · ✅ (CI PR'da çalışacak)
+
+> P8'in ilk adımı (`docs/p8-plan.md`). P8b: onay motoru ve hedefler; P8c: mention; P8d: bildirim kanalları.
+
+### Yapılanlar
+- **Katalog:** ürün, vergi oranı, fiyat listesi (genel / segmente / müşteriye özel, geçerlilik tarihli), miktar kırılımı, kur tablosu. Kayıtlar silinmez, pasifleştirilir (B81).
+- **Fiyat çözümleme** (`POST /v1/prices/resolve`, B80): müşteri → segment → genel; kırılım, tarih ve kur; fiyat yoksa nedeni.
+- **Yetki:** Matris A17 (Admin yazar, diğerleri okur); maliyet ve marj yetkisizde yanıtta yer almaz; segment RLS; müşteriye özel liste müşteri erişimine bağlı (B82).
+- **Birincil ekip** (B83) ve `PUT /v1/users/{id}/primary-team`.
+- **Göç** `0015_catalog.sql`.
+- **Ekranlar:** Ürünler (ürünler, fiyat listeleri, kur ve vergi, fiyat deneme) ve Ayarlar → Ekipler. Demo tohum verisine ekip, ürün ve listeler eklendi.
+
+### Testler
+- API entegrasyon 159/159 (yeni `catalog.int.test.ts`, 10); DB 21/21.
+- E2E 31/31, üretim görüntüsüyle (yeni `catalog.spec.ts`, 2; axe); görsel regresyon 4/4.
+- Lint, tip denetimi, birim testleri temiz; kontrast, matris ve katalog denetimleri PASS.
+
+### Notlar
+- Marj yalnızca maliyet ile liste aynı para birimindeyse hesaplanır.
+- Dev sunucusunda E2E bu makinede bellek yüzünden zaman aşımına düşebiliyor; karar üretim görüntüsüyle verilir.
+
 ## P7d — G1: tenant SSO (SAML) ve güvenlik politikaları · 2026-11-23 · ✅ (CI PR'da çalışacak)
 
 > P7'nin son adımı (`docs/p7-plan.md` §18–22, TEN-04). P7 tamamlandı.

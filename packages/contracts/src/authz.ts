@@ -12,7 +12,7 @@ const FlsResource = z.enum(['account', 'contact', 'lead', 'opportunity', 'case']
 export const TeamCreate = z.object({ name: Name, parentTeamId: Uuid.nullable().optional() }).strict().openapi('TeamCreate');
 export const TeamPatch = z.object({ name: Name, parentTeamId: Uuid.nullable() }).partial().strict()
   .refine((v) => Object.keys(v).length > 0, 'empty patch').openapi('TeamPatch');
-export const TeamMemberView = z.object({ userId: Uuid, displayName: z.string(), role: z.enum(['member', 'manager']) }).openapi('TeamMemberView');
+export const TeamMemberView = z.object({ userId: Uuid, displayName: z.string(), role: z.enum(['member', 'manager']), primary: z.boolean() }).openapi('TeamMemberView');
 export const TeamView = z
   .object({ id: Uuid, name: z.string(), parentTeamId: Uuid.nullable(), members: z.array(TeamMemberView) })
   .openapi('TeamView');
@@ -35,6 +35,7 @@ export const UserAccessView = z
     roles: z.array(z.string()),
     segments: z.array(z.object({ segment: Segment, validUntil: z.string().nullable() })),
     teams: z.array(z.object({ teamId: Uuid, role: z.enum(['member', 'manager']) })),
+    primaryTeamId: Uuid.nullable(),
   })
   .openapi('UserAccessView');
 export const UserListResponse = z.object({ data: z.array(UserAccessView) }).openapi('UserListResponse');

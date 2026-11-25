@@ -102,6 +102,11 @@ export const UI_CAPABILITIES = [
   'users.manage',
   'authz.matrix.read',
   'authz.matrix.edit',
+  'teams.manage',
+  'teams.members.manage',
+  'catalog.product.manage',
+  'catalog.price_list.manage',
+  'fields.cost_margin.read',
 ] as const;
 
 export const NavigationResponse = z

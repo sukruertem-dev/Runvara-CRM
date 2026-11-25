@@ -6,6 +6,7 @@ import {
   Gauge,
   Link2,
   Monitor,
+  Package,
   Phone,
   PhoneOutgoing,
   Plug,
@@ -23,6 +24,7 @@ import {
 const ICONS: Record<string, LucideIcon> = {
   'check-square': CheckSquare,
   users: Users,
+  package: Package,
   briefcase: Briefcase,
   'shopping-bag': ShoppingBag,
   target: Target,

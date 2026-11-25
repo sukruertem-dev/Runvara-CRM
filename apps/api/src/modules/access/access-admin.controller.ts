@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, UseGuards, type Type } from '@nestjs/common';
 import {
   DirectoryUsersQuery, FieldPolicySet, QueueCreate, RoleParentSet, ShareCreate, SharingDefaultsSet, SharingRuleCreate, TeamCreate, TeamMemberSet, TeamPatch,
-  UserRolesSet, UserSegmentsSet, type z,
+  PrimaryTeamSet, UserRolesSet, UserSegmentsSet, type z,
 } from '@flexa/contracts';
 import { TenantGuard } from '../../common/guards';
 import type { ShareType } from '../../common/record-access';
@@ -84,6 +84,12 @@ export class AccessAdminController {
   @Put('users/:id/segments')
   setSegments(@CurrentTenant() t: TenantRequestContext, @Param('id', Id) id: string, @Body(new ZodPipe(UserSegmentsSet)) body: z.infer<typeof UserSegmentsSet>, @Client() c: ClientInfo) {
     return this.svc.setSegments(t, id, body, c.ip);
+  }
+
+  @Put('users/:id/primary-team')
+  @HttpCode(204)
+  async setPrimaryTeam(@CurrentTenant() t: TenantRequestContext, @Param('id', Id) id: string, @Body(new ZodPipe(PrimaryTeamSet)) body: z.infer<typeof PrimaryTeamSet>, @Client() c: ClientInfo): Promise<void> {
+    await this.svc.setPrimaryTeam(t, id, body.teamId, c.ip);
   }
 
   @Put('users/:id/roles')

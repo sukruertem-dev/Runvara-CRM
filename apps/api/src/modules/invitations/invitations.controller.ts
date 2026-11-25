@@ -147,6 +147,7 @@ export class InvitationsController {
           .onConflictDoNothing();
         if (invRow.teamId) {
           await tx.insert(schema.teamMembers).values({ tenantId: inv.tenant_id, teamId: invRow.teamId, userId, role: 'member', addedBy: invRow.invitedBy }).onConflictDoNothing();
+          await tx.execute(sql`UPDATE memberships SET primary_team_id = ${invRow.teamId} WHERE user_id = ${userId} AND primary_team_id IS NULL`);
         }
       }
       await audit(tx, inv.tenant_id, { action: 'user.joined', actorId: userId, targetType: 'user', targetId: userId, ip: c.ip, details: { invitationId: inv.invitation_id, roleKey: inv.role_key } });

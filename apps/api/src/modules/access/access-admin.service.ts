@@ -29,10 +29,10 @@ const VIEW_FIELDS: Record<'account' | 'contact' | 'lead' | 'opportunity' | 'case
   case: Object.keys(CaseView.shape),
 };
 
-type TeamRow = { id: string; name: string; parent_team_id: string | null; members: { userId: string; displayName: string; role: 'member' | 'manager' }[] };
+type TeamRow = { id: string; name: string; parent_team_id: string | null; members: { userId: string; displayName: string; role: 'member' | 'manager'; primary: boolean }[] };
 type AccessRow = {
   user_id: string; display_name: string; email: string; status: string; roles: string[] | null;
-  segments: { segment: Segment; validUntil: string | null }[] | null; teams: { teamId: string; role: 'member' | 'manager' }[] | null;
+  segments: { segment: Segment; validUntil: string | null }[] | null; teams: { teamId: string; role: 'member' | 'manager' }[] | null; primary_team_id: string | null;
 };
 
 /** Administration of the authorization engine (docs/p4-plan.md §6). Every change is audited and bumps the
@@ -53,8 +53,8 @@ export class AccessAdminService {
   private async teams(tx: Db, id?: string): Promise<TeamRow[]> {
     const r = await tx.execute<TeamRow>(sql`
       SELECT tm.id, tm.name, tm.parent_team_id,
-        coalesce((SELECT jsonb_agg(jsonb_build_object('userId', m.user_id, 'displayName', u.display_name, 'role', m.role) ORDER BY m.role DESC, u.display_name)
-                  FROM team_members m JOIN users u ON u.id = m.user_id WHERE m.team_id = tm.id), '[]'::jsonb) AS members
+        coalesce((SELECT jsonb_agg(jsonb_build_object('userId', m.user_id, 'displayName', u.display_name, 'role', m.role, 'primary', ms.primary_team_id IS NOT DISTINCT FROM tm.id) ORDER BY m.role DESC, u.display_name)
+                  FROM team_members m JOIN users u ON u.id = m.user_id JOIN memberships ms ON ms.user_id = m.user_id WHERE m.team_id = tm.id), '[]'::jsonb) AS members
       FROM teams tm ${id ? sql`WHERE tm.id = ${id}` : sql``} ORDER BY tm.name, tm.id`);
     return r.rows;
   }
@@ -122,6 +122,8 @@ export class AccessAdminService {
       try {
         await tx.execute(sql`INSERT INTO team_members (tenant_id, team_id, user_id, role, added_by) VALUES (${t.tenant.id}, ${teamId}, ${userId}, ${role}, ${t.principal.userId})
           ON CONFLICT (tenant_id, team_id, user_id) DO UPDATE SET role = EXCLUDED.role`);
+        // The first team is the primary one (docs/p8-plan.md §4).
+        await tx.execute(sql`UPDATE memberships SET primary_team_id = ${teamId} WHERE user_id = ${userId} AND primary_team_id IS NULL`);
       } catch (e) {
         if ((e as { cause?: { code?: string } }).cause?.code === '23503') throw new ProblemError('NOT_FOUND', 'not a member of this workspace');
         mapDbError(e);
@@ -140,8 +142,28 @@ export class AccessAdminService {
       if (!role) throw new ProblemError('NOT_FOUND');
       this.assertTeamMembers(t, teamId, role);
       await tx.execute(sql`DELETE FROM team_members WHERE team_id = ${teamId} AND user_id = ${userId}`);
+      await tx.execute(sql`UPDATE memberships SET primary_team_id = (
+          SELECT tm.team_id FROM team_members tm WHERE tm.user_id = ${userId} ORDER BY tm.added_at, tm.team_id LIMIT 1)
+        WHERE user_id = ${userId} AND primary_team_id = ${teamId}`);
       await this.bumpTeam(tx, teamId, [userId]);
       await audit(tx, t.tenant.id, { action: 'team.member_removed', actorId: t.principal.userId, targetType: 'user', targetId: userId, ip, details: { teamId } });
+    });
+  }
+
+  /** Same authority as managing members (A06): a Manager chooses among the teams they manage, and the member's
+   *  current primary team must be one of them too. */
+  async setPrimaryTeam(t: TenantRequestContext, userId: string, teamId: string, ip: string): Promise<void> {
+    await this.db.withTenant(dbCtx(t), async (tx) => {
+      this.assertTeamMembers(t, teamId, 'member');
+      const r = await tx.execute<{ primary_team_id: string | null; in_team: boolean }>(sql`
+        SELECT m.primary_team_id, EXISTS (SELECT 1 FROM team_members tm WHERE tm.user_id = m.user_id AND tm.team_id = ${teamId}) AS in_team
+        FROM memberships m WHERE m.user_id = ${userId} FOR UPDATE`);
+      const row = r.rows[0];
+      if (!row) throw new ProblemError('NOT_FOUND');
+      if (!row.in_team) throw new ProblemError('OWNER_INVALID', 'not a member of this team');
+      if (row.primary_team_id) this.assertTeamMembers(t, row.primary_team_id, 'member');
+      await tx.execute(sql`UPDATE memberships SET primary_team_id = ${teamId} WHERE user_id = ${userId}`);
+      await audit(tx, t.tenant.id, { action: 'team.primary_set', actorId: t.principal.userId, targetType: 'user', targetId: userId, ip, details: { from: row.primary_team_id, to: teamId } });
     });
   }
 
@@ -218,7 +240,7 @@ export class AccessAdminService {
           WHERE ur.user_id = m.user_id AND (ur.valid_until IS NULL OR ur.valid_until > now())) AS roles,
         (SELECT jsonb_agg(jsonb_build_object('segment', g.segment, 'validUntil', g.valid_until) ORDER BY g.segment) FROM user_segment_grants g
           WHERE g.user_id = m.user_id AND (g.valid_until IS NULL OR g.valid_until > now())) AS segments,
-        (SELECT jsonb_agg(jsonb_build_object('teamId', tm.team_id, 'role', tm.role)) FROM team_members tm WHERE tm.user_id = m.user_id) AS teams
+        (SELECT jsonb_agg(jsonb_build_object('teamId', tm.team_id, 'role', tm.role)) FROM team_members tm WHERE tm.user_id = m.user_id) AS teams, m.primary_team_id
       FROM memberships m JOIN users u ON u.id = m.user_id
       ${ids ? sql`WHERE m.user_id = ANY(${uuidArray(ids)})` : sql``}
       ORDER BY u.display_name, m.user_id`);
@@ -229,6 +251,7 @@ export class AccessAdminService {
     userId: r.user_id, displayName: r.display_name, email: r.email, status: r.status, roles: r.roles ?? [],
     segments: (r.segments ?? []).map((s) => ({ segment: s.segment, validUntil: s.validUntil ? new Date(s.validUntil).toISOString() : null })),
     teams: r.teams ?? [],
+    primaryTeamId: r.primary_team_id,
   });
 
   async listUsers(t: TenantRequestContext) {
