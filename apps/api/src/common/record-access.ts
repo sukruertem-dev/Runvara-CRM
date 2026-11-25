@@ -97,7 +97,7 @@ export async function recordPredicate(tx: Db, t: TenantRequestContext, shape: Re
   const a = t.access;
   const me = t.principal.userId;
   const terms: SQL[] = [];
-  if (scope.own) {
+  if (scope.own) { // also set for `team` and `queue` grants, which include own records
     terms.push(sql`t.owner_user_id = ${me}`, sql`t.created_by = ${me}`);
     if (shape.assigneeColumn) terms.push(sql`t.assignee_user_id = ${me}`);
     // A task owned by a work queue the user belongs to is the user's own work (ADR-0004 §2).
@@ -130,7 +130,9 @@ export async function assertCan(tx: Db, t: TenantRequestContext, shape: RecordSh
 }
 
 /** May the caller give a record of `resource` to `target` (Matrix A A13 reassign)? `all` → any member;
- *  team scope → members of the caller's teams; queue scope → the caller's queues. */
+ *  team scope → members of the caller's teams; queue scope → the caller's queues. The own records a team or queue
+ *  scope includes widen which records may be given away, never who may receive them; giving a record to oneself
+ *  is not checked here (callers let it through). */
 export function canAssignTo(t: TenantRequestContext, resource: RecordResource, target: { userId: string } | { queueId: string }): boolean {
   const scope = recordScope(t.authz, 'reassign', resource);
   if (scope.kind === 'all') return true;

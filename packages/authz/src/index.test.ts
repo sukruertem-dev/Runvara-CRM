@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { can, canAssignRole, defaultEnabledPolicies, scopeCovers, grantsFor, PROTECTED_PERMISSIONS, recordScope, SYSTEM_ROLES, type AuthzContext } from './index';
+import { can, canAssignRole, defaultEnabledPolicies, scopeCovers, grantsFor, overrideKey, PROTECTED_PERMISSIONS, recordScope, SYSTEM_ROLES, type AuthzContext } from './index';
 
 const ctx = (roleKeys: string[], modules: string[] = ['core'], policies: string[] = []): AuthzContext => ({
   tenantId: '00000000-0000-0000-0000-000000000001',
@@ -67,13 +67,19 @@ describe('recordScope (ADR-0004 §2)', () => {
     expect(recordScope(ctx(['admin']), 'read', 'core.task')).toEqual({ kind: 'all' });
     expect(recordScope(ctx(['analyst']), 'read', 'core.task')).toEqual({ kind: 'all' });
     expect(recordScope(ctx(['analyst']), 'update', 'core.task')).toEqual({ kind: 'none' });
-    expect(recordScope(ctx(['manager']), 'read', 'core.task')).toEqual({ kind: 'scoped', own: false, queue: false, team: true });
+    expect(recordScope(ctx(['manager']), 'read', 'core.task')).toEqual({ kind: 'scoped', own: true, queue: false, team: true });
     expect(recordScope(ctx(['sales_rep']), 'update', 'core.task')).toEqual({ kind: 'scoped', own: true, queue: false, team: false });
     expect(recordScope(ctx(['call_agent']), 'read', 'core.task')).toEqual({ kind: 'scoped', own: true, queue: true, team: false });
     expect(recordScope(ctx(['sales_rep']), 'archive', 'core.task')).toEqual({ kind: 'none' });
-    expect(recordScope(ctx(['manager']), 'archive', 'core.task')).toEqual({ kind: 'scoped', own: false, queue: false, team: true });
+    expect(recordScope(ctx(['manager']), 'archive', 'core.task')).toEqual({ kind: 'scoped', own: true, queue: false, team: true });
     expect(recordScope(ctx(['sales_rep', 'manager']), 'update', 'core.task')).toEqual({ kind: 'scoped', own: true, queue: false, team: true });
     expect(recordScope(ctx(['admin']), 'purge', 'core.task')).toEqual({ kind: 'all' });
+    // Scope order own < {queue, team}: team and queue include own; queue and team do not include each other.
+    expect(recordScope(ctx(['manager']), 'reassign', 'core.task')).toEqual({ kind: 'scoped', own: true, queue: false, team: true });
+    const queueOnly = { ...ctx(['call_agent']), overrides: new Map([[overrideKey('call_agent', '*record*.read'), { mode: 'full', scope: 'queue' } as const]]) };
+    expect(recordScope(queueOnly, 'read', 'core.task')).toEqual({ kind: 'scoped', own: true, queue: true, team: false });
+    // A request-only grant (sales rep reassign) still confers nothing.
+    expect(recordScope(ctx(['sales_rep']), 'reassign', 'core.task')).toEqual({ kind: 'none' });
     expect(recordScope(ctx([]), 'read', 'core.task')).toEqual({ kind: 'none' });
     expect(recordScope(ctx(['sales_rep', 'admin']), 'read', 'core.task')).toEqual({ kind: 'all' });
   });
