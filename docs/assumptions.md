@@ -131,3 +131,7 @@
 | B93 | Sessiz saatte push | Gönderilmez ve sonradan da gönderilmez (bildirim uygulamada bekler); e-posta sessiz saat bitince gider | p8-plan §17 |
 | B94 | E-posta yedeği | Kişinin açık akışı (çevrimiçi işareti) varken gönderilmez | p8-plan §17 |
 | B95 | Teslim ölçümü | İstemci onayı %10 örneklenir; satırlar 30 gün saklanır, kayıt ya da içerik taşımaz | p8-plan §19 |
+| B96 | P9 sırası (Q5) | Kullanıcı kararı 2026-11-25: önce B2B (P9a–P9c), sonra B2C (P9d–P9f) | p9-plan |
+| B97 | Teklif yetkisi | Fırsattan türer: fırsatı (paylaşımla da olsa) düzenleyebilen ve teklif izni olan kişi teklifini de düzenler; fırsat tutarı gizliyse teklif görünmez | p9-plan §2 |
+| B98 | Onay oranı | En yüksek satır iskontosu esas alınır (toplam ortalaması değil), tamamlama anındaki liste fiyatına göre. Liste fiyatı olmayan üründe girilen fiyat kendi referansıdır | p9-plan §4 |
+| B99 | Kabul edilen teklif | Fırsatın tutarını ve aşamasını kendiliğinden değiştirmez (sözleşme/sipariş P9b) | p9-plan §4 |
