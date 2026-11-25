@@ -60,7 +60,7 @@ export interface OutboundResponse { status: number; body: string }
 
 /** POST with the ADR-0013 rules: pinned to the vetted address, no redirects (3xx is a failure for the
  *  caller to judge), connect 3 s / total 10 s, at most 64 KB of the response body read. */
-export async function safePost(raw: string, body: string, headers: Record<string, string>, options: { allowInsecureLocalhost: boolean; timeoutMs?: number }): Promise<OutboundResponse> {
+export async function safePost(raw: string, body: string | Buffer, headers: Record<string, string>, options: { allowInsecureLocalhost: boolean; timeoutMs?: number }): Promise<OutboundResponse> {
   const { url, address, family } = await resolveSafeOutbound(raw, options);
   const mod = url.protocol === 'https:' ? await import('node:https') : await import('node:http');
   const total = options.timeoutMs ?? 10_000;

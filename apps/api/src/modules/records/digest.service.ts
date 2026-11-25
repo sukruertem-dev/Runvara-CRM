@@ -2,8 +2,10 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { sql, type DbHandle } from '@flexa/db';
 import { buildTenantContext } from '../../common/guards';
 import { uuidArray } from '../../common/record-access';
-import { DB, ENV, MAILER, type ApiEnv, type Mailer } from '../../infra/tokens';
+import { DB, ENV, MAILER, REDIS, type ApiEnv, type Mailer, type Redis } from '../../infra/tokens';
+import { DeliveryService, personalDelivery, quietNow } from './delivery.service';
 import { NotificationsService } from './notifications.service';
+import { presenceKey } from './stream.service';
 
 const AGE = '10 minutes';
 const MAX_ITEMS = 20;
@@ -20,6 +22,8 @@ export class DigestService {
     @Inject(ENV) private readonly env: ApiEnv,
     @Inject(MAILER) private readonly mailer: Mailer,
     private readonly notifications: NotificationsService,
+    @Inject(REDIS) private readonly redis: Redis,
+    private readonly delivery: DeliveryService,
   ) {}
 
   async run(limit = 200): Promise<number> {
@@ -38,6 +42,10 @@ export class DigestService {
 
   private async digestFor(tenantId: string, userId: string): Promise<boolean> {
     const ctx = await buildTenantContext(this.db, { userId, sessionId: 'digest', tenantId, amr: [] });
+    // Nobody is mailed while they have the app open, or in their quiet hours: the notices wait for the next run.
+    if (await this.redis.exists(presenceKey(tenantId, userId))) return false;
+    const personal = await this.db.withTenant({ tenantId, userId }, (tx) => personalDelivery(tx, tenantId, userId));
+    if (quietNow(personal)) return false;
     const pending = await this.db.withTenant({ tenantId, userId }, async (tx) => (await tx.execute<{ id: string; kind: string }>(sql`
       SELECT n.id, n.kind FROM notifications n
       LEFT JOIN notification_preferences p ON p.user_id = n.user_id AND p.kind = n.kind
@@ -45,7 +53,7 @@ export class DigestService {
       ORDER BY n.created_at DESC`)).rows);
     if (pending.length === 0) return false;
     const ids = new Set(pending.map((p) => p.id));
-    const list = await this.notifications.list(ctx, { unread: 'true', limit: '200' });
+    const list = await this.notifications.list(ctx, { unread: 'true', limit: '200' }, { outsideApp: true });
     const items = list.data.filter((n) => ids.has(n.id) && n.accessible);
     const userRow = await this.db.withUser(userId, async (tx) => (await tx.execute<{ email: string; locale: string }>(sql`SELECT email::text AS email, locale FROM users WHERE id = ${userId}`)).rows[0]);
     if (items.length > 0 && userRow) {
@@ -61,6 +69,7 @@ export class DigestService {
         },
       }, { jobId: `digest-${userId}-${[...ids].sort().at(-1) ?? ''}` });
     }
+    if (items.length > 0 && userRow) await this.delivery.record(tenantId, userId, 'email', 'delivered');
     // Every pending notification counts as handled (also those without access: they will never be mailed).
     await this.db.withTenant({ tenantId, userId: null }, (tx) => tx.execute(sql`SELECT app.mark_digested(${userId}::uuid, ${uuidArray([...ids])})`));
     return items.length > 0;

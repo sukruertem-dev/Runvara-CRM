@@ -6,6 +6,7 @@ import { buildTenantContext } from '../../common/guards';
 import type { ShareType } from '../../common/record-access';
 import { dbCtx, type TenantRequestContext } from '../../common/request-context';
 import { DB, REDIS, type Redis } from '../../infra/tokens';
+import { DeliveryService } from './delivery.service';
 import { canReadRecord } from './mentions';
 import { RECORD_TYPES } from './records.service';
 
@@ -13,6 +14,7 @@ const HEARTBEAT_MS = 20_000;
 const CONTEXT_TTL_MS = 15_000;
 const REPLAY_WINDOW = '72 hours';
 const REPLAY_LIMIT = 500;
+export const presenceKey = (tenantId: string, userId: string) => `presence:${tenantId}:${userId}`;
 export const realtimeChannel = (tenantId: string) => `rt:${tenantId}`;
 
 interface Connection {
@@ -33,7 +35,7 @@ export class StreamService implements OnApplicationShutdown {
   private subscriber: Redis | null = null;
   private heartbeat: NodeJS.Timeout | null = null;
 
-  constructor(@Inject(DB) private readonly db: DbHandle, @Inject(REDIS) private readonly redis: Redis) {}
+  constructor(@Inject(DB) private readonly db: DbHandle, @Inject(REDIS) private readonly redis: Redis, private readonly delivery: DeliveryService) {}
 
   private ensureSubscriber(): Redis {
     if (this.subscriber) return this.subscriber;
@@ -41,7 +43,12 @@ export class StreamService implements OnApplicationShutdown {
     sub.on('message', (channel: string, message: string) => { this.onMessage(channel, message); });
     this.subscriber = sub;
     this.heartbeat = setInterval(() => {
-      for (const set of this.byTenant.values()) for (const c of set) c.res.write(': keep-alive\n\n');
+      for (const set of this.byTenant.values()) {
+        for (const c of set) {
+          c.res.write(': keep-alive\n\n');
+          this.present(c);
+        }
+      }
     }, HEARTBEAT_MS);
     return sub;
   }
@@ -60,6 +67,7 @@ export class StreamService implements OnApplicationShutdown {
       this.byTenant.set(t.tenant.id, set);
     }
     set.add(conn);
+    this.present(conn);
     res.on('close', () => {
       const s = this.byTenant.get(t.tenant.id);
       s?.delete(conn);
@@ -69,6 +77,20 @@ export class StreamService implements OnApplicationShutdown {
       }
     });
     if (lastEventId) conn.queue = conn.queue.then(() => this.replay(conn, lastEventId));
+  }
+
+  /** Online mark (e-mail goes to people who are away): renewed by the heartbeat, gone soon after the last stream. */
+  private present(conn: Connection): void {
+    void this.redis.set(presenceKey(conn.ctx.tenant.id, conn.ctx.principal.userId), '1', 'PX', HEARTBEAT_MS * 2).catch(() => undefined);
+  }
+
+  /** A client reports it received a notification event: the latency a person sees. */
+  async ack(t: TenantRequestContext, eventId: string): Promise<void> {
+    const me = t.principal.userId;
+    const r = await this.db.withTenant(dbCtx(t), (tx) => tx.execute<{ occurred_at: string }>(sql`
+      SELECT occurred_at FROM outbox_events WHERE id = ${eventId} AND type = 'notification.created' AND payload -> 'userIds' ? ${me} AND occurred_at > now() - interval '10 minutes'`));
+    const at = r.rows[0]?.occurred_at;
+    if (at) await this.delivery.record(t.tenant.id, me, 'client', 'delivered', new Date(at));
   }
 
   /** Missed events since `Last-Event-ID`, filtered exactly like live ones; too old → `resync.required`. */
@@ -104,7 +126,7 @@ export class StreamService implements OnApplicationShutdown {
       return;
     }
     // Per connection, in order: a slow permission check for one user never reorders another user's stream.
-    for (const c of set) c.queue = c.queue.then(() => this.deliver(c, event)).catch((e: unknown) => { this.log.warn(`stream delivery failed: ${(e as Error).message}`); });
+    for (const c of set) c.queue = c.queue.then(() => this.deliver(c, event, true)).catch((e: unknown) => { this.log.warn(`stream delivery failed: ${(e as Error).message}`); });
   }
 
   /** May this connection's user see the event? Notifications: only their recipients. Records: read access now. */
@@ -132,7 +154,7 @@ export class StreamService implements OnApplicationShutdown {
     return this.db.withTenant(dbCtx(conn.ctx), (tx) => canReadRecord(tx, conn.ctx, resource.type as ShareType, resource.id));
   }
 
-  private async deliver(conn: Connection, event: DomainEvent): Promise<void> {
+  private async deliver(conn: Connection, event: DomainEvent, live = false): Promise<void> {
     if (conn.res.writableEnded || !(await this.visible(conn, event))) return;
     const data = event.type.startsWith('notification.')
       ? { type: event.type, notificationIds: event.payload.notificationIds ?? [] }
@@ -147,6 +169,8 @@ export class StreamService implements OnApplicationShutdown {
           occurredAt: event.occurredAt,
         };
     conn.res.write(`id: ${event.id}\nevent: ${event.type}\ndata: ${JSON.stringify(data)}\n\n`);
+    // A replay is as late as its reader was away: only live deliveries are measured.
+    if (live && event.type === 'notification.created') void this.delivery.record(conn.ctx.tenant.id, conn.ctx.principal.userId, 'stream', 'delivered', new Date(event.occurredAt));
   }
 
   /** Called by the event consumer after an event was processed. */

@@ -1,12 +1,13 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, UseGuards, type Type } from '@nestjs/common';
-import { ActivityLogCreate, AttachmentInitiate, CommentCreate, CommentPatch, MentionableQuery, NotificationPreferencesSet, type z } from '@flexa/contracts';
+import { ActivityLogCreate, AttachmentInitiate, CommentCreate, CommentPatch, MentionableQuery, NotificationPreferencesSet, PushSubscribe, PushUnsubscribe, type z } from '@flexa/contracts';
 import { authorize } from '../../common/authorize';
 import { TenantGuard } from '../../common/guards';
 import type { ShareType } from '../../common/record-access';
-import { CurrentTenant, type TenantRequestContext } from '../../common/request-context';
+import { Client, CurrentTenant, type ClientInfo, type TenantRequestContext } from '../../common/request-context';
 import { ZodPipe } from '../../common/zod.pipe';
 import { AttachmentsService } from './attachments.service';
 import { NotificationsService } from './notifications.service';
+import { PushService } from './push.service';
 import { RecordsService } from './records.service';
 
 const Id = new ParseUUIDPipe();
@@ -69,7 +70,7 @@ export const RECORD_EXTRAS_CONTROLLERS: Type[] = [
 @Controller('v1')
 @UseGuards(TenantGuard)
 export class RecordItemsController {
-  constructor(private readonly records: RecordsService, private readonly files: AttachmentsService, private readonly notifications: NotificationsService) {}
+  constructor(private readonly records: RecordsService, private readonly files: AttachmentsService, private readonly notifications: NotificationsService, private readonly push: PushService) {}
 
   @Patch('comments/:id')
   editComment(@CurrentTenant() t: TenantRequestContext, @Param('id', Id) id: string, @Body(new ZodPipe(CommentPatch)) body: z.infer<typeof CommentPatch>) {
@@ -124,6 +125,28 @@ export class RecordItemsController {
   @Get('notifications/preferences')
   preferences(@CurrentTenant() t: TenantRequestContext) {
     return this.notifications.preferences(t);
+  }
+
+  @Get('notifications/:id')
+  notification(@CurrentTenant() t: TenantRequestContext, @Param('id', Id) id: string) {
+    return this.notifications.get(t, id);
+  }
+
+  @Get('push/config')
+  pushConfig() {
+    return this.push.config();
+  }
+
+  @Post('push/subscriptions')
+  @HttpCode(204)
+  async subscribe(@CurrentTenant() t: TenantRequestContext, @Body(new ZodPipe(PushSubscribe)) body: z.infer<typeof PushSubscribe>, @Client() c: ClientInfo): Promise<void> {
+    await this.push.subscribe(t, body, c.userAgent);
+  }
+
+  @Post('push/unsubscribe')
+  @HttpCode(204)
+  async unsubscribe(@CurrentTenant() t: TenantRequestContext, @Body(new ZodPipe(PushUnsubscribe)) body: z.infer<typeof PushUnsubscribe>): Promise<void> {
+    await this.push.unsubscribe(t, body.endpoint);
   }
 
   @Put('notifications/preferences')

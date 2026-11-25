@@ -18,7 +18,7 @@ const BATCH = 2_000;
 const gz = promisify(gzip);
 
 /** Tables never exported: key material and hashed credentials. */
-const SKIP_TABLES = new Set(['tenant_keys', 'processed_events', 'outbox_events', 'tenant_exports']);
+const SKIP_TABLES = new Set(['tenant_keys', 'processed_events', 'outbox_events', 'tenant_exports', 'push_subscriptions', 'notification_deliveries']);
 /** Columns never exported, whatever table they are in. */
 const SECRET_COLUMN = /(_hash|_enc|wrapped_dek|^secret)$/;
 

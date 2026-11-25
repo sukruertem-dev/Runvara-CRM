@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { can } from '@flexa/authz';
-import { sql, type Db, type DbHandle } from '@flexa/db';
+import { sql, type Db, type DbHandle, type SQL } from '@flexa/db';
 import { ProblemError } from '../../common/problem';
 import { recordPredicate } from '../../common/record-access';
 import { dbCtx, type TenantRequestContext } from '../../common/request-context';
@@ -45,37 +45,71 @@ export class NotificationsService {
     return taskReadPredicate(tx, t);
   }
 
-  async list(t: TenantRequestContext, query: { unread?: string; limit?: string; before?: string }) {
+  /** Notices selected by `inner` (from `notifications`), each re-authorized for the reader now (MEN-09). */
+  private async rows(tx: Db, t: TenantRequestContext, inner: SQL): Promise<Row[]> {
+    const a = await this.accessColumns(tx, t);
+    return (await tx.execute<Row>(sql`
+      WITH n AS (${inner}), v AS (SELECT n.*, ${a.accessible} AS accessible FROM n)
+      SELECT v.id, v.kind, v.source_type, v.source_id, v.record_type, v.record_id, v.actor_id, u.display_name AS actor_name, v.message,
+             v.created_at, v.read_at, v.accessible, CASE WHEN v.accessible THEN (SELECT ${a.title} FROM (SELECT v.record_type, v.record_id) AS n) END AS title
+      FROM v LEFT JOIN users u ON u.id = v.actor_id ORDER BY v.created_at DESC, v.id DESC`)).rows;
+  }
+
+  /** Where a notice leads: the record and the place in it, or the screen that deals with it. */
+  private linkOf(x: Row): string {
+    if (x.kind === 'approval') return '/approvals';
+    if (x.record_type === 'target') return '/targets';
+    if (x.record_type === 'webhook') return '/settings/integrations';
+    const anchor = x.source_type === 'comment' || x.source_type === 'note' ? `#${x.source_type}-${x.source_id}` : x.source_type === 'description' ? '#description' : '';
+    return `/r/${x.record_type}/${x.record_id}${anchor}`;
+  }
+
+  private view(x: Row) {
+    return {
+      id: x.id, kind: x.kind, accessible: x.accessible,
+      // Without access, only the fact of a notification remains: no title, no record or source id, no actor.
+      title: x.accessible ? x.title : null,
+      message: x.accessible ? x.message : null,
+      record: x.accessible ? { type: x.record_type, id: x.record_id } : null,
+      source: x.accessible ? { type: x.source_type, id: x.source_id } : null,
+      actor: x.accessible && x.actor_id ? { id: x.actor_id, displayName: x.actor_name } : null,
+      link: x.accessible ? this.linkOf(x) : null,
+      createdAt: new Date(x.created_at).toISOString(),
+      readAt: x.read_at ? new Date(x.read_at).toISOString() : null,
+    };
+  }
+
+  async get(t: TenantRequestContext, id: string) {
+    return this.db.withTenant(dbCtx(t), async (tx) => {
+      const [row] = await this.rows(tx, t, sql`SELECT * FROM notifications WHERE user_id = ${t.principal.userId} AND id = ${id} AND retracted_at IS NULL`);
+      if (!row) throw new ProblemError('NOT_FOUND');
+      return this.view(row);
+    });
+  }
+
+  /** The caller's notice of one source (push); null when it was withdrawn. */
+  async bySource(t: TenantRequestContext, kind: string, sourceType: string, sourceId: string) {
+    return this.db.withTenant(dbCtx(t), async (tx) => {
+      const [row] = await this.rows(tx, t, sql`SELECT * FROM notifications
+        WHERE user_id = ${t.principal.userId} AND kind = ${kind} AND source_type = ${sourceType} AND source_id = ${sourceId}::uuid AND retracted_at IS NULL`);
+      return row ? this.view(row) : null;
+    });
+  }
+
+  async list(t: TenantRequestContext, query: { unread?: string; limit?: string; before?: string }, opts: { outsideApp?: boolean } = {}) {
     const limit = query.limit === undefined ? 50 : Number(query.limit);
     if (!Number.isInteger(limit) || limit < 1 || limit > 200) throw new ProblemError('VALIDATION_FAILED', 'limit must be 1–200');
     const before = query.before ? new Date(query.before) : null;
     if (before && Number.isNaN(before.getTime())) throw new ProblemError('VALIDATION_FAILED', 'before must be a timestamp');
     return this.db.withTenant(dbCtx(t), async (tx) => {
-      const a = await this.accessColumns(tx, t);
-      const r = await tx.execute<Row>(sql`
-        WITH n AS (
+      const r = await this.rows(tx, t, sql`
           SELECT * FROM notifications
-          WHERE user_id = ${t.principal.userId} AND retracted_at IS NULL
+          WHERE user_id = ${t.principal.userId} AND retracted_at IS NULL ${opts.outsideApp ? sql`` : sql`AND in_app`}
             ${query.unread === 'true' ? sql`AND read_at IS NULL` : sql``} ${before ? sql`AND created_at < ${before}` : sql``}
-          ORDER BY created_at DESC, id DESC LIMIT ${limit}
-        ), v AS (SELECT n.*, ${a.accessible} AS accessible FROM n)
-        SELECT v.id, v.kind, v.source_type, v.source_id, v.record_type, v.record_id, v.actor_id, u.display_name AS actor_name, v.message,
-               v.created_at, v.read_at, v.accessible, CASE WHEN v.accessible THEN (SELECT ${a.title} FROM (SELECT v.record_type, v.record_id) AS n) END AS title
-        FROM v LEFT JOIN users u ON u.id = v.actor_id ORDER BY v.created_at DESC, v.id DESC`);
-      const unread = await tx.execute<{ n: number }>(sql`SELECT count(*)::int AS n FROM notifications WHERE user_id = ${t.principal.userId} AND retracted_at IS NULL AND read_at IS NULL`);
+          ORDER BY created_at DESC, id DESC LIMIT ${limit}`);
+      const unread = await tx.execute<{ n: number }>(sql`SELECT count(*)::int AS n FROM notifications WHERE user_id = ${t.principal.userId} AND retracted_at IS NULL AND read_at IS NULL AND in_app`);
       return {
-        data: r.rows.map((x) => ({
-          id: x.id, kind: x.kind, accessible: x.accessible,
-          // Without access, only the fact of a notification remains: no title, no record or source id, no actor.
-          title: x.accessible ? x.title : null,
-          message: x.accessible ? x.message : null,
-          record: x.accessible ? { type: x.record_type, id: x.record_id } : null,
-          source: x.accessible ? { type: x.source_type, id: x.source_id } : null,
-          actor: x.accessible && x.actor_id ? { id: x.actor_id, displayName: x.actor_name } : null,
-          link: x.accessible ? `/r/${x.record_type}/${x.record_id}${x.source_type === 'comment' || x.source_type === 'note' ? `#${x.source_type}-${x.source_id}` : x.source_type === 'description' ? '#description' : ''}` : null,
-          createdAt: new Date(x.created_at).toISOString(),
-          readAt: x.read_at ? new Date(x.read_at).toISOString() : null,
-        })),
+        data: r.map((x) => this.view(x)),
         unreadCount: unread.rows[0]?.n ?? 0,
       };
     });
