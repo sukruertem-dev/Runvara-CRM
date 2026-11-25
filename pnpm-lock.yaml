@@ -451,6 +451,9 @@ importers:
       '@tiptap/starter-kit':
         specifier: 3.35.0
         version: 3.35.0
+      '@tiptap/suggestion':
+        specifier: 3.35.0
+        version: 3.35.0(@floating-ui/dom@1.8.0)(@tiptap/core@3.35.0(@tiptap/pm@3.35.0))(@tiptap/pm@3.35.0)
       class-variance-authority:
         specifier: 0.7.1
         version: 0.7.1
@@ -3987,6 +3990,13 @@ packages:
 
   '@tiptap/starter-kit@3.35.0':
     resolution: {integrity: sha512-8+RCgXBlI6rqARCr5RP9Jn73CxNFIuGyh3u2nxcs87QN15xzCKzZWlIBDE4fb9Y2ieWX06QZ9Lx34YjbzwoGLQ==}
+
+  '@tiptap/suggestion@3.35.0':
+    resolution: {integrity: sha512-95GKUwsj7juT0/4xfv+o4uBHxWJAOxmFHGLNxhp/QQKzX1LPm+TweBcfgEK6PVoPP9FtLBJJywE7X4lcnptxbw==}
+    peerDependencies:
+      '@floating-ui/dom': ^1.0.0
+      '@tiptap/core': 3.35.0
+      '@tiptap/pm': 3.35.0
 
   '@tokenizer/inflate@0.4.1':
     resolution: {integrity: sha512-2mAv+8pkG6GIZiF1kNg1jAjh27IDxEPKwdGul3snfztFerfPGI1LjDezZp3i7BElXompqEtPmoPx6c2wgtWsOA==}
@@ -11001,6 +11011,12 @@ snapshots:
       '@tiptap/extension-text': 3.35.0(@tiptap/core@3.35.0(@tiptap/pm@3.35.0))
       '@tiptap/extension-underline': 3.35.0(@tiptap/core@3.35.0(@tiptap/pm@3.35.0))
       '@tiptap/extensions': 3.35.0(@tiptap/core@3.35.0(@tiptap/pm@3.35.0))(@tiptap/pm@3.35.0)
+      '@tiptap/pm': 3.35.0
+
+  '@tiptap/suggestion@3.35.0(@floating-ui/dom@1.8.0)(@tiptap/core@3.35.0(@tiptap/pm@3.35.0))(@tiptap/pm@3.35.0)':
+    dependencies:
+      '@floating-ui/dom': 1.8.0
+      '@tiptap/core': 3.35.0(@tiptap/pm@3.35.0)
       '@tiptap/pm': 3.35.0
 
   '@tokenizer/inflate@0.4.1':

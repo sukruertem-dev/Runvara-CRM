@@ -10,7 +10,7 @@ import { overridesOf, sameJson, SaveConfigDialog, type PendingChange } from '../
 import { ReadOnlyNotice, SettingsGate, SettingsHeader } from '../_parts/settings-nav';
 
 type Json = Record<string, unknown>;
-const KEYS = ['locale', 'currency', 'ui', 'notifications.defaults'] as const;
+const KEYS = ['locale', 'currency', 'ui', 'notifications.defaults', 'mentions'] as const;
 type Key = (typeof KEYS)[number];
 const KINDS = ['mention', 'assigned', 'automation', 'approval'] as const;
 const CHANNELS = ['in_app', 'email'] as const;
@@ -38,12 +38,13 @@ function General() {
   const currency = useConfigLayer('currency', 'tenant');
   const ui = useConfigLayer('ui', 'tenant');
   const notif = useConfigLayer('notifications.defaults', 'tenant');
+  const mentions = useConfigLayer('mentions', 'tenant');
   const keys = useConfigKeys();
-  const all = [locale, currency, ui, notif, keys];
+  const all = [locale, currency, ui, notif, mentions, keys];
   const header = <SettingsHeader title={t('config.general.title')} lead={t('config.general.lead')} />;
   if (all.some((q) => q.isError)) return <>{header}<ErrorState title={t('error.fallback')} retryLabel={t('common.retry')} onRetry={() => { for (const q of all) void q.refetch(); }} /></>;
-  if (!locale.data || !currency.data || !ui.data || !notif.data || !keys.data) return <>{header}<Skeleton className="h-64 w-full" /></>;
-  const layers: Record<Key, ConfigLayer> = { locale: locale.data, currency: currency.data, ui: ui.data, 'notifications.defaults': notif.data };
+  if (!locale.data || !currency.data || !ui.data || !notif.data || !mentions.data || !keys.data) return <>{header}<Skeleton className="h-64 w-full" /></>;
+  const layers: Record<Key, ConfigLayer> = { locale: locale.data, currency: currency.data, ui: ui.data, 'notifications.defaults': notif.data, mentions: mentions.data };
   const defaults = Object.fromEntries(keys.data.data.map((k) => [k.key, k.default])) as Record<string, Json>;
   // Remount when someone saves (new versions): the form starts again from the stored values.
   const stamp = KEYS.map((k) => layers[k].version).join('.');
@@ -59,6 +60,7 @@ function GeneralForm({ layers, defaults }: { layers: Record<Key, ConfigLayer>; d
     currency: layers.currency.effective,
     ui: layers.ui.effective,
     'notifications.defaults': layers['notifications.defaults'].effective,
+    mentions: layers.mentions.effective,
   }));
   const [review, setReview] = useState<PendingChange[] | null>(null);
   const zones = useMemo(() => list('timeZone', ['Europe/Istanbul', 'UTC']).map((z) => ({ value: z, label: z.replaceAll('_', ' ') })), []);
@@ -167,6 +169,15 @@ function GeneralForm({ layers, defaults }: { layers: Record<Key, ConfigLayer>; d
               ))}
             </tbody>
           </table>
+        </section>
+
+        <section className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4" aria-labelledby="g-mentions">
+          <h2 id="g-mentions" className="m-0 text-base font-semibold">{t('config.key.mentions')}</h2>
+          <p className="m-0 text-sm text-fg-muted">{t('config.mentions.hint')}</p>
+          <label className="inline-flex items-center gap-2 text-sm">
+            <Checkbox checked={draft.mentions.grantAccess === true} disabled={readOnly} onCheckedChange={(v) => { set('mentions', 'grantAccess', v === true); }} data-testid="mentions-grant" />
+            {t('config.prop.mentions.grantAccess')}
+          </label>
         </section>
       </fieldset>
       {readOnly ? null : (

@@ -98,8 +98,8 @@ export function useAccountSearch(term: string) {
 }
 
 // ---------------------------------------------------------------- teams
-export function useTeams() {
-  return useQuery({ queryKey: TEAMS, queryFn: () => request<Out<typeof TeamListResponse>>('/v1/teams') });
+export function useTeams(enabled = true) {
+  return useQuery({ queryKey: TEAMS, queryFn: () => request<Out<typeof TeamListResponse>>('/v1/teams'), enabled });
 }
 export const useCreateTeam = () => useWrite((body: In<typeof TeamCreate>) => request('/v1/teams', { method: 'POST', body }), TEAMS);
 export const useUpdateTeam = () => useWrite(({ id, patch }: { id: string; patch: In<typeof TeamPatch> }) => request(`/v1/teams/${id}`, { method: 'PATCH', body: patch }), TEAMS);
