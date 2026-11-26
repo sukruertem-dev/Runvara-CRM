@@ -51,7 +51,7 @@ function Sums({ p, currency }: { p: Priced; currency: string }) {
   );
 }
 
-export function QuoteEditor({ quote, onDirty, onConflict }: { quote: Quote; onDirty: (dirty: boolean) => void; onConflict: () => void }) {
+export function QuoteEditor({ quote, onDirty, onSaved, onConflict }: { quote: Quote; onDirty: (dirty: boolean) => void; onSaved: () => void; onConflict: () => void }) {
   const c = quote.content;
   const save = useSaveQuote();
   const { toast } = useToast();
@@ -98,7 +98,10 @@ export function QuoteEditor({ quote, onDirty, onConflict }: { quote: Quote; onDi
         lines: lines.map((l) => ({ productId: l.productId, quantity: decimal(l.quantity), ...(l.unitPrice.trim() ? { unitPrice: decimal(l.unitPrice) } : {}), discountPercent: decimal(l.discount), description: l.description })),
       },
     }).then(
-      () => { toast({ kind: 'success', title: t('quote.saved') }); },
+      () => {
+        toast({ kind: 'success', title: t('quote.saved') });
+        onSaved();
+      },
       (e: unknown) => {
         if (e instanceof ApiError && e.status === 412) {
           toast({ kind: 'error', title: t('quote.conflict') });

@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { can } from '@flexa/authz';
 import { configKey, mergeLayer, type JsonObject } from '@flexa/config';
-import { minorDigits, priceQuote, type Priced, type QuoteCreate, type QuoteDraft, type QuoteListQuery, type QuoteOutcome, type QuoteSend, type QuoteSubmit, type QuoteVersionView, type z } from '@flexa/contracts';
+import { minorDigits, priceQuote, type MailJob, type Priced, type QuoteCreate, type QuoteDraft, type QuoteListQuery, type QuoteOutcome, type QuoteSend, type QuoteSubmit, type QuoteVersionView, type z } from '@flexa/contracts';
 import { schema, sql, type Db, type DbHandle, type SQL } from '@flexa/db';
 import { createHash, randomUUID } from 'node:crypto';
 import { recordActivity } from '../../common/activity';
@@ -42,6 +42,10 @@ const iso = (v: string | null): string | null => (v ? new Date(v).toISOString() 
 const s = (v: unknown): string | null => (typeof v === 'string' ? v : null);
 const pgArray = (v: readonly string[]): string => `{${v.map((x) => `"${x.replace(/["\\]/g, '\\$&')}"`).join(',')}}`;
 const PDF = 'application/pdf';
+/** How long sending a quote waits for the mail queue. */
+const ENQUEUE_WAIT_MS = 5_000;
+type QuoteMail = Extract<MailJob, { template: 'quote' }>;
+type StoredMail = Omit<QuoteMail, 'template' | 'attachment'>;
 
 @Injectable()
 export class QuotesService {
@@ -361,7 +365,7 @@ export class QuotesService {
     });
   }
 
-  /** Sends the approved version: the PDF is stored, the version sealed, and the e-mail queued with the document. */
+  /** Sends the approved version: the PDF is stored, the version sealed, and its e-mails recorded with it, then queued. */
   async send(t: TenantRequestContext, id: string, body: z.infer<typeof QuoteSend>) {
     authorize(t, 'sales_b2b.quote.send');
     const storage = this.storage;
@@ -370,7 +374,7 @@ export class QuotesService {
     const key = `tenants/${t.tenant.id}/quotes/${randomUUID()}`;
     const put = { done: false };
     try {
-      const { view, pdf, replyTo, versionId } = await this.db.withTenant(dbCtx(t), async (tx) => {
+      const { view, versionId } = await this.db.withTenant(dbCtx(t), async (tx) => {
         const q = await this.forWrite(tx, t, id);
         this.assertStatus(q, 'approved');
         const v = await this.versionRow(tx, id, q.current_version);
@@ -385,16 +389,24 @@ export class QuotesService {
         await tx.execute(sql`UPDATE quotes SET status = 'sent', version = version + 1 WHERE id = ${id}`);
         await this.log_(tx, t, q, q.current_version, 'sent');
         const me = await tx.select({ email: schema.users.email }).from(schema.users).where(sql`id = ${t.principal.userId}`);
-        return { view: await this.view(tx, t, id), pdf: pdfBytes, replyTo: me[0]?.email ?? null, versionId: v.id };
+        const sent = await this.view(tx, t, id);
+        const replyTo = me[0]?.email;
+        for (const [i, address] of to.entries()) {
+          const mail: StoredMail = {
+            to: address, locale: t.tenant.locale.startsWith('tr') ? 'tr-TR' : 'en-US',
+            vars: { tenantName: t.tenant.name, number: sent.number, message: body.message, total: `${sent.total} ${sent.currency}`, validUntil: sent.validUntil },
+            ...(replyTo ? { replyTo } : {}),
+          };
+          await tx.execute(sql`INSERT INTO quote_deliveries (tenant_id, quote_version_id, position, mail) VALUES (${t.tenant.id}, ${v.id}, ${i}, ${JSON.stringify(mail)}::jsonb)`);
+        }
+        return { view: sent, versionId: v.id };
       });
-      for (const [i, address] of to.entries()) {
-        await this.mailer.send({
-          template: 'quote', to: address, locale: t.tenant.locale.startsWith('tr') ? 'tr-TR' : 'en-US',
-          vars: { tenantName: t.tenant.name, number: view.number, message: body.message, total: `${view.total} ${view.currency}`, validUntil: view.validUntil },
-          ...(replyTo ? { replyTo } : {}),
-          attachment: { fileName: `${view.number}-v${String(view.currentVersion)}.pdf`, mime: PDF, base64: pdf.toString('base64') },
-        }, { jobId: `quote-${versionId}-${String(i)}` });
-      }
+      // Best effort: what cannot be queued now (or takes too long) stays recorded for deliverDue().
+      let timer: NodeJS.Timeout | undefined;
+      await Promise.race([
+        this.deliver(t.tenant.id, versionId),
+        new Promise<void>((done) => { timer = setTimeout(done, ENQUEUE_WAIT_MS); }),
+      ]).finally(() => { clearTimeout(timer); });
       return view;
     } catch (e) {
       // Nothing was sent: the stored file belongs to no version.
@@ -435,14 +447,62 @@ export class QuotesService {
     });
     if (r.bytes) return { bytes: r.bytes, fileName: r.fileName };
     if (!this.storage || !r.key) throw new ProblemError('UPSTREAM_UNAVAILABLE', 'the document is not available');
+    const bytes = await this.document(this.storage, r.key, r.sha);
+    return { bytes, fileName: r.fileName };
+  }
+
+  /** The stored document, checked against its hash. */
+  private async document(storage: ObjectStorage, key: string, sha: string | null): Promise<Buffer> {
     const chunks: Uint8Array[] = [];
-    for await (const c of await this.storage.stream(r.key)) chunks.push(c);
+    for await (const c of await storage.stream(key)) chunks.push(c);
     const bytes = Buffer.concat(chunks);
-    if (createHash('sha256').update(bytes).digest('hex') !== r.sha) {
-      this.log.error(`quote document ${r.key} does not match its hash`);
+    if (createHash('sha256').update(bytes).digest('hex') !== sha) {
+      this.log.error(`quote document ${key} does not match its hash`);
       throw new ProblemError('UPSTREAM_UNAVAILABLE', 'the document is damaged');
     }
-    return { bytes, fileName: r.fileName };
+    return bytes;
+  }
+
+  // ------------------------------------------------------------------ delivery (background)
+  /** Queues what is still owed of a sent version. Never throws; the job id keeps a repeat from being queued twice. */
+  private async deliver(tenantId: string, versionId: string): Promise<number> {
+    const ctx = { tenantId, userId: null, segments: ['b2b' as const] };
+    let n = 0;
+    try {
+      const due = await this.db.withTenant(ctx, async (tx) => (await tx.execute<{ id: string; position: number; mail: StoredMail; object_key: string; sha256: string; number: string; version: number }>(sql`
+        SELECT d.id, d.position, d.mail, f.object_key, f.sha256, q.number, v.version
+        FROM quote_deliveries d JOIN quote_versions v ON v.id = d.quote_version_id JOIN quotes q ON q.id = v.quote_id JOIN quote_documents f ON f.quote_version_id = v.id
+        WHERE d.quote_version_id = ${versionId} AND d.queued_at IS NULL ORDER BY d.position`)).rows);
+      let base64: string | null = null;
+      for (const d of due) {
+        try {
+          if (!this.storage) throw new Error('file storage is not configured');
+          base64 ??= (await this.document(this.storage, d.object_key, d.sha256)).toString('base64');
+          await this.mailer.send(
+            { template: 'quote', ...d.mail, attachment: { fileName: `${d.number}-v${String(d.version)}.pdf`, mime: PDF, base64 } },
+            { jobId: `quote-${versionId}-${String(d.position)}` },
+          );
+          await this.db.withTenant(ctx, (tx) => tx.execute(sql`UPDATE quote_deliveries SET queued_at = now(), attempts = attempts + 1 WHERE id = ${d.id}`));
+          n += 1;
+        } catch (e) {
+          this.log.warn(`quote mail ${d.id} not queued: ${(e as Error).message}`);
+          // Later and later, at most an hour apart.
+          await this.db.withTenant(ctx, (tx) => tx.execute(sql`
+            UPDATE quote_deliveries SET attempts = attempts + 1, next_attempt_at = now() + least(interval '1 hour', interval '1 minute' * power(2, least(attempts, 6)))
+            WHERE id = ${d.id} AND queued_at IS NULL`));
+        }
+      }
+    } catch (e) {
+      this.log.error(`quote delivery of version ${versionId} failed: ${(e as Error).message}`);
+    }
+    return n;
+  }
+
+  async deliverDue(limit = 100): Promise<number> {
+    const due = await this.db.withAnonymous(async (tx) => (await tx.execute<{ tenant_id: string; quote_version_id: string }>(sql`SELECT tenant_id, quote_version_id FROM app.due_quote_deliveries(${limit})`)).rows);
+    let n = 0;
+    for (const d of due) n += await this.deliver(d.tenant_id, d.quote_version_id);
+    return n;
   }
 
   // ------------------------------------------------------------------ validity (background)

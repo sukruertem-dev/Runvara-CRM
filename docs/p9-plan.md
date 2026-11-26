@@ -20,6 +20,7 @@
 | `quote_lines` | ürün anlık görüntüsü (SKU, ad, birim, vergi), miktar, liste fiyatı, birim fiyat, iskonto, tutarlar |
 | `quote_documents` | gönderilen PDF: nesne anahtarı, SHA-256, boyut (yalnızca eklenir) |
 | `quote_counters` | tenant ve yıl başına sayaç |
+| `quote_deliveries` (`0020`) | gönderilecek e-posta (ek hariç), deneme sayısı, kuyruğa giriş zamanı |
 
 - **Değişmezlik veritabanında:** gönderilmiş sürüm hiç değişmez; kilitli sürümün içeriği değişmez; satırlar yalnızca kilitsiz sürüme yazılır. Sürümler silinmez (tenant silme hariç).
 
@@ -43,7 +44,7 @@
 
 ## 5. Belge ve gönderim
 - PDF `pdfkit` + gömülü DejaVu yazı tipi (Türkçe); taslakta filigran. Gönderilen belge saklanır ve sonradan **o** belge verilir (hash doğrulanır).
-- E-posta teklifi ekte taşır, yanıt adresi gönderen kişidir. Aynı sürüm aynı adrese bir kez kuyruğa girer.
+- E-posta teklifi ekte taşır, yanıt adresi gönderen kişidir. Aynı sürüm aynı adrese bir kez kuyruğa girer. E-posta, sürümü gönderildi yapan işlemde `quote_deliveries` tablosuna yazılır; kuyruk almazsa dakikalık iş artan aralıklarla (en çok bir saat) yeniden dener.
 - Olaylar `quote.created|submitted|revised|sent|accepted|rejected|expired` fırsat üzerinde; tutar ve adres taşımaz.
 
 ## 6. Ekranlar

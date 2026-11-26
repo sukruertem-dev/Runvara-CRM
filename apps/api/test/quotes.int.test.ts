@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { superQuery } from '@flexa/db/testing';
 import { QuotesService } from '../src/modules/quotes/quotes.service';
 import { Client, PASSWORD, signupAndLogin, startHarness, uniq, type Harness, type Res } from './harness';
@@ -206,6 +206,32 @@ describe('document, sending, outcome', () => {
     const stored = await pdf(w.lead.c);
     expect(stored.rawPayload.equals(Buffer.from(job.attachment.base64, 'base64'))).toBe(true);
     expect((await pdf(w.peer.c)).statusCode).toBe(404);
+  });
+
+  it('a mail the queue did not take is queued later, once per address, with the stored document', async () => {
+    const w = await setup();
+    const q = await drafted(w);
+    ok(await submit(w, q));
+    const original = h.mailer.send.bind(h.mailer);
+    const broken = vi.spyOn(h.mailer, 'send').mockImplementation((job) => (job.to === 'ikinci@firma.test' ? Promise.reject(new Error('queue down')) : original(job)));
+    try {
+      expect(ok(await send(w, q, ['musteri@firma.test', 'ikinci@firma.test'])).status).toBe('sent');
+    } finally {
+      broken.mockRestore();
+    }
+    const mine = () => h.mailer.jobs.flatMap((j) => (j.template === 'quote' && j.replyTo === w.rep.email ? [j] : []));
+    expect(mine().map((j) => j.to)).toEqual(['musteri@firma.test']);
+    const service = h.app.get(QuotesService);
+    await service.deliverDue();
+    expect(mine()).toHaveLength(1); // not due yet
+    await sql(`UPDATE quote_deliveries SET next_attempt_at = now() WHERE tenant_id = $1 AND queued_at IS NULL`, [w.tenantId]);
+    expect(await service.deliverDue()).toBe(1);
+    const [first, second] = mine();
+    expect(second).toMatchObject({ to: 'ikinci@firma.test', replyTo: w.rep.email, vars: { number: q.number, message: 'Merhaba' } });
+    expect(second?.attachment.base64).toBe(first?.attachment.base64);
+    await service.deliverDue();
+    expect(mine()).toHaveLength(2);
+    expect((await sql(`SELECT attempts FROM quote_deliveries WHERE tenant_id = $1 ORDER BY position`, [w.tenantId])).map((r) => r.attempts)).toEqual([1, 2]);
   });
 
   it('records the answer once, writes timeline and events without amounts, and expires on time', async () => {

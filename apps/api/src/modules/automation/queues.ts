@@ -120,6 +120,7 @@ export class AutomationQueues implements OnModuleInit, OnApplicationShutdown {
       else if (job.name === 'export-expire') await this.exportsService.expire();
       else if (job.name === 'approval-due') await this.approvals.runDue();
       else if (job.name === 'quote-expire') await this.quotes.expireDue();
+      else if (job.name === 'quote-deliver') await this.quotes.deliverDue();
       else if (job.name === 'delivery-watch') await this.delivery.watch();
       else if (job.name === 'target-risk') await this.targets.scanRisk();
       else await this.sla.check();
@@ -136,6 +137,8 @@ export class AutomationQueues implements OnModuleInit, OnApplicationShutdown {
     void this.slaCheckQueue.upsertJobScheduler('approval-due', { every: 60_000 }, { name: 'approval-due' });
     void this.slaCheckQueue.upsertJobScheduler('target-risk', { every: 3_600_000 }, { name: 'target-risk' });
     void this.slaCheckQueue.upsertJobScheduler('quote-expire', { every: 3_600_000 }, { name: 'quote-expire' });
+    // E-mails of sent quotes the mail queue did not take.
+    void this.slaCheckQueue.upsertJobScheduler('quote-deliver', { every: 60_000 }, { name: 'quote-deliver' });
     void this.slaCheckQueue.upsertJobScheduler('delivery-watch', { every: 300_000 }, { name: 'delivery-watch' });
     this.webhooks.startWorker();
     this.push.startWorker();

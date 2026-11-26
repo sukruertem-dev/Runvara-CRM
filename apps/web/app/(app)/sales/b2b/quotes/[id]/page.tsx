@@ -47,6 +47,8 @@ function QuoteScreen({ quote }: { quote: Quote }) {
   const [open, setOpen] = useState<Open>(null);
   const [dirty, setDirty] = useState(false);
   const editing = quote.status === 'draft' && quote.canEdit;
+  // Unsaved work stays on screen whatever happens to the quote elsewhere; discarding it is the person's decision.
+  const [round, setRound] = useState(0);
   const c = quote.content;
 
   function download(version: number): void {
@@ -94,8 +96,8 @@ function QuoteScreen({ quote }: { quote: Quote }) {
       {c.sentAt ? <div className="mb-4"><Alert kind="info">{t('quote.sentInfo', { date: dateTime(c.sentAt), name: c.sentBy?.displayName ?? '', to: c.sentTo.join(', ') })}</Alert></div> : null}
       {quote.outcomeReason ? <p className="mb-4 text-sm">{quote.outcomeReason}</p> : null}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
-        {editing
-          ? <QuoteEditor key={`${String(c.version)}-${String(quote.version)}`} quote={quote} onDirty={setDirty} onConflict={() => { void qc.invalidateQueries({ queryKey: ['quotes'] }); }} />
+        {editing || dirty
+          ? <DraftEditor key={round} quote={quote} dirty={dirty} onDirty={setDirty} onReset={() => { setDirty(false); setRound((n) => n + 1); }} onConflict={() => { void qc.invalidateQueries({ queryKey: ['quotes'] }); }} />
           : <QuoteContent quote={quote} />}
         <div className="flex min-w-0 flex-col gap-4">
           <Section title={t('quote.versions')}>
@@ -116,6 +118,24 @@ function QuoteScreen({ quote }: { quote: Quote }) {
       {open === 'accepted' || open === 'rejected' ? <OutcomeDialog quote={quote} outcome={open} onClose={() => { setOpen(null); }} /> : null}
       {open === 'preview' ? <PreviewDialog quote={quote} onClose={() => { setOpen(null); }} /> : null}
     </PageContainer>
+  );
+}
+
+/** Edits the quote as it was when the editing began: a newer state replaces it only while nothing is unsaved. */
+function DraftEditor({ quote, dirty, onDirty, onReset, onConflict }: { quote: Quote; dirty: boolean; onDirty: (dirty: boolean) => void; onReset: () => void; onConflict: () => void }) {
+  const [base, setBase] = useState(quote);
+  if (!dirty && base !== quote) setBase(quote);
+  const stale = dirty && (quote.version !== base.version || quote.status !== base.status);
+  return (
+    <div className="flex min-w-0 flex-col gap-4">
+      {stale ? (
+        <div className="flex flex-col items-start gap-2" data-testid="quote-stale">
+          <Alert kind="warning">{t('quote.stale')}</Alert>
+          <Button variant="secondary" size="sm" onClick={onReset} data-testid="quote-discard">{t('quote.discard')}</Button>
+        </div>
+      ) : null}
+      <QuoteEditor key={`${String(base.content.version)}-${String(base.version)}`} quote={base} onDirty={onDirty} onSaved={onReset} onConflict={onConflict} />
+    </div>
   );
 }
 

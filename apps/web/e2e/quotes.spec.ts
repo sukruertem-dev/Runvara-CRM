@@ -112,3 +112,27 @@ test('teklif şablonu: ön ek ve standart koşullar yeni teklife yansır', async
   await page.getByTestId('quote-preview').click();
   await expect(page.getByTestId('quote-preview-frame')).toBeVisible({ timeout: 30_000 });
 });
+
+test('teklif: kaydedilmemiş değişiklik başka yerdeki kayıtla silinmez', async ({ page }) => {
+  const { rep, opp } = await setup('qdirty');
+  const as = { token: rep.token };
+  const q = await api<{ id: string; version: number; validUntil: string }>('POST', '/v1/sales/b2b/quotes', { ...as, body: { opportunityId: opp.id } });
+  await loginUi(page, rep.email);
+  await page.goto(`/sales/b2b/quotes/${q.id}`);
+  const intro = page.getByLabel('Giriş metni');
+  await intro.fill('Benim metnim');
+  await expect(page.getByTestId('quote-save')).toBeEnabled();
+  await api('PUT', `/v1/sales/b2b/quotes/${q.id}/draft`, { ...as, ifMatch: q.version, body: { validUntil: q.validUntil, intro: 'Diğer metin', lines: [] } });
+  // Saving is refused, the text stays, and the newer state is loaded only on request.
+  await page.getByTestId('quote-save').click();
+  await expect(page.getByTestId('quote-stale')).toBeVisible({ timeout: 30_000 });
+  await expect(intro).toHaveValue('Benim metnim');
+  await expectNoSeriousA11y(page, 'stale quote');
+  await page.getByTestId('quote-discard').click();
+  await expect(intro).toHaveValue('Diğer metin');
+  await expect(page.getByTestId('quote-stale')).toHaveCount(0);
+  await intro.fill('Son metin');
+  await page.getByTestId('quote-save').click();
+  await expect(page.getByTestId('quote-save')).toBeDisabled({ timeout: 30_000 });
+  await expect(intro).toHaveValue('Son metin');
+});
