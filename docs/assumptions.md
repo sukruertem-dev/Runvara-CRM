@@ -135,3 +135,7 @@
 | B97 | Teklif yetkisi | Fırsattan türer: fırsatı (paylaşımla da olsa) düzenleyebilen ve teklif izni olan kişi teklifini de düzenler; fırsat tutarı gizliyse teklif görünmez | p9-plan §2 |
 | B98 | Onay oranı | En yüksek satır iskontosu esas alınır (toplam ortalaması değil), tamamlama anındaki liste fiyatına göre. Liste fiyatı olmayan üründe girilen fiyat kendi referansıdır | p9-plan §4 |
 | B99 | Kabul edilen teklif | Fırsatın tutarını ve aşamasını kendiliğinden değiştirmez (sözleşme/sipariş P9b) | p9-plan §4 |
+| B100 | Sözleşme izni | `sales_b2b.contract.manage` matriste hiçbir role verilmemişti; teklif satırına (A14) eklendi: Admin tümü, Yönetici ekibi, Temsilci kendi | p9-plan §9 |
+| B101 | Sözleşme ve sipariş koşulu | Yalnızca kazanılan fırsat; sipariş yalnızca kabul edilen tekliften, teklif başına bir | p9-plan §9, §11 |
+| B102 | Yenileme süresi | Takvim süresi korunur (`age`): 1 Ocak–30 Haziran → 1 Temmuz–31 Aralık | p9-plan §9 |
+| B103 | Hatırlatma alıcısı | Fırsat sahibi; üyeliği pasifse ilk Admin | p9-plan §10 |
