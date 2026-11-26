@@ -13,6 +13,7 @@ import * as O from './operator';
 import * as K from './catalog';
 import * as P from './approvals';
 import * as Q from './quotes';
+import * as BB from './b2b';
 
 export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 export type AuthMode = 'none' | 'access' | 'tenant' | 'refresh_cookie';
@@ -371,6 +372,18 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   { method: 'get', path: '/v1/sales/b2b/quotes/{id}/versions/{version}/pdf', summary: 'The document: the one sent, or a preview of a draft', tag: 'quotes', auth: 'tenant', responses: { 200: null }, errors: [400, 401, 404, 503] },
   { method: 'post', path: '/v1/sales/b2b/quotes/{id}/send', summary: 'Send the approved version by e-mail; it becomes immutable', tag: 'quotes', auth: 'tenant', body: Q.QuoteSend, responses: { 200: Q.QuoteView }, errors: [400, 401, 403, 404, 409, 503] },
   { method: 'post', path: '/v1/sales/b2b/quotes/{id}/outcome', summary: 'Record the customer’s answer', tag: 'quotes', auth: 'tenant', body: Q.QuoteOutcome, responses: { 200: Q.QuoteView }, errors: [400, 401, 403, 404, 409] },
+  { method: 'post', path: '/v1/pipelines', summary: 'Add a sales pipeline on an opportunity workflow', tag: 'opportunities', auth: 'tenant', body: BB.PipelineCreate, responses: { 201: BB.PipelineCreated }, errors: [400, 401, 403, 409, 422] },
+  { method: 'patch', path: '/v1/pipelines/{id}', summary: 'Rename a pipeline, make it the default, set stage probabilities', tag: 'opportunities', auth: 'tenant', body: BB.PipelinePatch, responses: { 204: null }, errors: [400, 401, 403, 404, 422] },
+  { method: 'get', path: '/v1/sales/b2b/contracts', summary: 'Contracts of readable opportunities (?opportunityId=&status=&cursor=&limit=)', tag: 'contracts', auth: 'tenant', responses: { 200: BB.ContractListResponse }, errors: [400, 401, 404] },
+  { method: 'post', path: '/v1/sales/b2b/contracts', summary: 'A contract for a won opportunity (optionally from its accepted quote)', tag: 'contracts', auth: 'tenant', body: BB.ContractCreate, responses: { 201: BB.ContractView }, errors: [400, 401, 403, 404, 409, 422] },
+  { method: 'get', path: '/v1/sales/b2b/contracts/{id}', summary: 'One contract', tag: 'contracts', auth: 'tenant', responses: { 200: BB.ContractView }, errors: [401, 404] },
+  { method: 'patch', path: '/v1/sales/b2b/contracts/{id}', summary: 'Change the terms of an active contract (If-Match)', tag: 'contracts', auth: 'tenant', body: BB.ContractPatch, responses: { 200: BB.ContractView }, errors: [400, 401, 403, 404, 409, 412, 428] },
+  { method: 'post', path: '/v1/sales/b2b/contracts/{id}/terminate', summary: 'End a contract early', tag: 'contracts', auth: 'tenant', body: BB.ContractTerminate, responses: { 200: BB.ContractView }, errors: [400, 401, 403, 404, 409] },
+  { method: 'post', path: '/v1/sales/b2b/contracts/{id}/renew', summary: 'Start the next term; returns the new contract', tag: 'contracts', auth: 'tenant', body: BB.ContractRenew, responses: { 201: BB.ContractView }, errors: [400, 401, 403, 404, 409] },
+  { method: 'get', path: '/v1/sales/b2b/orders', summary: 'B2B orders of readable opportunities (?opportunityId=&status=&cursor=&limit=)', tag: 'orders', auth: 'tenant', responses: { 200: BB.OrderListResponse }, errors: [400, 401, 404] },
+  { method: 'post', path: '/v1/sales/b2b/orders', summary: 'An order from an accepted quote of a won opportunity', tag: 'orders', auth: 'tenant', body: BB.OrderCreate, responses: { 201: BB.OrderView }, errors: [400, 401, 403, 404, 409, 422] },
+  { method: 'get', path: '/v1/sales/b2b/orders/{id}', summary: 'One order with its lines', tag: 'orders', auth: 'tenant', responses: { 200: BB.OrderView }, errors: [401, 404] },
+  { method: 'post', path: '/v1/sales/b2b/orders/{id}/status', summary: 'Mark an open order fulfilled or cancelled', tag: 'orders', auth: 'tenant', body: BB.OrderStatusSet, responses: { 200: BB.OrderView }, errors: [400, 401, 403, 404, 409] },
   { method: 'get', path: '/v1/targets', summary: 'Targets running on a day with their attainment (?on=)', tag: 'targets', auth: 'tenant', responses: { 200: P.TargetListResponse }, errors: [400, 401, 403, 404] },
   { method: 'post', path: '/v1/targets', summary: 'Set a target for a person, team or segment', tag: 'targets', auth: 'tenant', body: P.TargetCreate, responses: { 201: P.TargetView }, errors: [400, 401, 403, 404, 409, 422] },
   { method: 'patch', path: '/v1/targets/{id}', summary: 'Change the target value (If-Match)', tag: 'targets', auth: 'tenant', body: P.TargetPatch, responses: { 200: P.TargetView }, errors: [400, 401, 403, 404, 412, 428] },
