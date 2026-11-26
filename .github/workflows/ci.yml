@@ -39,6 +39,15 @@ jobs:
     needs: checks
     timeout-minutes: 55
     steps:
+      # Private-repository runners ran out of disk building the images and starting the stack. Remove preinstalled
+      # toolchains this job never uses before anything is written to disk.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL \
+            /usr/share/swift /usr/local/share/powershell /opt/az
+          sudo docker image prune --all --force
+          df -h /
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v5
         with: { version: 10.34.9 }
