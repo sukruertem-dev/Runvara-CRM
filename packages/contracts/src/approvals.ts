@@ -28,6 +28,8 @@ export const ApprovalView = z
     kind: z.literal('discount'),
     subject: z.object({ type: z.string(), id: Uuid, title: z.string().nullable() }),
     segment: Segment,
+    /** The quote whose discount is asked for; null = a discount of the opportunity itself. */
+    quote: z.object({ id: Uuid, number: z.string(), version: z.number().int() }).nullable(),
     requestedBy: Person,
     percent: z.string(),
     reason: z.string(),

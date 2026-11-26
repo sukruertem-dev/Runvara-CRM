@@ -23,3 +23,9 @@ G3 kabul kriteri "Yönetici kendi limitini aşanı onaylayamaz" motorun seçici 
 - Eskalasyon geçmişi `approval_steps` (yalnızca eklenebilir). Son seviyede (Admin) süre dolarsa talep `expired` olur.
 - Talep edenin kendi yetkisi içindeki talep "otomatik onaylı" kaydedilir; bu bir karar değildir, `decided_by` boştur.
 - Yetki talepleri (`access_requests`) P4b akışında kaldı (B88).
+
+## Uygulama notu (P9a, 2026-11-25)
+- PDF headless Chromium yerine `pdfkit` ve gömülü yazı tipiyle API'de üretilir: Chromium işçi görüntüsünü ve bellek ihtiyacını büyütür, aynı belge için gerekmez. Belge yalnızca saklı sürümden çizilir.
+- Hesaplama `decimal.js` yerine `BigInt` ile (`packages/contracts/src/pricing.ts`); tarayıcıya ek bağımlılık gelmez.
+- Durum akışı sabittir (kodda), tenant'ın workflow motorunda değildir. Onay talebinin konusu fırsattır; `quote_id` ve `quote_version` sütunları teklifi gösterir.
+- İçerik hash'i sürümde değil, gönderilen belgede tutulur (`quote_documents.sha256`).

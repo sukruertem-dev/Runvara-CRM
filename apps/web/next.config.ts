@@ -11,6 +11,8 @@ const csp = [
   "img-src 'self' data:",
   "font-src 'self' data:",
   "connect-src 'self'",
+  // The quote preview shows a PDF the page itself fetched.
+  "frame-src 'self' blob:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

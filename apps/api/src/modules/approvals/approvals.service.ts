@@ -10,7 +10,7 @@ import { buildTenantContext } from '../../common/guards';
 import { mapDbError } from '../../common/http-helpers';
 import { notify } from '../../common/notify';
 import { isUniqueViolation, ProblemError } from '../../common/problem';
-import { assertCan, recordPredicate } from '../../common/record-access';
+import { assertCan, hiddenFields, recordPredicate } from '../../common/record-access';
 import { dbCtx, type Segment, type TenantRequestContext } from '../../common/request-context';
 import { DB } from '../../infra/tokens';
 import { CRM, readCrmRow } from '../crm/crm-objects';
@@ -27,6 +27,7 @@ type Row = {
   id: string; kind: Kind; subject_type: 'opportunity'; subject_id: string; segment: Segment; requested_by: string; percent: string; reason: string;
   state: 'pending' | 'approved' | 'rejected' | 'expired' | 'cancelled'; automatic: boolean; level: number; assigned_to: string | null; level_team_id: string | null;
   due_at: string | null; decided_by: string | null; decided_at: string | null; decision_note: string | null; created_at: string;
+  quote_id: string | null; quote_version: number | null; quote_number: string | null;
   requester_name: string; assignee_name: string | null; decider_name: string | null; title: string | null;
   steps: { action: string; actorId: string | null; actor: string | null; assignedToId: string | null; assignedTo: string | null; at: string }[] | null;
 };
@@ -110,10 +111,10 @@ export class ApprovalsService {
   // ------------------------------------------------------------------ rows and views
   private async rows(tx: Db, where: SQL, limit = 200): Promise<Row[]> {
     return (await tx.execute<Row>(sql`
-      SELECT a.*, a.percent::text AS percent, ru.display_name AS requester_name, au.display_name AS assignee_name, du.display_name AS decider_name,
+      SELECT a.*, a.percent::text AS percent, qt.number AS quote_number, ru.display_name AS requester_name, au.display_name AS assignee_name, du.display_name AS decider_name,
         (SELECT jsonb_agg(jsonb_build_object('action', s.action, 'actorId', s.actor_id, 'actor', su.display_name, 'assignedToId', s.assigned_to, 'assignedTo', tu.display_name, 'at', s.at) ORDER BY s.id)
            FROM approval_steps s LEFT JOIN users su ON su.id = s.actor_id LEFT JOIN users tu ON tu.id = s.assigned_to WHERE s.request_id = a.id) AS steps
-      FROM approval_requests a JOIN users ru ON ru.id = a.requested_by LEFT JOIN users au ON au.id = a.assigned_to LEFT JOIN users du ON du.id = a.decided_by
+      FROM approval_requests a JOIN users ru ON ru.id = a.requested_by LEFT JOIN quotes qt ON qt.tenant_id = a.tenant_id AND qt.id = a.quote_id LEFT JOIN users au ON au.id = a.assigned_to LEFT JOIN users du ON du.id = a.decided_by
       WHERE ${where} ORDER BY (a.state = 'pending') DESC, a.created_at DESC, a.id DESC LIMIT ${limit}`)).rows;
   }
 
@@ -129,6 +130,7 @@ export class ApprovalsService {
     for (const r of rows) if (!limits.has(r.kind)) limits.set(r.kind, await this.limitOf(tx, t, r.kind, policy));
     return rows.map((r) => ({
       id: r.id, kind: r.kind, subject: { type: r.subject_type, id: r.subject_id, title: titles.get(r.subject_id) ?? null }, segment: r.segment,
+      quote: r.quote_id && titles.has(r.subject_id) && !hiddenFields(t, 'opportunity').has('amount') ? { id: r.quote_id, number: r.quote_number ?? '', version: r.quote_version ?? 0 } : null,
       requestedBy: { id: r.requested_by, displayName: r.requester_name }, percent: r.percent, reason: r.reason, state: r.state, automatic: r.automatic, level: r.level,
       assignedTo: person(r.assigned_to, r.assignee_name), dueAt: iso(r.due_at), decidedBy: person(r.decided_by, r.decider_name), decidedAt: iso(r.decided_at),
       decisionNote: r.decision_note, createdAt: new Date(r.created_at).toISOString(),
@@ -188,47 +190,53 @@ export class ApprovalsService {
   }
 
   // ------------------------------------------------------------------ request, decide, cancel
-  async request(t: TenantRequestContext, body: z.infer<typeof ApprovalCreate>, ip: string) {
+  request(t: TenantRequestContext, body: z.infer<typeof ApprovalCreate>, ip: string) {
+    return this.db.withTenant(dbCtx(t), (tx) => this.requestTx(tx, t, { percent: body.percent, reason: body.reason, opportunityId: body.subject.id }, ip));
+  }
+
+  /** Asks for a discount of an opportunity, or of one of its quotes, in the caller's transaction. The reason may be
+   *  left out only when nobody has to decide. */
+  async requestTx(tx: Db, t: TenantRequestContext, ask: { percent: string; reason?: string | undefined; opportunityId: string; quote?: { id: string; version: number } }, ip: string) {
+    const body = { kind: 'discount' as const, percent: ask.percent, subject: { id: ask.opportunityId } };
     authorize(t, PERMISSION[body.kind], 'request');
     const me = t.principal.userId;
     const percent = Number(body.percent);
-    return this.db.withTenant(dbCtx(t), async (tx) => {
-      const subject = await readCrmRow(tx, t, CRM.opportunity, body.subject.id);
-      await assertCan(tx, t, CRM.opportunity.shape, body.subject.id, 'update');
-      const segment = subject.segment as Segment;
-      if (segment !== 'b2b') throw new ProblemError('SEGMENT_NOT_ALLOWED', 'discounts are approved for B2B opportunities');
-      const policy = await readApprovalPolicy(tx, t.tenant.id);
-      const own = Math.max(policy.freePercent, (await this.limitOf(tx, t, body.kind, policy)) ?? 0);
-      const automatic = percent <= own;
-      const primary = await tx.execute<{ id: string | null }>(sql`SELECT primary_team_id AS id FROM memberships WHERE user_id = ${me}`);
-      const route: Route = automatic
-        ? { assignedTo: null, teamId: null }
-        : await this.route(tx, t, { kind: body.kind, requester: me, percent, subjectId: body.subject.id, segment }, primary.rows[0]?.id ?? null, policy);
-      let id: string;
-      try {
-        const r = await tx.execute<{ id: string }>(sql`
-          INSERT INTO approval_requests (tenant_id, kind, subject_type, subject_id, segment, requested_by, percent, reason, state, automatic, assigned_to, level_team_id, due_at, decided_at)
-          VALUES (${t.tenant.id}, ${body.kind}, 'opportunity', ${body.subject.id}, ${segment}::segment, ${me}, ${body.percent}::numeric, ${body.reason},
-            ${automatic ? 'approved' : 'pending'}, ${automatic}, ${route.assignedTo}, ${route.teamId},
-            ${automatic ? null : sql`now() + make_interval(hours => ${policy.timeoutHours}::int)`}, ${automatic ? sql`now()` : null}) RETURNING id`);
-        id = r.rows[0]?.id ?? '';
-      } catch (e) {
-        if (isUniqueViolation(e, 'approval_requests_one_pending')) throw new ProblemError('CONFLICT', 'a request for this record is pending');
-        return mapDbError(e);
-      }
-      const ref = { id, kind: body.kind, subject_id: body.subject.id, segment, level: 1 };
-      await this.step(tx, t, id, 'requested', me);
-      if (automatic) await this.step(tx, t, id, 'auto_approved', null);
-      else {
-        await this.step(tx, t, id, 'assigned', null, route.assignedTo);
-        await this.tellApprovers(tx, t, id, body.subject.id, me, route);
-      }
-      await this.event(tx, t, 'approval.requested', ref, me);
-      await this.event(tx, t, 'discount.approval_requested', ref, me);
-      if (automatic) await this.event(tx, t, 'approval.decided', ref, null, { decision: 'approved' });
-      await audit(tx, t.tenant.id, { action: 'approval.requested', actorId: me, targetType: 'approval_request', targetId: id, ip, details: { kind: body.kind, subjectId: body.subject.id, percent: body.percent, automatic, assignedTo: route.assignedTo } });
-      return this.one(tx, t, id);
-    });
+    const subject = await readCrmRow(tx, t, CRM.opportunity, body.subject.id);
+    await assertCan(tx, t, CRM.opportunity.shape, body.subject.id, 'update');
+    const segment = subject.segment as Segment;
+    if (segment !== 'b2b') throw new ProblemError('SEGMENT_NOT_ALLOWED', 'discounts are approved for B2B opportunities');
+    const policy = await readApprovalPolicy(tx, t.tenant.id);
+    const own = Math.max(policy.freePercent, (await this.limitOf(tx, t, body.kind, policy)) ?? 0);
+    const automatic = percent <= own;
+    if (!automatic && !ask.reason) throw new ProblemError('VALIDATION_FAILED', 'reason: the discount needs approval; say why', { reason: 'approval_reason_required', percent: ask.percent });
+    const primary = await tx.execute<{ id: string | null }>(sql`SELECT primary_team_id AS id FROM memberships WHERE user_id = ${me}`);
+    const route: Route = automatic
+      ? { assignedTo: null, teamId: null }
+      : await this.route(tx, t, { kind: body.kind, requester: me, percent, subjectId: body.subject.id, segment }, primary.rows[0]?.id ?? null, policy);
+    let id: string;
+    try {
+      const r = await tx.execute<{ id: string }>(sql`
+        INSERT INTO approval_requests (tenant_id, kind, subject_type, subject_id, segment, requested_by, percent, reason, state, automatic, assigned_to, level_team_id, due_at, decided_at, quote_id, quote_version)
+        VALUES (${t.tenant.id}, ${body.kind}, 'opportunity', ${body.subject.id}, ${segment}::segment, ${me}, ${body.percent}::numeric, ${ask.reason ?? 'Yetki içinde'},
+          ${automatic ? 'approved' : 'pending'}, ${automatic}, ${route.assignedTo}, ${route.teamId},
+          ${automatic ? null : sql`now() + make_interval(hours => ${policy.timeoutHours}::int)`}, ${automatic ? sql`now()` : null}, ${ask.quote?.id ?? null}, ${ask.quote?.version ?? null}) RETURNING id`);
+      id = r.rows[0]?.id ?? '';
+    } catch (e) {
+      if (isUniqueViolation(e, 'approval_requests_one_pending')) throw new ProblemError('CONFLICT', 'a request for this record is pending');
+      return mapDbError(e);
+    }
+    const ref = { id, kind: body.kind, subject_id: body.subject.id, segment, level: 1 };
+    await this.step(tx, t, id, 'requested', me);
+    if (automatic) await this.step(tx, t, id, 'auto_approved', null);
+    else {
+      await this.step(tx, t, id, 'assigned', null, route.assignedTo);
+      await this.tellApprovers(tx, t, id, body.subject.id, me, route);
+    }
+    await this.event(tx, t, 'approval.requested', ref, me);
+    await this.event(tx, t, 'discount.approval_requested', ref, me);
+    if (automatic) await this.event(tx, t, 'approval.decided', ref, null, { decision: 'approved' });
+    await audit(tx, t.tenant.id, { action: 'approval.requested', actorId: me, targetType: 'approval_request', targetId: id, ip, details: { kind: body.kind, subjectId: body.subject.id, percent: body.percent, automatic, assignedTo: route.assignedTo, ...(ask.quote ? { quoteId: ask.quote.id, quoteVersion: ask.quote.version } : {}) } });
+    return this.one(tx, t, id);
   }
 
   async decide(t: TenantRequestContext, id: string, decision: 'approve' | 'reject', note: string | undefined, ip: string) {
@@ -256,6 +264,12 @@ export class ApprovalsService {
   /** History, event and notices of a decision; approvers who no longer need to act lose the unread notice. */
   private async close(tx: Db, t: TenantRequestContext, r: Row, state: 'approved' | 'rejected' | 'cancelled' | 'expired', actorId: string | null): Promise<void> {
     await this.step(tx, t, r.id, state, actorId);
+    if (r.quote_id) {
+      // Approved: the quote may be sent. Otherwise its version opens for editing again (ADR-0021).
+      const moved = await tx.execute(sql`UPDATE quotes SET status = ${state === 'approved' ? 'approved' : 'draft'}, version = version + 1
+        WHERE id = ${r.quote_id} AND status = 'pending_approval' AND current_version = ${r.quote_version}`);
+      if ((moved.rowCount ?? 0) > 0 && state !== 'approved') await tx.execute(sql`UPDATE quote_versions SET locked_at = NULL WHERE quote_id = ${r.quote_id} AND version = ${r.quote_version}`);
+    }
     await this.event(tx, t, 'approval.decided', r, actorId, { decision: state });
     const waiting = [...new Set([...(r.steps ?? []).map((s) => s.assignedToId).filter((x): x is string => x !== null), ...(await this.adminIds(tx))])];
     await tx.execute(sql`SELECT app.retract_notifications('approval_request', ${r.id}::uuid, ${`{${waiting.join(',')}}`}::uuid[])`);

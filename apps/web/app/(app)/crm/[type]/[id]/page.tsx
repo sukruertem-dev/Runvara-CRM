@@ -37,6 +37,7 @@ import { PATH, rk, usePipelines, useRecordList, type CrmResource } from '../../.
 import { statusLabel, useDirectory, useWorkflows, type Task, type TaskPage } from '../../../../../lib/tasks';
 import { PageContainer } from '../../../../_components/app-shell';
 import { DiscountPanel } from '../../../../_components/discount-panel';
+import { QuotesPanel } from '../../../../_components/quotes-panel';
 import { NotesPanel } from '../../../../_components/notes-panel';
 import { ActivityTabs, CommentsPanel, DescriptionEditor, FieldRow, Section, TimelineList, type RecordRef } from '../../../../_components/record-parts';
 import { money, recordName, type CrmRecord } from '../../_parts/columns';
@@ -358,7 +359,7 @@ export default function CrmRecordPage() {
           </section>
         </div>
         <div className="flex min-w-0 flex-col gap-4">
-          {type === 'opportunity' && r['segment'] === 'b2b' ? <DiscountPanel opportunityId={r.id} /> : null}
+          {type === 'opportunity' && r['segment'] === 'b2b' ? <><QuotesPanel opportunityId={r.id} /><DiscountPanel opportunityId={r.id} /></> : null}
           <Related type={type} record={r} />
         </div>
       </div>

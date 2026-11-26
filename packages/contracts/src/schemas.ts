@@ -301,6 +301,15 @@ export const MailJob = z.discriminatedUnion('template', [
     locale: Locale,
     vars: z.object({ tenantName: z.string(), operatorName: z.string(), reason: z.string(), minutes: z.number().int(), url: z.url() }),
   }),
+  z.object({
+    template: z.literal('quote'),
+    to: z.string(),
+    locale: Locale,
+    vars: z.object({ tenantName: z.string(), number: z.string(), message: z.string(), total: z.string(), validUntil: z.string() }),
+    /** The sender: answers of the customer go there, not to the platform. */
+    replyTo: z.string().optional(),
+    attachment: z.object({ fileName: z.string().max(120), mime: z.literal('application/pdf'), base64: z.string().max(4_000_000) }),
+  }),
 ]);
 export type MailJob = z.infer<typeof MailJob>;
 export const MAIL_QUEUE = 'mail';

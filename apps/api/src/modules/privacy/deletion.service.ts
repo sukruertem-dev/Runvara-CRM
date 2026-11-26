@@ -35,6 +35,7 @@ export class DeletionService {
   async purge(tenantId: string): Promise<Record<string, number>> {
     const keys = await this.db.withTenant({ tenantId, userId: null, segments: ['b2b', 'b2c'] }, async (tx) => (await tx.execute<{ k: string }>(sql`
       SELECT object_key AS k FROM attachments
+      UNION ALL SELECT object_key FROM quote_documents
       UNION ALL SELECT object_key FROM tenant_exports WHERE object_key IS NOT NULL`)).rows.map((r) => r.k));
     if (keys.length > 0 && !this.storage) throw new Error('object storage is not configured; files would be left behind');
     for (const key of keys) await this.storage?.remove(key);

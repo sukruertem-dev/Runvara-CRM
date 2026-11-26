@@ -18,7 +18,10 @@ const mailWorker = new Worker(
   async (job) => {
     const mail = MailJob.parse(job.data);
     const { subject, text, html } = render(mail);
-    const info = await transport.sendMail({ from: env.MAIL_FROM, to: mail.to, subject, text, html });
+    const extra = mail.template === 'quote'
+      ? { ...(mail.replyTo ? { replyTo: mail.replyTo } : {}), attachments: [{ filename: mail.attachment.fileName, contentType: mail.attachment.mime, content: Buffer.from(mail.attachment.base64, 'base64') }] }
+      : {};
+    const info = await transport.sendMail({ from: env.MAIL_FROM, to: mail.to, subject, text, html, ...extra });
     log.info({ jobId: job.id, template: mail.template, messageId: info.messageId }, 'mail sent');
   },
   { connection, concurrency: 5 },

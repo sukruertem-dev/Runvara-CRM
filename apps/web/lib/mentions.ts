@@ -12,7 +12,7 @@ import { useDirectory } from './tasks';
 // Mentions in comments, notes and descriptions (P8c, docs/p8-plan.md §15).
 
 type Found = (typeof MentionableResponse)['_output'];
-export type MentionSource = 'comment' | 'note' | 'description';
+export type MentionSource = 'comment' | 'note' | 'description' | 'quote';
 
 /** Names of the people and teams mentioned in documents. */
 export function useMentionLabels(docs: readonly unknown[]): MentionConfig['labelOf'] {

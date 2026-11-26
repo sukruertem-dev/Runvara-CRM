@@ -16,8 +16,8 @@ export function DiscountPanel({ opportunityId }: { opportunityId: string }) {
   useApprovalUpdates();
   const [asking, setAsking] = useState(false);
   if (!on || !list.data) return null;
-  const approved = list.data.data.filter((a) => a.state === 'approved').sort((x, y) => (y.decidedAt ?? '').localeCompare(x.decidedAt ?? ''))[0];
-  const pending = list.data.data.find((a) => a.state === 'pending');
+  const approved = list.data.data.filter((a) => a.state === 'approved' && !a.quote).sort((x, y) => (y.decidedAt ?? '').localeCompare(x.decidedAt ?? ''))[0];
+  const pending = list.data.data.find((a) => a.state === 'pending' && !a.quote);
   return (
     <Section title={t('appr.discount')} testId="discount-panel">
       <p className="m-0 text-sm">{approved ? t('appr.discount.current', { percent: String(Number(approved.percent)) }) : t('appr.discount.none')}</p>

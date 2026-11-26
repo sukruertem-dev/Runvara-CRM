@@ -60,6 +60,7 @@ export class NotificationsService {
     if (x.kind === 'approval') return '/approvals';
     if (x.record_type === 'target') return '/targets';
     if (x.record_type === 'webhook') return '/settings/integrations';
+    if (x.source_type === 'quote') return `/sales/b2b/quotes/${x.source_id}`;
     const anchor = x.source_type === 'comment' || x.source_type === 'note' ? `#${x.source_type}-${x.source_id}` : x.source_type === 'description' ? '#description' : '';
     return `/r/${x.record_type}/${x.record_id}${anchor}`;
   }

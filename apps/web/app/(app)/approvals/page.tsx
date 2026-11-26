@@ -78,6 +78,7 @@ function ApprovalCard({ a, picked, onPick, onDecide }: { a: Approval; picked: bo
         {a.canDecide ? <Checkbox className="mt-1" checked={picked} aria-label={t('appr.select', { title })} onCheckedChange={(v) => { onPick(v === true); }} /> : null}
         <div className="min-w-40 flex-1">
           <p className="m-0 font-semibold">{t('appr.kind.discount', { percent: String(Number(a.percent)) })} · {a.subject.title ? <Link href={`/crm/opportunity/${a.subject.id}`}>{title}</Link> : title}</p>
+          {a.quote ? <p className="m-0 mt-1 text-sm"><Link href={`/sales/b2b/quotes/${a.quote.id}`}>{t('quote.approvalFor', { number: a.quote.number, version: String(a.quote.version) })}</Link></p> : null}
           <p className="m-0 mt-1 text-sm">{a.reason}</p>
           <p className="m-0 mt-1 text-xs text-fg-muted">
             {t('appr.requestedBy', { name: a.requestedBy.displayName })}

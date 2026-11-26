@@ -42,6 +42,7 @@ const GROUPS: readonly { label: MessageKey; items: readonly Item[] }[] = [
       { href: '/settings/fields', label: 'settings.fields', anyOf: ['tenant.config.read'] },
       { href: '/settings/roles', label: 'settings.roles', anyOf: ['authz.matrix.read'] },
       { href: '/settings/approvals', label: 'settings.approvals', anyOf: ['tenant.config.read'], module: 'sales_b2b' },
+      { href: '/settings/quotes', label: 'settings.quotes', anyOf: ['tenant.config.read'], module: 'sales_b2b' },
       { href: '/settings/history', label: 'settings.history', anyOf: ['tenant.config.read'] },
       { href: '/settings/transfer', label: 'settings.transfer', anyOf: ['tenant.config.read'] },
     ],

@@ -52,7 +52,7 @@
 | `webhook.delivery_failed` / `webhook.disabled` | api_webhooks | subscriptionId, attempts | Admin bildirimi |
 | `approval.requested` / `approval.decided` / `approval.escalated` | core (G3) | kind, subject, level, decision | konu modül, bildirim |
 | `discount.approval_requested` | sales_b2b | quoteId, version, percent | onay motoru |
-| `quote.created` / `quote.version_submitted` / `quote.sent` / `quote.accepted` / `quote.expired` | sales_b2b | quoteId, version | otomasyon, timeline |
+| `quote.created` / `quote.submitted` / `quote.revised` / `quote.sent` / `quote.accepted` / `quote.rejected` / `quote.expired` | sales_b2b | quoteId, version | otomasyon, timeline |
 | `contract.created` / `contract.renewal_due` | sales_b2b | endDate | hatırlatıcı görev |
 | `forecast.snapshot_taken` | sales_b2b | period | rapor |
 | `order.created` / `order.status_changed` | sales_b2c | fromStatus, toStatus, channel, sourceCallId | otomasyon, hedef, stok/finans webhook |

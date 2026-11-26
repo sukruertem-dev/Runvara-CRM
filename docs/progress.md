@@ -1,5 +1,23 @@
 # İlerleme
 
+## P9a — G4: teklif · 2026-11-25 · ✅ (CI PR'da çalışacak)
+
+> `docs/p9-plan.md` §1–7. P9 sırası: önce B2B (P9a–P9c), sonra B2C (P9d–P9f). Sıradaki P9b.
+
+### Yapılanlar
+- **Teklif:** katalogdan kalemler, iskonto, vergi, geçerlilik, iç not + mention; yetki fırsattan türer.
+- **Değişmez sürümler** (DB tetikleyicisi), tek hesaplama fonksiyonu, P8b motoruyla iskonto onayı.
+- **PDF** (`pdfkit`), saklama ve hash, e-postayla gönderim, müşteri yanıtı, süre dolumu.
+- **Ekranlar:** fırsat paneli, liste, editör, şablon ayarı. **Göç** `0019_quotes.sql`.
+
+### Testler
+- API entegrasyon 205/205 (yeni `quotes.int.test.ts`, 11); DB 21/21; `pricing.test.ts` 6.
+- E2E (üretim görüntüsü): tam koşuda 39/40 (yeni `quotes.spec.ts`, 2; axe). `operator.spec.ts` "veri ve silme" bir kez kontrast denetiminde düştü, 4 tekrarda geçti. Görsel regresyon 4/4.
+- Lint, tip denetimi, birim testleri temiz; matris ve katalog denetimleri PASS.
+
+### Notlar
+- Başsız Chromium PDF göstermez: E2E önizleme çerçevesini denetler; belge gözle kontrol edildi.
+
 ## P8d — G6: bildirim kanalları · 2026-11-25 · ✅ (CI PR'da çalışacak)
 
 > `docs/p8-plan.md` §17–21. Bununla P8 (G3 + G6) tamam; sıradaki P9.
