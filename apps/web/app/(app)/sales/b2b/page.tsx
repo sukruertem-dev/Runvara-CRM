@@ -21,6 +21,8 @@ function PipelineInner() {
         <h1 className="m-0 font-display text-xl font-bold">{t('pipeline.title')}</h1>
         <FilterBar resource="opportunity" value={q} onChange={(next) => { router.replace(next ? `${pathname}?rql=${encodeURIComponent(next)}` : pathname); }} className="min-w-64" />
         <Button asChild variant="secondary" size="sm"><Link href="/sales/b2b/quotes" data-testid="pipeline-quotes">{t('quote.title')}</Link></Button>
+        <Button asChild variant="secondary" size="sm"><Link href="/sales/b2b/contracts">{t('contract.title')}</Link></Button>
+        <Button asChild variant="secondary" size="sm"><Link href="/sales/b2b/orders">{t('order.title')}</Link></Button>
       </div>
       <PipelineBoard q={scoped} />
     </div>

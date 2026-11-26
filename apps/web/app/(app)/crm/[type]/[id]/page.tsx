@@ -38,6 +38,8 @@ import { statusLabel, useDirectory, useWorkflows, type Task, type TaskPage } fro
 import { PageContainer } from '../../../../_components/app-shell';
 import { DiscountPanel } from '../../../../_components/discount-panel';
 import { QuotesPanel } from '../../../../_components/quotes-panel';
+import { B2bPanels } from '../../../../_components/b2b-panels';
+import { BuyingRoles } from '../../../../_components/buying-roles';
 import { NotesPanel } from '../../../../_components/notes-panel';
 import { ActivityTabs, CommentsPanel, DescriptionEditor, FieldRow, Section, TimelineList, type RecordRef } from '../../../../_components/record-parts';
 import { money, recordName, type CrmRecord } from '../../_parts/columns';
@@ -186,7 +188,7 @@ function Related({ type, record }: { type: CrmResource; record: CrmRecord }) {
     <div className="flex flex-col gap-4" data-testid="crm-related">
       {type === 'account' ? (
         <>
-          <RelatedLinks title={t('crm.relatedContacts')} items={contacts.rows.map((c) => ({ href: `/crm/contact/${c.id}`, label: recordName('contact', c) }))} />
+          <BuyingRoles accountId={record.id} contacts={contacts.rows} />
           <RelatedLinks title={t('crm.relatedOpps')} items={opps.rows.map((o) => ({ href: `/crm/opportunity/${o.id}`, label: `${recordName('opportunity', o)} ${money(o['amount'], o['currency'])}`.trim() }))} />
         </>
       ) : null}
@@ -359,7 +361,7 @@ export default function CrmRecordPage() {
           </section>
         </div>
         <div className="flex min-w-0 flex-col gap-4">
-          {type === 'opportunity' && r['segment'] === 'b2b' ? <><QuotesPanel opportunityId={r.id} /><DiscountPanel opportunityId={r.id} /></> : null}
+          {type === 'opportunity' && r['segment'] === 'b2b' ? <><QuotesPanel opportunityId={r.id} /><B2bPanels opportunityId={r.id} won={(r['status'] as { category?: string } | undefined)?.category === 'closed' && Number(r['probability']) > 0} /><DiscountPanel opportunityId={r.id} /></> : null}
           <Related type={type} record={r} />
         </div>
       </div>
