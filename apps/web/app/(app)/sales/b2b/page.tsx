@@ -4,12 +4,14 @@ import { Button } from '@flexa/ui';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
+import { useApp } from '../../../../lib/app-context';
 import { t } from '../../../../lib/i18n';
 import { FilterBar } from '../../../_components/filter-bar';
 import { PipelineBoard } from '../../crm/_parts/pipeline-board';
 
 /** Sales pipeline (menu entry of the B2B sales module): B2B opportunities by stage. Quotes have their own list. */
 function PipelineInner() {
+  const { can } = useApp();
   const sp = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -23,6 +25,7 @@ function PipelineInner() {
         <Button asChild variant="secondary" size="sm"><Link href="/sales/b2b/quotes" data-testid="pipeline-quotes">{t('quote.title')}</Link></Button>
         <Button asChild variant="secondary" size="sm"><Link href="/sales/b2b/contracts">{t('contract.title')}</Link></Button>
         <Button asChild variant="secondary" size="sm"><Link href="/sales/b2b/orders">{t('order.title')}</Link></Button>
+        {can('sales_b2b.forecast.read') ? <Button asChild variant="secondary" size="sm"><Link href="/sales/b2b/forecast" data-testid="pipeline-forecast">{t('forecast.title')}</Link></Button> : null}
       </div>
       <PipelineBoard q={scoped} />
     </div>

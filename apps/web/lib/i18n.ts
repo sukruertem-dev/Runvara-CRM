@@ -10,6 +10,7 @@ import { notificationsEn, notificationsTr } from './messages-notifications';
 import { operatorEn, operatorTr } from './messages-operator';
 import { quotesEn, quotesTr } from './messages-quotes';
 import { b2bEn, b2bTr } from './messages-b2b';
+import { forecastEn, forecastTr } from './messages-forecast';
 import { securityEn, securityTr } from './messages-security';
 import { settingsEn, settingsTr } from './messages-settings';
 import { viewsEn, viewsTr } from './messages-views';
@@ -197,7 +198,7 @@ const baseTr = {
   'reason.contains_email': 'Parola e-posta adresinizi içermemeli.',
 } as const;
 
-const tr = { ...baseTr, ...appTr, ...viewsTr, ...settingsTr, ...configTr, ...platformTr, ...operatorTr, ...securityTr, ...catalogTr, ...approvalsTr, ...mentionsTr, ...notificationsTr, ...quotesTr, ...b2bTr };
+const tr = { ...baseTr, ...appTr, ...viewsTr, ...settingsTr, ...configTr, ...platformTr, ...operatorTr, ...securityTr, ...catalogTr, ...approvalsTr, ...mentionsTr, ...notificationsTr, ...quotesTr, ...b2bTr, ...forecastTr };
 
 export type MessageKey = keyof typeof tr;
 
@@ -384,7 +385,7 @@ const baseEn: Record<keyof typeof baseTr, string> = {
   'reason.contains_email': 'The password must not contain your e-mail address.',
 };
 
-const en: Record<MessageKey, string> = { ...baseEn, ...appEn, ...viewsEn, ...settingsEn, ...configEn, ...platformEn, ...operatorEn, ...securityEn, ...catalogEn, ...approvalsEn, ...mentionsEn, ...notificationsEn, ...quotesEn, ...b2bEn };
+const en: Record<MessageKey, string> = { ...baseEn, ...appEn, ...viewsEn, ...settingsEn, ...configEn, ...platformEn, ...operatorEn, ...securityEn, ...catalogEn, ...approvalsEn, ...mentionsEn, ...notificationsEn, ...quotesEn, ...b2bEn, ...forecastEn };
 
 export type Locale = 'tr' | 'en';
 
