@@ -8,7 +8,7 @@ import type { TenantRequestContext } from './request-context';
 
 export type ActivityKind =
   | 'created' | 'field_changed' | 'status_changed' | 'assigned' | 'deleted' | 'restored'
-  | 'converted' | 'merged' | 'comment' | 'attachment' | 'email_log' | 'call_log' | 'quote' | 'contract' | 'order' | 'consent' | 'customer';
+  | 'converted' | 'merged' | 'comment' | 'attachment' | 'email_log' | 'call_log' | 'quote' | 'contract' | 'order' | 'consent' | 'customer' | 'return';
 
 /** View fields that change on every write and carry no information of their own. */
 const VOLATILE = new Set(['version', 'updatedAt', 'updatedBy', 'createdAt', 'createdBy', 'deletedAt', 'closedAt', 'contactPoints', 'accounts', 'tagIds', 'position', 'depth']);
@@ -61,6 +61,7 @@ function eventOf(type: string, kind: ActivityKind, diff: Record<string, unknown>
     case 'attachment': return { type: 'attachment.uploaded', payload: { attachmentId: data.attachmentId ?? null, status: data.status ?? null } };
     case 'quote': return { type: `quote.${typeof data.action === 'string' ? data.action : 'changed'}`, payload: { quoteId: data.quoteId ?? null, version: data.version ?? null } };
     case 'contract':
+    case 'return':
     case 'order': return { type: `${kind}.${typeof data.action === 'string' ? data.action : 'changed'}`, payload: { [`${kind}Id`]: data[`${kind}Id`] ?? null } };
     case 'consent': return { type: 'consent.changed', payload: { channel: data.channel ?? null, status: data.status ?? null } };
     case 'customer': return { type: 'customer.updated', payload: { changedFields: Object.keys(diff).sort() } };

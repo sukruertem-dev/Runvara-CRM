@@ -22,7 +22,9 @@ const TASK_CAPABILITY: Partial<Record<(typeof UI_CAPABILITIES)[number], RecordAc
 };
 
 /** Capabilities whose holders act by approving (a Manager's grant is `approve`, not `full`). */
-const APPROVE_CAPABILITIES: ReadonlySet<string> = new Set(['sales_b2b.forecast.adjust']);
+const APPROVE_CAPABILITIES: ReadonlySet<string> = new Set(['sales_b2b.forecast.adjust', 'sales_b2c.return.approve']);
+/** Capabilities whose holders may at least ask (a request grant is enough). */
+const REQUEST_CAPABILITIES: ReadonlySet<string> = new Set(['sales_b2c.return.create']);
 
 const RECORD_PERMISSION = /^(core\.task|crm\.(?:account|contact|lead|opportunity|case))\.(read|create|update|archive|purge|reassign|bulk)$/;
 
@@ -76,7 +78,7 @@ export class MeController {
       capabilities: UI_CAPABILITIES.filter((cap) => {
         const taskAction = TASK_CAPABILITY[cap];
         if (taskAction) return recordScope(t.authz, taskAction, 'core.task').kind !== 'none';
-        return can(t.authz, cap, cap.endsWith('.read') ? 'read' : APPROVE_CAPABILITIES.has(cap) ? 'approve' : 'full').allow;
+        return can(t.authz, cap, cap.endsWith('.read') ? 'read' : APPROVE_CAPABILITIES.has(cap) ? 'approve' : REQUEST_CAPABILITIES.has(cap) ? 'request' : 'full').allow;
       }),
       support: await this.supportState(t),
       tenantStatus: t.tenant.status as 'trial' | 'active' | 'suspended' | 'pending_deletion' | 'deleted',

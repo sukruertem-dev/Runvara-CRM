@@ -1,16 +1,18 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { can, scopesOf } from '@flexa/authz';
 import { configKey, mergeLayer, type JsonObject } from '@flexa/config';
-import type { ConsentSet, CustomerAddressInput, CustomerListQuery, CustomerProfilePut, z } from '@flexa/contracts';
+import type { ConsentSet, CustomerAddressInput, CustomerAnonymize, CustomerListQuery, CustomerProfilePut, z } from '@flexa/contracts';
 import { sql, type Db, type DbHandle, type SQL } from '@flexa/db';
 import { recordActivity } from '../../common/activity';
 import { audit } from '../../common/audit';
 import { authorize } from '../../common/authorize';
 import { ProblemError } from '../../common/problem';
-import { assertCan, hiddenFields, recordPredicate } from '../../common/record-access';
+import { assertCan, recordPredicate } from '../../common/record-access';
 import { dbCtx, type TenantRequestContext } from '../../common/request-context';
 import { DB } from '../../infra/tokens';
 import { CRM, readCrmRow, type CrmRow } from '../crm/crm-objects';
+import { contactMask } from './customer-mask';
+import { OrdersService } from './orders.service';
 
 // P9d (docs/p9-plan.md §22–28): the B2C customer — a contact with the `b2c` segment — with profile, addresses and
 // channel consent. `reachability` is the one check every outbound path asks before contacting a customer.
@@ -25,12 +27,6 @@ type ConsentRow = {
 type AddressRow = { id: string; label: string; recipient: string; line1: string; line2: string; district: string; city: string; postal_code: string; country: string; is_default: boolean };
 const MAX_ADDRESSES = 20;
 
-/** Contact field policies apply here as on `/v1/contacts`: a hidden name or hidden contact points are not shown
- *  and cannot be searched. */
-function contactMask(t: TenantRequestContext): { name: boolean; points: boolean } {
-  const hidden = hiddenFields(t, 'contact');
-  return { name: !['fullName', 'firstName', 'lastName'].some((f) => hidden.has(f)), points: !hidden.has('contactPoints') };
-}
 
 const iso = (v: string | Date): string => new Date(v).toISOString();
 const consentView = (c: ConsentRow) => ({
@@ -70,7 +66,7 @@ export async function reachability(tx: Db, tenantId: string, contactId: string, 
 
 @Injectable()
 export class CustomersService {
-  constructor(@Inject(DB) private readonly db: DbHandle) {}
+  constructor(@Inject(DB) private readonly db: DbHandle, private readonly orders: OrdersService) {}
 
   // ------------------------------------------------------------------ access
   /** The readable B2C customer; anything else is not there (404). */
@@ -288,6 +284,65 @@ export class CustomersService {
       // The reason is enough to act on; the consent details need the consent permission.
       const show = r.consent && this.consentAllowed(t, row.owner_user_id, 'sales_b2c.consent.read');
       return { channel, allowed: r.allowed, reason: r.reason, consent: show && r.consent ? consentView(r.consent) : null };
+    });
+  }
+
+  // ------------------------------------------------------------------ KVKK / GDPR (data subject requests, Admin)
+  /** Everything held about the customer: identity and contact points, profile, addresses, consent history, orders
+   *  with their lines and returns, and the timeline. The export itself is audited. */
+  async export(t: TenantRequestContext, id: string) {
+    authorize(t, 'tenant.config.manage');
+    return this.db.withTenant(dbCtx(t), async (tx) => {
+      const row = await this.customer(tx, t, id);
+      const points = (await tx.execute<{ kind: string; label: string | null; value: string; e164: string | null; is_primary: boolean }>(sql`
+        SELECT kind, label, value, e164, is_primary FROM contact_points WHERE owner_type = 'contact' AND owner_id = ${id} ORDER BY created_at`)).rows;
+      const consents = (await tx.execute<ConsentRow & { id: string }>(sql`
+        SELECT c.id, ${CONSENT_COLS} FROM consent_events c LEFT JOIN users u ON u.id = c.recorded_by WHERE c.contact_id = ${id} ORDER BY c.id`)).rows;
+      const timeline = (await tx.execute<{ kind: string; diff: unknown; data: unknown; occurred_at: string }>(sql`
+        SELECT kind, diff, data, occurred_at FROM activity_events WHERE record_type = 'contact' AND record_id = ${id} ORDER BY occurred_at, id`)).rows;
+      const view = await this.view(tx, t, row);
+      await audit(tx, t.tenant.id, { action: 'customer.exported', actorType: 'user', actorId: t.principal.userId, targetType: 'contact', targetId: id });
+      return {
+        exportedAt: new Date().toISOString(),
+        customer: {
+          id, firstName: row['first_name'], lastName: row['last_name'], title: row['title'] ?? null, segments: row['segments'], createdAt: iso(String(row['created_at'])),
+          contactPoints: points.map((p) => ({ kind: p.kind, label: p.label, value: p.value, e164: p.e164, isPrimary: p.is_primary })),
+        },
+        profile: { preferredChannel: view.preferredChannel, language: view.language, tags: view.tags },
+        addresses: view.addresses,
+        consents: consents.map((c) => ({ id: c.id, ...consentView(c) })),
+        orders: await this.orders.exportFor(tx, t, row),
+        timeline: timeline.map((e) => ({ kind: e.kind, diff: e.diff, data: e.data, occurredAt: iso(e.occurred_at) })),
+      };
+    });
+  }
+
+  /** Erasure: the person can no longer be identified. Name, contact points, notes, profile, addresses and the order
+   *  shipping addresses go; every consent is withdrawn. Orders and returns stay for the books, without the person. */
+  async anonymize(t: TenantRequestContext, id: string, body: z.infer<typeof CustomerAnonymize>) {
+    authorize(t, 'tenant.config.manage');
+    return this.db.withTenant(dbCtx(t), async (tx) => {
+      const row = await this.customer(tx, t, id, { forUpdate: true });
+      if (row['anonymized_at']) throw new ProblemError('NOT_A_CUSTOMER', 'already anonymized');
+      const name = typeof row['full_name'] === 'string' ? row['full_name'] : '';
+      if (body.confirmName.toLocaleLowerCase('tr') !== name.trim().toLocaleLowerCase('tr')) throw new ProblemError('CONFIRM_MISMATCH');
+      await tx.execute(sql`UPDATE contacts SET first_name = 'Anonim', last_name = ${`#${id.slice(-6)}`}, title = NULL, description = NULL, description_text = NULL,
+        custom = '{}', anonymized_at = now(), version = version + 1, updated_by = ${t.principal.userId} WHERE id = ${id}`);
+      await tx.execute(sql`DELETE FROM contact_points WHERE owner_type = 'contact' AND owner_id = ${id}`);
+      await tx.execute(sql`DELETE FROM customer_addresses WHERE contact_id = ${id}`);
+      await tx.execute(sql`UPDATE customer_profiles SET preferred_channel = NULL, language = NULL, tags = '{}', version = version + 1 WHERE contact_id = ${id}`);
+      await tx.execute(sql`UPDATE orders SET shipping_address = NULL, note = '' WHERE customer_id = ${id}`);
+      const granted = (await tx.execute<{ channel: Channel }>(sql`SELECT channel FROM consents WHERE contact_id = ${id} AND status = 'granted'`)).rows;
+      for (const c of granted) {
+        await tx.execute(sql`UPDATE consents SET status = 'withdrawn', source = 'other', evidence = 'KVKK silme talebi', external_ref = NULL, occurred_at = now(),
+          recorded_by = ${t.principal.userId}, recorded_at = now(), version = version + 1 WHERE contact_id = ${id} AND channel = ${c.channel}`);
+        await tx.execute(sql`INSERT INTO consent_events (tenant_id, contact_id, channel, status, source, evidence, occurred_at, recorded_by)
+          VALUES (${t.tenant.id}, ${id}, ${c.channel}, 'withdrawn', 'other', 'KVKK silme talebi', now(), ${t.principal.userId})`);
+      }
+      await audit(tx, t.tenant.id, { action: 'customer.anonymized', actorType: 'user', actorId: t.principal.userId, targetType: 'contact', targetId: id });
+      await tx.execute(sql`INSERT INTO outbox_events (tenant_id, type, resource_type, resource_id, segment, actor, payload, correlation_id)
+        VALUES (${t.tenant.id}, 'customer.anonymized', 'contact', ${id}, 'b2c', ${JSON.stringify({ type: 'user', id: t.principal.userId })}::jsonb, '{}'::jsonb, gen_random_uuid())`);
+      return this.view(tx, t, await this.customer(tx, t, id));
     });
   }
 }

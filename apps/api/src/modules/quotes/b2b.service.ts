@@ -5,6 +5,7 @@ import { sql, type Db, type DbHandle, type SQL } from '@flexa/db';
 import { recordActivity } from '../../common/activity';
 import { audit } from '../../common/audit';
 import { authorize } from '../../common/authorize';
+import { nextDocumentNumber } from '../../common/document-number';
 import { buildTenantContext } from '../../common/guards';
 import { mapDbError } from '../../common/http-helpers';
 import { notify } from '../../common/notify';
@@ -115,13 +116,6 @@ export class B2bService {
     return opp;
   }
 
-  private async next(tx: Db, t: TenantRequestContext, kind: 'contract' | 'order'): Promise<string> {
-    const year = Number((await tx.execute<{ y: string }>(sql`SELECT extract(year FROM now() AT TIME ZONE ${t.tenant.timezone})::text AS y`)).rows[0]?.y);
-    const r = await tx.execute<{ last: number }>(sql`INSERT INTO document_counters (tenant_id, kind, year, last) VALUES (${t.tenant.id}, ${kind}, ${year}, 1)
-      ON CONFLICT (tenant_id, kind, year) DO UPDATE SET last = document_counters.last + 1 RETURNING last`);
-    return `${kind === 'contract' ? 'S' : 'SP'}-${String(year)}-${String(r.rows[0]?.last ?? 1).padStart(5, '0')}`;
-  }
-
   private async mayEdit(tx: Db, t: TenantRequestContext, opportunityId: string, permission: string): Promise<boolean> {
     if (!can(t.authz, permission).allow) return false;
     const r = await tx.execute(sql`SELECT 1 FROM ${CRM.opportunity.from} WHERE t.id = ${opportunityId} AND ${await recordPredicate(tx, t, CRM.opportunity.shape, 'update')}`);
@@ -205,7 +199,7 @@ export class B2bService {
         currency = q.currency;
         if (body.value === undefined) value = q.total;
       }
-      const number = await this.next(tx, t, 'contract');
+      const number = await nextDocumentNumber(tx, t, 'contract');
       const r = await tx.execute<{ id: string }>(sql`
         INSERT INTO contracts (tenant_id, number, opportunity_id, quote_id, title, start_date, end_date, value, currency, auto_renew, renewal_notice_days, note, created_by)
         VALUES (${t.tenant.id}, ${number}, ${body.opportunityId}, ${body.quoteId}, ${body.title ?? String(opp.name)}, ${body.startDate}::date, ${body.endDate}::date, ${value}::numeric, ${currency},
@@ -264,7 +258,7 @@ export class B2bService {
     const start = (await tx.execute<{ d: string }>(sql`SELECT (${c.end_date}::date + 1)::text AS d`)).rows[0]?.d ?? '';
     const end = endDate ?? (await tx.execute<{ d: string }>(sql`SELECT (${start}::date + age(${c.end_date}::date + 1, ${c.start_date}::date) - interval '1 day')::date::text AS d`)).rows[0]?.d ?? '';
     if (end < start) throw new ProblemError('VALIDATION_FAILED', 'endDate: the next term ends before it starts');
-    const number = await this.next(tx, t, 'contract');
+    const number = await nextDocumentNumber(tx, t, 'contract');
     let id: string;
     try {
       const r = await tx.execute<{ id: string }>(sql`
@@ -410,7 +404,7 @@ export class B2bService {
         const c = (await tx.execute<{ opportunity_id: string }>(sql`SELECT opportunity_id FROM contracts WHERE id = ${body.contractId}`)).rows[0];
         if (c?.opportunity_id !== q.opportunity_id) throw new ProblemError('VALIDATION_FAILED', 'contractId: not a contract of this opportunity');
       }
-      const number = await this.next(tx, t, 'order');
+      const number = await nextDocumentNumber(tx, t, 'order');
       let id: string;
       try {
         const r = await tx.execute<{ id: string }>(sql`INSERT INTO orders (tenant_id, number, segment, opportunity_id, quote_id, contract_id, currency, totals, note, created_by)

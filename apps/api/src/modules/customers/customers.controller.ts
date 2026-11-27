@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Headers, HttpCode, Param, ParseUUIDPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
-import { ConsentHistoryQuery, ConsentSet, CustomerAddressInput, CustomerListQuery, CustomerProfilePut, ReachabilityQuery, type z } from '@flexa/contracts';
+import { ConsentHistoryQuery, ConsentSet, CustomerAddressInput, CustomerAnonymize, CustomerListQuery, CustomerProfilePut, ReachabilityQuery, type z } from '@flexa/contracts';
 import { TenantGuard } from '../../common/guards';
 import { requireIfMatch } from '../../common/http-helpers';
 import { CurrentTenant, type TenantRequestContext } from '../../common/request-context';
@@ -53,6 +53,17 @@ export class CustomersController {
   @Get(':id/consents/history')
   history(@CurrentTenant() t: TenantRequestContext, @Param('id', Id) id: string, @Query(new ZodPipe(ConsentHistoryQuery)) q: z.infer<typeof ConsentHistoryQuery>) {
     return this.svc.history(t, id, q.cursor, q.limit);
+  }
+
+  @Get(':id/export')
+  export(@CurrentTenant() t: TenantRequestContext, @Param('id', Id) id: string) {
+    return this.svc.export(t, id);
+  }
+
+  @Post(':id/anonymize')
+  @HttpCode(200)
+  anonymize(@CurrentTenant() t: TenantRequestContext, @Param('id', Id) id: string, @Body(new ZodPipe(CustomerAnonymize)) body: z.infer<typeof CustomerAnonymize>) {
+    return this.svc.anonymize(t, id, body);
   }
 
   @Get(':id/reachability')

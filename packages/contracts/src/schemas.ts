@@ -114,6 +114,8 @@ export const UI_CAPABILITIES = [
   'sales_b2b.forecast.adjust',
   'sales_b2c.consent.read',
   'sales_b2c.consent.manage',
+  'sales_b2c.return.create',
+  'sales_b2c.return.approve',
   'mentions.create',
 ] as const;
 

@@ -53,6 +53,8 @@ import { ForecastController } from './modules/quotes/forecast.controller';
 import { ForecastService } from './modules/quotes/forecast.service';
 import { CustomersController } from './modules/customers/customers.controller';
 import { CustomersService } from './modules/customers/customers.service';
+import { OrdersController } from './modules/customers/orders.controller';
+import { OrdersService } from './modules/customers/orders.service';
 import { QuotesController } from './modules/quotes/quotes.controller';
 import { QuotesService } from './modules/quotes/quotes.service';
 import { CatalogController } from './modules/catalog/catalog.controller';
@@ -90,7 +92,7 @@ export class AppModule {
         // Operation routes first: Fastify matches static segments before parameters either way, but keep it explicit.
         CrmOperationsController, AccountsController, ContactsController, LeadsController, OpportunitiesController, CasesController, NotesController,
         AccessAdminController, ...SHARES_CONTROLLERS,
-        GovernanceController, RecordItemsController, ...RECORD_EXTRAS_CONTROLLERS, AutomationController, IntegrationsController, BundleController, UsageController, OperatorController, SupportAccessController, PrivacyController, CatalogController, ApprovalsController, QuotesController, B2bController, ForecastController, CustomersController],
+        GovernanceController, RecordItemsController, ...RECORD_EXTRAS_CONTROLLERS, AutomationController, IntegrationsController, BundleController, UsageController, OperatorController, SupportAccessController, PrivacyController, CatalogController, ApprovalsController, QuotesController, B2bController, ForecastController, CustomersController, OrdersController],
       providers: [
         { provide: ENV, useValue: deps.env },
         { provide: DB, useValue: deps.db },
@@ -115,6 +117,7 @@ export class AppModule {
         B2bService,
         ForecastService,
         CustomersService,
+        OrdersService,
         PricingService,
         ProvisioningService,
         AuthService,
