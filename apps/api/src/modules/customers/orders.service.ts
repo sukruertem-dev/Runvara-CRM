@@ -156,10 +156,13 @@ export class OrdersService {
       if (c['anonymized_at']) throw new ProblemError('NOT_A_CUSTOMER', 'the customer was anonymized');
       if (!(await this.mayEditCustomer(tx, t, body.customerId))) throw new ProblemError('FORBIDDEN');
       const currency = body.currency ?? t.tenant.currency;
+      const roles = await this.roles(tx, t);
       const products = new Map((await tx.execute<{ id: string; sku: string; name: string; unit: string; active: boolean; tax: string | null }>(sql`
         SELECT p.id, p.sku, p.name, p.unit, p.active, trim_scale(r.rate)::text AS tax FROM products p LEFT JOIN tax_rates r ON r.tenant_id = p.tenant_id AND r.id = p.tax_rate_id
         WHERE p.id = ANY(${uuidArray([...new Set(body.lines.map((l) => l.productId))])}) AND 'b2c' = ANY (p.segments)`)).rows.map((p) => [p.id, p]));
       if (body.lines.some((l) => !products.get(l.productId)?.active)) throw new ProblemError('VALIDATION_FAILED', 'lines: unknown or inactive product');
+      // Starting with anything but `pending` is a payment change: it needs the payment roles too.
+      if (body.paymentStatus !== 'pending' && !t.authz.roleKeys.some((k) => roles.payment.includes(k))) throw new ProblemError('FORBIDDEN', 'payment status: not for your role');
       const prices = await this.pricing.resolveTx(tx, t, { segment: 'b2c', currency, accountId: null, items: body.lines.map((l) => ({ productId: l.productId, quantity: l.quantity })) });
       const missing = body.lines.filter((_, i) => !prices.data[i]?.price);
       if (missing.length) throw new ProblemError('QUOTE_PRICE_MISSING', undefined, { productIds: missing.map((l) => l.productId) });
@@ -351,7 +354,14 @@ export class OrdersService {
       if (!ret) throw new Error('return not written');
       for (const p of parts) {
         await tx.execute(sql`INSERT INTO return_lines (tenant_id, return_id, order_line_id, quantity, amount)
-          SELECT ${t.tenant.id}, ${ret.id}, l.id, ${String(p.qty)}::numeric, round((l.net + l.tax) * ${String(p.qty)}::numeric / l.quantity, ${d}) FROM order_lines l WHERE l.id = ${p.lineId}`);
+          SELECT ${t.tenant.id}, ${ret.id}, l.id, ${String(p.qty)}::numeric,
+            -- Cumulative rounding: the share of everything returned so far, minus what earlier returns already took, so the
+            -- returns of a line never add up to more than the line and a complete return refunds it exactly.
+            round((l.net + l.tax) * (prev.qty + ${String(p.qty)}::numeric) / l.quantity, ${d}) - prev.amount
+          FROM order_lines l CROSS JOIN LATERAL (
+            SELECT COALESCE(sum(rl.quantity), 0) AS qty, COALESCE(sum(rl.amount), 0) AS amount FROM return_lines rl JOIN returns r ON r.id = rl.return_id
+            WHERE rl.order_line_id = l.id AND r.status IN ('requested', 'approved')) prev
+          WHERE l.id = ${p.lineId}`);
       }
       await tx.execute(sql`UPDATE returns SET amount = (SELECT COALESCE(sum(amount), 0) FROM return_lines WHERE return_id = ${ret.id}) WHERE id = ${ret.id}`);
       await recordActivity(tx, t, { type: 'contact', id: o.customer_id, kind: 'return', data: { action: 'requested', returnId: ret.id, orderId: o.id }, segment: 'b2c' });
@@ -402,11 +412,13 @@ export class OrdersService {
 
   /** An approved return: everything back → the order is `returned`; a paid order is refunded in full or in part. */
   private async applyReturn(tx: Db, t: TenantRequestContext, r: ReturnRow): Promise<void> {
+    // The order lock first, then the totals in a new statement: a return approved at the same time is seen after it.
+    await tx.execute(sql`SELECT 1 FROM orders WHERE id = ${r.order_id} FOR UPDATE`);
     const [o] = (await tx.execute<{ status: B2cOrderStatus; payment_status: string; all_back: boolean }>(sql`
       SELECT o.status, o.payment_status, NOT EXISTS (
         SELECT 1 FROM order_lines l WHERE l.order_id = o.id AND l.quantity > COALESCE((
           SELECT sum(rl.quantity) FROM return_lines rl JOIN returns x ON x.id = rl.return_id WHERE rl.order_line_id = l.id AND x.status = 'approved'), 0)) AS all_back
-      FROM orders o WHERE o.id = ${r.order_id} FOR UPDATE`)).rows;
+      FROM orders o WHERE o.id = ${r.order_id}`)).rows;
     if (!o) return;
     const status: B2cOrderStatus = o.all_back ? 'returned' : o.status;
     const pay = ['paid', 'partially_refunded'].includes(o.payment_status) ? (o.all_back ? 'refunded' : 'partially_refunded') : o.payment_status;

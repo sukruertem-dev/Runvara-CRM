@@ -312,7 +312,11 @@ export class CustomersService {
         addresses: view.addresses,
         consents: consents.map((c) => ({ id: c.id, ...consentView(c) })),
         orders: await this.orders.exportFor(tx, t, row),
-        timeline: timeline.map((e) => ({ kind: e.kind, diff: e.diff, data: e.data, occurredAt: iso(e.occurred_at) })),
+        // After anonymization the old values of edited fields are not given out (same rule as the timeline).
+        timeline: timeline.map((e) => ({
+          kind: e.kind, occurredAt: iso(e.occurred_at), data: e.data,
+          diff: row['anonymized_at'] ? Object.fromEntries(Object.keys((e.diff ?? {}) as Record<string, unknown>).map((k) => [k, { from: null, to: null }])) : e.diff,
+        })),
       };
     });
   }

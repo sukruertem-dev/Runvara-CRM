@@ -97,6 +97,11 @@ describe('B2C orders (B2C-02, B2C-03)', () => {
     const a = ok(await order(w), 201);
     const b = ok(await order(w), 201);
     expect((await step(w.rep.c, a.id, 'cancel')).status).toBe(400);
+    // Payment roles hold from the start: a restricted rep cannot open an order as paid.
+    ok(await w.c.req('PUT', '/v1/config/sales_b2c.order_workflow?scope=tenant', { value: { payment: ['admin', 'manager'] } }, { 'if-match': '0' }));
+    expect((await order(w, { paymentStatus: 'paid' })).status).toBe(403);
+    expect(ok(await order(w), 201)).toMatchObject({ paymentStatus: 'pending', canPay: false });
+    ok(await w.c.req('PUT', '/v1/config/sales_b2c.order_workflow?scope=tenant', { value: {} }, { 'if-match': '1' }));
     expect(ok(await step(w.rep.c, a.id, 'cancel', { note: 'Müşteri vazgeçti' }))).toMatchObject({ status: 'cancelled', deliveryStatus: 'none', steps: [] });
     // In bulk: each order its own answer.
     const bulk = ok(await w.rep.c.post(`${O}/steps`, { ids: [a.id, b.id, '00000000-0000-4000-8000-000000000000'], step: 'confirm' }));
@@ -144,6 +149,22 @@ describe('returns (B2C-05)', () => {
     expect((await analyst.c.post(R, { orderId: o.id, reasonCode: 'other', lines: [{ orderLineId: line(o), quantity: '1' }] })).status).toBe(403);
   });
 
+  it('partial returns of one line never refund more than the line: rounding is cumulative', async () => {
+    const w = await setup();
+    const list = String((ok(await w.c.get('/v1/price-lists')).data as Json[])[0]?.id);
+    ok(await w.c.put(`/v1/price-lists/${list}/products/${w.product}`, { breaks: [{ minQty: '1', unitPrice: '19.99' }] }), 204);
+    const o = await delivered(w, '3');
+    expect(o.totals).toMatchObject({ total: '71.96' });
+    const amounts: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const ret = ok(await w.rep.c.post(R, { orderId: o.id, reasonCode: 'other', lines: [{ orderLineId: line(o), quantity: '1' }] }), 201);
+      amounts.push(String(ret.amount));
+      ok(await w.mgr.c.post(`${R}/${String(ret.id)}/decision`, { decision: 'approve' }));
+    }
+    expect(amounts).toEqual(['23.99', '23.98', '23.99']);
+    expect(ok(await w.rep.c.get(`${O}/${String(o.id)}`))).toMatchObject({ status: 'returned', paymentStatus: 'refunded' });
+  });
+
   it('beyond the Manager limit an Admin decides; a request can be withdrawn by whoever asked', async () => {
     const w = await setup();
     ok(await w.c.req('PUT', '/v1/config/sales_b2c.returns?scope=tenant', { value: { managerLimit: '100' } }, { 'if-match': '0' }));
@@ -168,6 +189,9 @@ describe('KVKK requests for a customer', () => {
     ok(await w.rep.c.post(`${C}/${w.customer}/consents`, { channel: 'email', status: 'granted', source: 'web_form' }));
     const o = ok(await order(w), 201);
     expect((await w.rep.c.get(`${C}/${w.customer}/export`)).status).toBe(403);
+    const v = ok(await w.rep.c.get(`/v1/contacts/${w.customer}`));
+    ok(await w.rep.c.req('PATCH', `/v1/contacts/${w.customer}`, { lastName: 'Demirci' }, { 'if-match': `"${String(v.version)}"` }));
+    ok(await w.rep.c.req('PATCH', `/v1/contacts/${w.customer}`, { lastName: 'Demir' }, { 'if-match': `"${String(Number(v.version) + 1)}"` }));
     const ex = ok(await w.c.get(`${C}/${w.customer}/export`));
     expect(ex).toMatchObject({ customer: { firstName: 'Elif', lastName: 'Demir', contactPoints: [{ kind: 'email', value: 'elif@ornek.test' }] }, addresses: [{ label: 'Ev' }] });
     expect((ex.orders as Json[]).map((x) => x.id)).toEqual([o.id]);
@@ -186,5 +210,8 @@ describe('KVKK requests for a customer', () => {
     expect(diffs.flat().every((d) => JSON.stringify(d) === JSON.stringify({ from: null, to: null }))).toBe(true);
     const audits = await sql(`SELECT action FROM audit_log WHERE tenant_id = $1 AND action LIKE 'customer.%' ORDER BY at`, [w.tenantId]);
     expect(audits.map((a) => a.action)).toEqual(['customer.exported', 'customer.anonymized']);
+    // An edit made before the erasure cannot bring the name back through a later export.
+    const later = ok(await w.c.get(`${C}/${w.customer}/export`));
+    expect(JSON.stringify(later)).not.toMatch(/Elif|Demir|elif@ornek/);
   });
 });
