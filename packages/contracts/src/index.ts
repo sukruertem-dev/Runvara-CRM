@@ -17,4 +17,5 @@ export * from './operator';
 export * from './catalog';
 export * from './approvals';
 export * from './quotes';
+export * from './b2b';
 export * from './pricing';

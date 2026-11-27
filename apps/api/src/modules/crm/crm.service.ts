@@ -534,7 +534,8 @@ export class CrmService {
   async pipelineFor(tx: Db, pipelineId: string | null, segment: Segment): Promise<{ id: string; workflowId: string }> {
     const r = await tx.execute<{ id: string; workflow_id: string; segment: Segment | null }>(pipelineId
       ? sql`SELECT id, workflow_id, segment FROM pipelines WHERE id = ${pipelineId}`
-      : sql`SELECT id, workflow_id, segment FROM pipelines WHERE is_default`);
+      // Without a choice: the default when it serves the segment, else a pipeline of the segment, else one for all.
+      : sql`SELECT id, workflow_id, segment FROM pipelines WHERE segment IS NULL OR segment = ${segment}::segment ORDER BY is_default DESC, (segment IS NOT NULL) DESC, created_at, id LIMIT 1`);
     const p = r.rows[0];
     if (!p) throw new ProblemError('PIPELINE_INVALID', pipelineId ? 'pipeline not found' : 'no default pipeline');
     if (p.segment !== null && p.segment !== segment) throw new ProblemError('PIPELINE_INVALID', `pipeline is for ${p.segment}`);

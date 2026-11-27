@@ -53,7 +53,8 @@
 | `approval.requested` / `approval.decided` / `approval.escalated` | core (G3) | kind, subject, level, decision | konu modül, bildirim |
 | `discount.approval_requested` | sales_b2b | quoteId, version, percent | onay motoru |
 | `quote.created` / `quote.submitted` / `quote.revised` / `quote.sent` / `quote.accepted` / `quote.rejected` / `quote.expired` | sales_b2b | quoteId, version | otomasyon, timeline |
-| `contract.created` / `contract.renewal_due` | sales_b2b | endDate | hatırlatıcı görev |
+| `contract.created` / `contract.updated` / `contract.renewed` / `contract.terminated` / `contract.renewal_due` | sales_b2b | contractId (renewal_due: endDate, taskId) | hatırlatıcı görev |
+| `order.created` / `order.fulfilled` / `order.cancelled` (B2B) | sales_b2b | orderId | otomasyon |
 | `forecast.snapshot_taken` | sales_b2b | period | rapor |
 | `order.created` / `order.status_changed` | sales_b2c | fromStatus, toStatus, channel, sourceCallId | otomasyon, hedef, stok/finans webhook |
 | `return.requested` / `return.decided` | sales_b2c | amount, reason | onay, finans webhook |

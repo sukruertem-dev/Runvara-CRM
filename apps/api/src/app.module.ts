@@ -47,6 +47,8 @@ import { WebhooksService } from './modules/integrations/webhooks.service';
 import { ApprovalsController } from './modules/approvals/approvals.controller';
 import { ApprovalsService } from './modules/approvals/approvals.service';
 import { TargetsService } from './modules/approvals/targets.service';
+import { B2bController } from './modules/quotes/b2b.controller';
+import { B2bService } from './modules/quotes/b2b.service';
 import { QuotesController } from './modules/quotes/quotes.controller';
 import { QuotesService } from './modules/quotes/quotes.service';
 import { CatalogController } from './modules/catalog/catalog.controller';
@@ -84,7 +86,7 @@ export class AppModule {
         // Operation routes first: Fastify matches static segments before parameters either way, but keep it explicit.
         CrmOperationsController, AccountsController, ContactsController, LeadsController, OpportunitiesController, CasesController, NotesController,
         AccessAdminController, ...SHARES_CONTROLLERS,
-        GovernanceController, RecordItemsController, ...RECORD_EXTRAS_CONTROLLERS, AutomationController, IntegrationsController, BundleController, UsageController, OperatorController, SupportAccessController, PrivacyController, CatalogController, ApprovalsController, QuotesController],
+        GovernanceController, RecordItemsController, ...RECORD_EXTRAS_CONTROLLERS, AutomationController, IntegrationsController, BundleController, UsageController, OperatorController, SupportAccessController, PrivacyController, CatalogController, ApprovalsController, QuotesController, B2bController],
       providers: [
         { provide: ENV, useValue: deps.env },
         { provide: DB, useValue: deps.db },
@@ -106,6 +108,7 @@ export class AppModule {
         ApprovalsService,
         TargetsService,
         QuotesService,
+        B2bService,
         PricingService,
         ProvisioningService,
         AuthService,

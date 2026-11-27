@@ -170,7 +170,8 @@ matrix_a:
   - id: A14
     label: Teklif oluşturma ve gönderme (B2B)
     module: sales_b2b
-    permissions: [sales_b2b.quote.create, sales_b2b.quote.send]
+    # Contracts follow the quote's grants (B100).
+    permissions: [sales_b2b.quote.create, sales_b2b.quote.send, sales_b2b.contract.manage]
     cells: { admin: "●", manager: "◐", sales_rep: "◐", call_agent: "—", analyst: "—" }
     grants:
       admin:     { mode: full, scope: all }

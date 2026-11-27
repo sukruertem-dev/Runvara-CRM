@@ -58,3 +58,39 @@ Fırsatta Teklifler paneli, `/sales/b2b/quotes` listesi, teklif editörü (canl�
 | Tutarlar tek fonksiyondan, yuvarlama kuralı testli | `pricing.test.ts` |
 | Yetkisize teklif, PDF ve tutar sızmıyor | `quotes.int.test.ts` |
 | Ekranlar axe ile denetleniyor | `quotes.spec.ts` |
+
+# P9b — satış hatları, sözleşme, B2B sipariş
+
+## 8. Satış hatları ve satın alma rolleri (B2B-01, B2B-02)
+- P3'te gelenler: satın alma rolleri (`account_contact_roles`), aşama olasılığı, kazanma için tutar ve kaybetme için neden zorunluluğu (akış doğrulayıcıları).
+- Yeni: Admin satış hattı ekler (`POST /v1/pipelines`: ad, segment, fırsat akışı), varsayılan yapar, aşama olasılıklarını değiştirir. Olasılığı elle verilmemiş fırsatlar yeni değere geçer.
+- Hat seçilmeden açılan fırsat: varsayılan hat segmente uyuyorsa o; değilse segmentin hattı; yoksa tüm segmentlere açık hat.
+- Ekranlar: Ayarlar → Satış hatları; firma sayfasında kişilerin satın alma rolü.
+
+## 9. Sözleşme
+- Yalnızca **kazanılan** B2B fırsatı için (kapalı aşama ve olasılık > 0; B86 ile aynı kural). Kabul edilen teklif verilirse tutar ve para birimi tekliften gelir.
+- Görünürlük fırsattan türer; yazmak `sales_b2b.contract.manage` ister (A14 satırına eklendi, B100) ve fırsatı düzenleme hakkı.
+- Durum: `active → ended | renewed | terminated`. Fesih dönem içinde bir tarihle ve gerekçeyle.
+- **Yenileme:** yeni dönem bitişin ertesi günü başlar; süre takvimle aynıdır (6 ay → 6 ay). Bir dönem bir kez yenilenir.
+
+## 10. Hatırlatma ve dönem sonu (saatlik iş)
+- `bitiş − bildirim günü` geldiğinde: fırsat sahibine görev ("Sözleşme yenileme"), bildirim, `contract.renewal_due` olayı. Bir kez; bitiş ya da bildirim süresi değişirse yeniden.
+- Bitiş geçince: kendiliğinden yenilenen sözleşme yenilenir, diğeri `ended` olur.
+
+## 11. B2B sipariş
+- Kazanılan fırsatın kabul edilen teklifinden, teklif başına bir sipariş. Kalemler ve toplamlar teklif sürümünden kopyalanır; sipariş kalemleri değişmez.
+- Durum: `open → fulfilled | cancelled` (iptal gerekçeli). B2C sipariş akışı P9e'de aynı tabloya eklenir.
+
+## 12. Olaylar
+`contract.created|updated|renewed|terminated|renewal_due`, `order.created|fulfilled|cancelled`; fırsat üzerinde, tutar taşımaz.
+
+## 13. Ekranlar
+Fırsatta Sözleşmeler ve Siparişler panelleri, `/sales/b2b/contracts` ve `/sales/b2b/orders` listeleri ile ayrıntı sayfaları.
+
+## 14. Kabul (P9b)
+| Kriter | Kanıt |
+|---|---|
+| Çoklu hat, aşama olasılığı (B2B-02) | `contracts.int.test.ts`, `contracts.spec.ts` |
+| Satın alma rolleri (B2B-01) | `crm.int.test.ts`, `contracts.spec.ts` |
+| Sözleşme, hatırlatma, yenileme, B2B sipariş (B2B-06) | `contracts.int.test.ts`, `contracts.spec.ts` |
+| Yalnızca B2B yetkilisi görür | `contracts.int.test.ts` |
