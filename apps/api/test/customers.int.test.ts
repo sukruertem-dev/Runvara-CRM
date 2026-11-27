@@ -25,10 +25,13 @@ const ok = (r: Res, status = 200): Json => {
 };
 const C = '/v1/sales/b2c/customers';
 
+/** Every event relayed so far (a test may hand one to the runner again, as a queue retry would). */
+const relayed: OutboxRow[] = [];
 async function drain(): Promise<void> {
   const runner = h.app.get(AutomationRunner);
   for (let i = 0; i < 50; i++) {
     const n = await relay.relayOnce(async (rows: OutboxRow[]) => {
+      relayed.push(...rows);
       for (const r of rows) await runner.process(toEnvelope(r)).catch(() => undefined);
     });
     if (n === 0) return;
@@ -91,6 +94,13 @@ describe('customer profile (B2C-01)', () => {
     // A B2B contact is not a B2C customer.
     const b2b = ok(await w.rep.c.post('/v1/contacts', { firstName: 'Can', lastName: 'Yıldız', segments: ['b2b'] }), 201);
     expect((await w.rep.c.get(`${C}/${String(b2b.id)}`)).status).toBe(404);
+    // Contact field policies apply here too: hidden contact points are neither shown nor searchable.
+    const roles = ok(await w.c.get('/v1/roles')).data as Json[];
+    const repRole = String(roles.find((r) => r.key === 'sales_rep')?.id);
+    ok(await w.c.put('/v1/field-policies', { roleId: repRole, resourceType: 'contact', field: 'contactPoints', access: 'hidden' }));
+    expect(rows(ok(await w.rep.c.get(`${C}?q=ornek`)))).toEqual([]);
+    expect((ok(await w.rep.c.get(C)).data as Json[])[0]).toMatchObject({ fullName: 'Elif Demir', email: null, phone: null });
+    ok(await w.c.put('/v1/field-policies', { roleId: repRole, resourceType: 'contact', field: 'contactPoints', access: null }));
     const timeline = (ok(await w.rep.c.get(`/v1/contacts/${w.id}/timeline`)).data as Json[]).map((e) => e.kind);
     expect(timeline.filter((k) => k === 'customer')).toHaveLength(4);
   });
@@ -169,5 +179,31 @@ describe('consent (B2C-06)', () => {
     ok(await w.rep.c.req('PATCH', `/v1/contacts/${w.id}`, { title: 'Eski müşteri' }, { 'if-match': `"${String(c.version)}"` }));
     await drain();
     expect(h.mailer.jobs.filter((j) => j.template === 'customer_message' && j.vars.subject === 'Hoş geldiniz')).toHaveLength(1);
+  });
+
+  it('a customer mail retried after the run is checked again: consent withdrawn meanwhile, nothing goes out', async () => {
+    const w = await setup();
+    ok(await w.c.post('/v1/modules/automation_sla/enable'));
+    ok(await consent(w, 'email', 'granted'));
+    ok(await w.c.post('/v1/automations/rules', {
+      name: 'Kampanya', definition: { resourceType: 'contact', trigger: { type: 'record.updated' }, actions: [{ type: 'email_customer', subject: 'Yeni sezon', body: 'İndirimler başladı.' }] },
+    }), 201);
+    // The queue is down when the run ends: the run is saved with its mail, the enqueue fails.
+    const send = h.mailer.send.bind(h.mailer);
+    let failing = true;
+    h.mailer.send = (job, opts) => (failing && job.template === 'customer_message' ? Promise.reject(new Error('queue down')) : send(job, opts));
+    try {
+      const c = ok(await w.rep.c.get(`/v1/contacts/${w.id}`));
+      ok(await w.rep.c.req('PATCH', `/v1/contacts/${w.id}`, { title: 'Müşteri' }, { 'if-match': `"${String(c.version)}"` }));
+      await drain();
+      ok(await consent(w, 'email', 'withdrawn'));
+      failing = false;
+      const event = relayed.find((e) => e.tenant_id === w.tenantId && e.type === 'contact.updated' && e.resource_id === w.id);
+      if (!event) throw new Error('no contact.updated event');
+      await h.app.get(AutomationRunner).process(toEnvelope(event));
+    } finally {
+      h.mailer.send = send;
+    }
+    expect(h.mailer.jobs.filter((j) => j.template === 'customer_message' && j.vars.subject === 'Yeni sezon')).toEqual([]);
   });
 });

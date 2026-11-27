@@ -307,7 +307,11 @@ export class AutomationRunner {
 
   private async sendMail(ctx: TenantRequestContext, m: PendingMail): Promise<void> {
     if (m.to) {
-      await this.mailer.send({ template: 'customer_message', to: m.to, locale: 'tr-TR', vars: { tenantName: ctx.tenant.name, subject: m.subject, body: m.body } }, { jobId: m.jobId });
+      // Asked again right before queueing, also for a mail replayed from an earlier run: a consent withdrawn (or the
+      // channel turned off) since then wins.
+      const r = await this.db.withTenant(dbCtx(ctx), (tx) => reachability(tx, ctx.tenant.id, m.recordId, 'email'));
+      if (!r.allowed || !r.address) return;
+      await this.mailer.send({ template: 'customer_message', to: r.address, locale: 'tr-TR', vars: { tenantName: ctx.tenant.name, subject: m.subject, body: m.body } }, { jobId: m.jobId });
       return;
     }
     if (!m.userId) return;

@@ -7,7 +7,7 @@ import { recordActivity } from '../../common/activity';
 import { audit } from '../../common/audit';
 import { authorize } from '../../common/authorize';
 import { ProblemError } from '../../common/problem';
-import { assertCan, recordPredicate } from '../../common/record-access';
+import { assertCan, hiddenFields, recordPredicate } from '../../common/record-access';
 import { dbCtx, type TenantRequestContext } from '../../common/request-context';
 import { DB } from '../../infra/tokens';
 import { CRM, readCrmRow, type CrmRow } from '../crm/crm-objects';
@@ -24,6 +24,13 @@ type ConsentRow = {
 };
 type AddressRow = { id: string; label: string; recipient: string; line1: string; line2: string; district: string; city: string; postal_code: string; country: string; is_default: boolean };
 const MAX_ADDRESSES = 20;
+
+/** Contact field policies apply here as on `/v1/contacts`: a hidden name or hidden contact points are not shown
+ *  and cannot be searched. */
+function contactMask(t: TenantRequestContext): { name: boolean; points: boolean } {
+  const hidden = hiddenFields(t, 'contact');
+  return { name: !['fullName', 'firstName', 'lastName'].some((f) => hidden.has(f)), points: !hidden.has('contactPoints') };
+}
 
 const iso = (v: string | Date): string => new Date(v).toISOString();
 const consentView = (c: ConsentRow) => ({
@@ -103,7 +110,7 @@ export class CustomersService {
       ? (await tx.execute<ConsentRow>(sql`SELECT ${CONSENT_COLS} FROM consents c LEFT JOIN users u ON u.id = c.recorded_by WHERE c.contact_id = ${id}`)).rows
       : [];
     return {
-      id, fullName: typeof row['full_name'] === 'string' ? row['full_name'] : '', owner: { id: row.owner_user_id ?? '', displayName: owner?.display_name ?? '' },
+      id, fullName: contactMask(t).name && typeof row['full_name'] === 'string' ? row['full_name'] : '', owner: { id: row.owner_user_id ?? '', displayName: owner?.display_name ?? '' },
       preferredChannel: p?.preferred_channel ?? null, language: p?.language ?? null, tags: p?.tags ?? [],
       addresses: addresses.map((a) => ({
         id: a.id, label: a.label, recipient: a.recipient, line1: a.line1, line2: a.line2, district: a.district, city: a.city, postalCode: a.postal_code, country: a.country, isDefault: a.is_default,
@@ -126,9 +133,13 @@ export class CustomersService {
     if (!t.segments.includes('b2c')) throw new ProblemError('NOT_FOUND');
     return this.db.withTenant(dbCtx(t), async (tx) => {
       const terms: SQL[] = [sql`'b2c' = ANY (t.segments)`, sql`t.deleted_at IS NULL`, sql`t.merged_into IS NULL`, await recordPredicate(tx, t, CRM.contact.shape, 'read')];
+      const mask = contactMask(t);
       if (q.q) {
         const like = `%${q.q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
-        terms.push(sql`(t.full_name ILIKE ${like} OR EXISTS (SELECT 1 FROM contact_points p WHERE p.owner_type = 'contact' AND p.owner_id = t.id AND (p.value ILIKE ${like} OR p.e164 ILIKE ${like})))`);
+        const by: SQL[] = [];
+        if (mask.name) by.push(sql`t.full_name ILIKE ${like}`);
+        if (mask.points) by.push(sql`EXISTS (SELECT 1 FROM contact_points p WHERE p.owner_type = 'contact' AND p.owner_id = t.id AND (p.value ILIKE ${like} OR p.e164 ILIKE ${like}))`);
+        terms.push(by.length ? sql`(${sql.join(by, sql` OR `)})` : sql`FALSE`);
       }
       if (q.tag) terms.push(sql`EXISTS (SELECT 1 FROM customer_profiles cp WHERE cp.contact_id = t.id AND cp.tags @> ARRAY[${q.tag}]::text[])`);
       if (q.reachable) {
@@ -150,7 +161,7 @@ export class CustomersService {
       const page = rows.slice(0, q.limit);
       return {
         data: page.map((r) => ({
-          id: r.id, fullName: r.full_name, owner: { id: r.owner_user_id, displayName: r.owner_name }, email: r.email, phone: r.phone, tags: r.tags ?? [],
+          id: r.id, fullName: mask.name ? r.full_name : '', owner: { id: r.owner_user_id, displayName: r.owner_name }, email: mask.points ? r.email : null, phone: mask.points ? r.phone : null, tags: r.tags ?? [],
           granted: this.consentAllowed(t, r.owner_user_id, 'sales_b2c.consent.read') ? (r.granted ?? []) : [],
         })),
         nextCursor: rows.length > q.limit ? (page.at(-1)?.id ?? null) : null,
