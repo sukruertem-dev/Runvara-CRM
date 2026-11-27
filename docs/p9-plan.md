@@ -200,3 +200,79 @@ Fırsatta Sözleşmeler ve Siparişler panelleri, `/sales/b2b/contracts` ve `/sa
 | Kanal bazlı rıza, kaynak, zaman, geri çekme (B2C-06) | `customers.int.test.ts`, `customers.spec.ts` |
 | Rızasız müşteriye otomasyon iletisi gitmez (AC-G5-2, otomasyon kısmı) | `customers.int.test.ts` |
 | Yalnızca B2C yetkilisi erişir (AC-G5-3, müşteri kısmı) | `customers.int.test.ts` |
+
+
+# P9e — B2C sipariş, iade, KVKK
+
+## 30. B2C siparişi (B2C-02)
+- B2C siparişi ortak `orders` tablosundadır (segment `b2c`).
+- Sipariş verilerini müşteri, kanal (web, mağaza, telefon, sosyal medya), ödeme durumu (`pending`, `paid`, `failed`, `refunded`, `partially_refunded`), teslimat adresinin kopyası, kargo firması ve takip numarası oluşturur.
+- Kalemler katalogdan gelir. Fiyat B2C fiyat listelerinden (P8a çözücüsü), vergi üründen alınır. Toplamlar teklifle aynı fonksiyonla hesaplanır. Fiyatı olmayan ürün için `QUOTE_PRICE_MISSING` döner.
+- Görünürlük müşteriden türer: müşteriyi okuyabilen siparişini de görür. Sipariş oluşturmak müşteriyi düzenleme hakkı ister (B114).
+- Numara `SP-YYYY-00001` biçimindedir; B2B siparişleriyle aynı sayaç kullanılır.
+
+## 31. Sipariş akışı (B2C-03)
+- Akış: `new → confirmed → preparing → shipped → delivered`. İptal kargodan önce ve gerekçeyle yapılır. `returned` durumuna yalnızca onaylanmış iadeyle geçilir.
+- Akış `packages/workflow` içinde saf bir fonksiyondur (`b2cOrderStep`) ve birim testiyle doğrulanır.
+- Her adımı hangi rollerin atacağı tenant ayarıdır (`sales_b2c.order_workflow`). Varsayılan:
+  - Temsilci ve çağrı temsilcisi onaylar.
+  - Hazırlama, kargoya verme ve teslim Yönetici ve Admin'dedir.
+  - İptal Temsilci, Yönetici ve Admin'dedir.
+  - Ödeme durumunu Temsilci, çağrı temsilcisi, Yönetici ve Admin değiştirir.
+- Durum hatalıysa 409 `ORDER_STATE`, rol uymuyorsa 403 döner.
+- Toplu adım `POST /orders/steps` her siparişi ayrı işlemde yürütür ve her biri için ayrı sonuç döner.
+- Durum ve ödeme değişikliklerinin geçmişi değiştirilemez (`order_status_history`).
+
+## 32. İade (B2C-05)
+- Yalnızca teslim edilmiş siparişin kalemleri iade edilir.
+- İade miktarı, siparişteki miktardan bekleyen ve onaylanmış iadeler düşüldükten sonra kalan miktarı aşamaz (`RETURN_QUANTITY`).
+- Tutar, kalemin KDV dahil tutarının iade edilen orandaki payıdır.
+- Talep `sales_b2c.return.create` iznini ister (A16 satırında; herhangi bir yetkisi olan talep açabilir, B115).
+- Kararı A16 verir (`approve` modu):
+  - Admin her iadeye karar verir.
+  - Yönetici, ekibinin müşterilerine ait iadelere `sales_b2c.returns.managerLimit` (varsayılan 5000, sipariş para biriminde) tutarına kadar karar verir.
+  - Talep eden kişi kendi talebine karar veremez.
+- Bildirimler:
+  - Talep açılınca ekip yöneticilerine bildirim gider; tutar limitin üstündeyse ya da ekip yöneticisi yoksa Admin'lere gider.
+  - Karar verilince talep edene bildirim gider.
+- Onaylanan iade:
+  - Siparişin her kalemi geri geldiyse sipariş `returned` olur.
+  - Ödenmiş sipariş, iade kısmiyse `partially_refunded`, tamsa `refunded` olur.
+- Talebi açan kişi, karar verilmemiş talebini geri çekebilir.
+
+## 33. Olaylar (stok ve finans)
+- `order.created`, `order.status_changed`, `order.payment_changed` (orderId)
+- `return.requested`, `return.approved`, `return.rejected`, `return.cancelled` (returnId)
+- `customer.anonymized`
+- Olaylar alan değeri taşımaz; tüketici ayrıntıyı API'den okur.
+
+## 34. KVKK talepleri
+- **Dışa aktarma** (`GET /customers/:id/export`, Admin): kimlik ve iletişim, profil, adresler, izin geçmişi, siparişler (kalemler ve iadelerle), zaman çizelgesi. İşlem denetim kaydına yazılır.
+- **Anonimleştirme** (`POST /customers/:id/anonymize`, Admin, müşteri adının yeniden yazılmasıyla onaylanır):
+  - Ad, iletişim noktaları, açıklama, özel alanlar, profil, adresler, siparişlerin teslimat adresi ve notları silinir.
+  - Tüm izinler geri çekilir; geri çekme izin geçmişine yazılır.
+  - Siparişler ve iadeler muhasebe için kişisiz olarak kalır.
+  - Zaman çizelgesi değişen alanları gösterir ama eski değerleri göstermez.
+  - Anonimleştirilmiş müşteriye sipariş açılamaz.
+
+## 35. Bilinen sınırlar
+- İade limiti kur çevirmez: limit sipariş para biriminde tek sayıdır.
+- Kampanya ve kupon ile siparişte iskonto P9f'de gelecek.
+
+## 36. Ekranlar
+- `/sales/b2c`: sipariş listesi; arama, durum ve kanal süzgeci, toplu adım.
+- `/sales/b2c/orders/:id`: kalemler, toplamlar, adım düğmeleri, ödeme durumu, geçmiş, iadeler, iade talebi.
+- `/sales/b2c/returns`: iade listesi. `/sales/b2c/returns/:id`: onay/ret, geri çekme.
+- Müşteri sayfasında:
+  - siparişler ve "Sipariş oluştur";
+  - Admin için KVKK talepleri (dışa aktarma ve anonimleştirme).
+
+## 37. Kabul (P9e)
+| Kriter | Kanıt |
+|---|---|
+| Sipariş → ödeme → teslim → iade akışı E2E (AC-G5-1) | `orders.spec.ts` |
+| Kalemler, kanal, ödeme ve teslimat durumu (B2C-02) | `orders.int.test.ts` |
+| Rol bazlı sipariş akışı (B2C-03) | `b2c-order.test.ts`, `orders.int.test.ts` |
+| İade talebi ve onayı, olaylar (B2C-05) | `orders.int.test.ts` |
+| Yalnızca B2C yetkilisi erişir (AC-G5-3) | `orders.int.test.ts`, `customers.int.test.ts` |
+| KVKK: müşteri verisini dışa aktarma ve anonimleştirme | `orders.int.test.ts`, `orders.spec.ts` |

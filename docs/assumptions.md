@@ -149,3 +149,8 @@
 | B111 | Rıza zamanı | Müşterinin bildirdiği an kaydedilir (geçmiş olabilir, gelecek olamaz); sistem ayrıca kayıt anını tutar | p9-plan §23 |
 | B112 | Birleştirmede rıza | Birleşen kişinin izinleri taşınmaz; izin varsayılmaz, kalan kişininki geçerli | p9-plan §26 |
 | B113 | Otomasyon e-postası | `email_customer` yalnızca kişi kuralında; izinsizse engellenir ve çalıştırmada nedeni görünür. Dil şimdilik Türkçe şablon | p9-plan §25 |
+| B114 | B2C sipariş yetkisi | Sipariş, müşterisinin görünürlüğünü izler; oluşturmak müşteriyi düzenleme hakkı ister. Adımların rolleri tenant ayarıdır (`sales_b2c.order_workflow`) | p9-plan §30–31 |
+| B115 | İade talebi izni | `sales_b2c.return.create` matriste yoktu; A16 satırına eklendi, `request` modunda (herhangi bir yetkisi olan talep eder) | p9-plan §32 |
+| B116 | İade onay limiti | Yönetici, ekibinin müşterilerine ait iadeleri `managerLimit` tutarına kadar onaylar (varsayılan 5000, kur yok); üstü Admin. Kendi talebine kimse karar veremez | p9-plan §32 |
+| B117 | İade tutarı | Kalemin KDV dahil tutarı × iade miktarı / sipariş miktarı, para biriminin küsuratına yuvarlanır | p9-plan §32 |
+| B118 | KVKK anonimleştirme | Kimlik verisi silinir, siparişler ve iadeler muhasebe için kalır, izinler geri çekilir. Admin ve müşteri adının yeniden yazılması gerekir | p9-plan §34 |
