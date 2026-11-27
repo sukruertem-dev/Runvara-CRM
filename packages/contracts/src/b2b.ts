@@ -125,3 +125,76 @@ export const OrderView = z
   })
   .openapi('OrderView');
 export const OrderListResponse = z.object({ data: z.array(OrderView.omit({ lines: true })), nextCursor: Uuid.nullable() }).openapi('OrderListResponse');
+
+// ------------------------------------------------------------------ forecast (P9c, docs/p9-plan.md §15–18)
+/** A month (`2026-11`) or a quarter (`2026-Q4`). */
+export const ForecastPeriod = z.string().regex(/^\d{4}-(0[1-9]|1[0-2]|Q[1-4])$/);
+export const ForecastQuery = z.object({ period: ForecastPeriod }).strict().openapi('ForecastQuery');
+const Money = z.string();
+export const ForecastAdjustmentView = z.object({ amount: Money, note: z.string(), updatedBy: Person, updatedAt: z.string() }).openapi('ForecastAdjustmentView');
+export const ForecastOwnerRow = z
+  .object({
+    owner: Person,
+    currency: z.string(),
+    /** Open opportunities expected to close in the period. */
+    count: z.number().int(),
+    pipeline: Money,
+    /** Σ amount × probability of the open ones. */
+    weighted: Money,
+    /** Won in the period. */
+    won: Money,
+    adjustment: ForecastAdjustmentView.nullable(),
+    /** The Manager's call when there is one, else won + weighted. */
+    forecast: Money,
+    canAdjust: z.boolean(),
+  })
+  .openapi('ForecastOwnerRow');
+export const ForecastTotal = z.object({ currency: z.string(), count: z.number().int(), pipeline: Money, weighted: Money, won: Money, forecast: Money }).openapi('ForecastTotal');
+export const ForecastOpportunity = z
+  .object({
+    id: Uuid, name: z.string(), owner: Person, stage: z.string(), currency: z.string(), amount: Money, probability: z.number(), weighted: Money, expectedClose: z.string(),
+  })
+  .openapi('ForecastOpportunity');
+export const ForecastView = z
+  .object({
+    period: ForecastPeriod,
+    from: z.string(),
+    /** Last day of the period. */
+    to: z.string(),
+    totals: z.array(ForecastTotal),
+    owners: z.array(ForecastOwnerRow),
+    opportunities: z.array(ForecastOpportunity),
+    canSnapshot: z.boolean(),
+  })
+  .openapi('ForecastView');
+export const ForecastAdjust = z
+  .object({ period: ForecastPeriod, ownerId: Uuid, currency: z.string().regex(/^[A-Z]{3}$/), amount: Amount.nullable(), note: z.string().trim().max(500).default('') })
+  .strict()
+  .openapi('ForecastAdjust');
+export const ForecastSnapshotCreate = z.object({ period: ForecastPeriod }).strict().openapi('ForecastSnapshotCreate');
+export const ForecastSnapshotView = z
+  .object({
+    id: Uuid, period: ForecastPeriod, kind: z.enum(['manual', 'scheduled']), takenAt: z.string(), takenBy: Person.nullable(),
+    totals: z.array(ForecastTotal), owners: z.array(ForecastOwnerRow.omit({ canAdjust: true })),
+  })
+  .openapi('ForecastSnapshotView');
+export const ForecastSnapshotListResponse = z.object({ data: z.array(ForecastSnapshotView) }).openapi('ForecastSnapshotListResponse');
+
+// ------------------------------------------------------------------ activity rules (P9c, §19–20)
+const NextStep = z.object({ id: Uuid, title: z.string(), dueAt: z.string().nullable() });
+export const OpportunityPulse = z
+  .object({
+    lastTouchedAt: z.string(),
+    /** Days since the last touch. */
+    idleDays: z.number().int(),
+    stale: z.boolean(),
+    staleDays: z.number().int(),
+    requireNextStep: z.boolean(),
+    /** The earliest open task of the opportunity. */
+    nextStep: NextStep.nullable(),
+  })
+  .openapi('OpportunityPulse');
+export const StaleOpportunity = z
+  .object({ id: Uuid, name: z.string(), owner: Person, stage: z.string(), lastTouchedAt: z.string(), idleDays: z.number().int(), nextStep: NextStep.nullable() })
+  .openapi('StaleOpportunity');
+export const StaleOpportunityListResponse = z.object({ staleDays: z.number().int(), data: z.array(StaleOpportunity) }).openapi('StaleOpportunityListResponse');

@@ -107,8 +107,11 @@ export class B2bService {
     authorize(t, permission);
     await assertCan(tx, t, CRM.opportunity.shape, id, 'update');
     if (opp.segment !== 'b2b') throw new ProblemError('SEGMENT_NOT_ALLOWED', 'contracts and orders here are for B2B opportunities');
-    // Won = a closed stage with a probability above zero (the same rule as targets, B86).
-    if (opp.s_category !== 'closed' || Number(opp.probability) <= 0) throw new ProblemError('OPPORTUNITY_NOT_WON');
+    // Won = a closed stage the pipeline counts as won (its probability above zero), as targets count it (B86); the
+    // opportunity's own probability may be set by hand and survives a loss.
+    const won = opp.s_category === 'closed' && ((await tx.execute(sql`
+      SELECT 1 FROM pipeline_stages WHERE pipeline_id = ${opp.pipeline_id} AND status_id = ${opp.status_id} AND probability > 0`)).rowCount ?? 0) > 0;
+    if (!won) throw new ProblemError('OPPORTUNITY_NOT_WON');
     return opp;
   }
 

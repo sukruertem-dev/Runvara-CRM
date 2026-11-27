@@ -243,7 +243,7 @@ Yetki senaryoları ve `SCN-*` testleri `docs/enterprise/permission-matrix.yaml`'
 | **B2B-04** | Teklif: kalemler, iskonto, versiyonlama (değiştirilemez), PDF, geçerlilik, durum akışı | M | G4 | `T-B2B-04-a`<br>`T-B2B-04-b`<br>`T-B2B-04-c` | int<br>int<br>e2e | `apps/api/test/quotes.int.test.ts`<br>`apps/api/test/quotes.int.test.ts`<br>`apps/web/e2e/quotes.spec.ts` |
 | **B2B-05** | İskonto limiti aşılınca onay akışı (Yönetici onaylar; kendi limitini aşanı onaylayamaz) | M | G3 (G4) | `T-B2B-05-a`<br>`T-B2B-05-b` | int<br>e2e | `apps/api/test/approvals.int.test.ts`<br>`apps/web/e2e/approvals.spec.ts` |
 | **B2B-06** | Sözleşme (başlangıç/bitiş/yenileme, hatırlatıcı) ve B2B sipariş | S | G4 | `T-B2B-06-a`<br>`T-B2B-06-b` | int<br>int | `apps/api/test/contracts.int.test.ts`<br>`apps/api/test/contracts.int.test.ts` |
-| **B2B-07** | Ağırlıklı pipeline ile forecast (ay/çeyrek), snapshot | S | G4 | `T-B2B-07-a`<br>`T-B2B-07-b` | int<br>int | `apps/api/test/integration/b2b/forecast-weighted-snapshot.int.test.ts`<br>`apps/api/test/integration/b2b/forecast-scope-excluded.int.test.ts` |
+| **B2B-07** | Ağırlıklı pipeline ile forecast (ay/çeyrek), snapshot | S | G4 | `T-B2B-07-a`<br>`T-B2B-07-b` | int<br>int | `apps/api/test/forecast.int.test.ts`<br>`apps/api/test/forecast.int.test.ts` |
 | **B2B-08** | Key account planı | C | G4 sonrası (sonraki sürüm) | `T-B2B-08-a`<br>`T-B2B-08-b` | int<br>e2e | `apps/api/test/integration/b2b/key-account-plan.int.test.ts`<br>`apps/web/e2e/b2b/key-account-plan-screen.spec.ts` |
 
 ### 4.11 10.2.2-E B2C satış
@@ -267,7 +267,7 @@ Yetki senaryoları ve `SCN-*` testleri `docs/enterprise/permission-matrix.yaml`'
 | **TRK-02** | Hedef (kota): kişi/ekip/segment, aylık/çeyreklik; hedef–gerçekleşme takibi | M | G3 (G8) | `T-TRK-02-a`<br>`T-TRK-02-b` | int<br>int | `apps/api/test/approvals.int.test.ts`<br>`apps/api/test/integration/manager/target-vs-actual-live.int.test.ts` |
 | **TRK-03** | Kanal/kaynak atıfı (lead, sipariş, arama kaynağı dahil) | S | G8 (G3) | `T-TRK-03-a` | int | `apps/api/test/integration/reports/source-attribution.int.test.ts` |
 | **TRK-04** | Kayıp ve iade nedenleri analizi | S | G8 | `T-TRK-04-a` | int | `apps/api/test/integration/reports/loss-return-reason-analysis.int.test.ts` |
-| **TRK-05** | Aktivite uyum uyarısı (7+ gündür dokunulmamış fırsat) | S | G4 (G8) | `T-TRK-05-a` | int | `apps/worker/test/integration/tracking/stale-opportunity-alert.int.test.ts` |
+| **TRK-05** | Aktivite uyum uyarısı (7+ gündür dokunulmamış fırsat) | S | G4 (G8) | `T-TRK-05-a` | int | `apps/api/test/forecast.int.test.ts` |
 | **TRK-06** | Liderlik tablosu (tenant ayarıyla aç/kapa) | C | G8 sonrası (sonraki sürüm) | `T-TRK-06-a` | int | `apps/api/test/integration/manager/leaderboard-tenant-toggle.int.test.ts` |
 
 ### 4.13 10.2.2-G Çağrı merkezi ve santral entegrasyonu
@@ -524,7 +524,7 @@ Kriter sırası spesifikasyondaki "Kabul kriterleri" listesindeki sıradır. `Ba
 | **AC-G3-1** | Onay motoru limit aşımında doğru onaylayıcıya yönlendiriyor; Yönetici kendi limitini aşanı onaylayamıyor | G3 | B2B-05, MGR-04 | `T-B2B-05-a`<br>`T-B2B-05-b` |
 | **AC-G3-2** | Fiyat listesi ve müşteriye özel fiyat kuralları testle doğrulandı | G3 | B2B-03 | `T-B2B-03-a`<br>`T-B2B-03-b` |
 | **AC-G3-3** | Ekip ve hedef verileri yetki kapsamına göre izole | G3 | MGR-01, TRK-02, SEG-03 | `T-MGR-01-a`<br>`T-TRK-02-a`<br>`T-TRK-02-b` |
-| **AC-G4-1** | Lead → fırsat → teklif → iskonto onayı → sözleşme → sipariş akışı E2E testle geçiyor | G4 | B2B-01…B2B-06 | `T-AC-G4-1-a` (e2e: `apps/web/e2e/b2b/lead-to-order-full-flow.spec.ts`) |
+| **AC-G4-1** | Lead → fırsat → teklif → iskonto onayı → sözleşme → sipariş akışı E2E testle geçiyor | G4 | B2B-01…B2B-06 | `T-AC-G4-1-a` (e2e: `apps/web/e2e/forecast.spec.ts`) |
 | **AC-G4-2** | Teklif versiyonları değiştirilemez | G4 | B2B-04 | `T-B2B-04-a`<br>`T-B2B-04-b` |
 | **AC-G4-3** | Yalnızca B2B yetkili kullanıcılar B2B verisine erişebiliyor | G4 | SEG-03, SEG-04 | `T-SEG-03-b`<br>`T-SEG-03-c` |
 | **AC-G4-4** | Forecast kapsam dışı kayıtları içermiyor | G4 | B2B-07 | `T-B2B-07-a`<br>`T-B2B-07-b` |

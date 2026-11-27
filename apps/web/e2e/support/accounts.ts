@@ -98,3 +98,16 @@ export async function seedTasksSql(ws: Workspace, count: number): Promise<void> 
     stdio: 'pipe',
   });
 }
+
+/** Moves an opportunity's history `days` back, so it reads as untouched (P9c). Test data only. */
+export async function backdateOpportunity(ws: Workspace, opportunityId: string, days: number): Promise<void> {
+  const tenant = await api<{ id: string }>('GET', '/v1/tenant', { token: ws.token });
+  if (!UUID.test(tenant.id) || !UUID.test(opportunityId) || !Number.isInteger(days)) throw new Error('bad backdate input');
+  const sql = `SET session_replication_role = replica;
+    UPDATE activity_events SET occurred_at = now() - interval '${String(days)} days' WHERE tenant_id = '${tenant.id}' AND record_id = '${opportunityId}';
+    UPDATE opportunities SET created_at = now() - interval '${String(days)} days' WHERE tenant_id = '${tenant.id}' AND id = '${opportunityId}';`;
+  execFileSync('docker', ['compose', 'exec', '-T', 'postgres', 'psql', '-U', 'postgres', '-d', 'flexa', '-v', 'ON_ERROR_STOP=1', '-q', '-c', sql], {
+    cwd: resolve(__dirname, '../../../..'),
+    stdio: 'pipe',
+  });
+}

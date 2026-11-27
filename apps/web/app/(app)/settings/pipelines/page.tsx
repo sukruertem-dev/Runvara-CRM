@@ -1,15 +1,17 @@
 'use client';
 
-import { Alert, Badge, Button, Dialog, DialogContent, DialogFooter, ErrorState, Field, Input, Select, Skeleton, useToast } from '@flexa/ui';
+import { Alert, Badge, Button, Dialog, DialogContent, DialogFooter, ErrorState, Field, Input, Select, Skeleton, Switch, useToast } from '@flexa/ui';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useApp } from '../../../../lib/app-context';
 import { useCreatePipeline, usePatchPipeline } from '../../../../lib/b2b';
+import { useConfigKeys, useConfigLayer, type ConfigLayer } from '../../../../lib/config';
 import { errorText } from '../../../../lib/catalog';
 import { t } from '../../../../lib/i18n';
 import { usePipelines } from '../../../../lib/records';
 import { labelOf, toKey, useWorkflows } from '../../../../lib/settings';
 import { PageContainer } from '../../../_components/app-shell';
+import { overridesOf, sameJson, SaveConfigDialog, type PendingChange } from '../_parts/config-parts';
 import { ReadOnlyNotice, SettingsGate, SettingsHeader } from '../_parts/settings-nav';
 
 // Settings → Sales pipelines (B2B-02, docs/p9-plan.md §8).
@@ -26,7 +28,7 @@ export default function PipelinesPage() {
 }
 
 function Inner() {
-  const { can } = useApp();
+  const { can, nav } = useApp();
   const list = usePipelines();
   const write = can('tenant.config.manage');
   return (
@@ -39,7 +41,50 @@ function Inner() {
             {list.data.data.map((p) => <PipelineCard key={`${p.id}${p.stages.map((s) => s.probability).join()}`} p={p} write={write} />)}
           </ul>
         )}
+      {nav?.modules.some((m) => m.id === 'sales_b2b') ? <ActivityRules /> : null}
     </>
+  );
+}
+
+// B2B activity rules (`sales_b2b.activity_rules`, TRK-05, docs/p9-plan.md §19–20).
+const RULES = 'sales_b2b.activity_rules';
+interface Rules { staleDays: number; requireNextStep: boolean }
+
+function ActivityRules() {
+  const layer = useConfigLayer(RULES, 'tenant');
+  const keys = useConfigKeys();
+  if (layer.isError || keys.isError) return <ErrorState title={t('error.fallback')} retryLabel={t('common.retry')} onRetry={() => { void layer.refetch(); void keys.refetch(); }} />;
+  if (!layer.data || !keys.data) return <Skeleton className="mt-6 h-32 w-full" />;
+  return <RulesForm key={layer.data.version} layer={layer.data} defaults={keys.data.data.find((k) => k.key === RULES)?.default ?? {}} />;
+}
+
+function RulesForm({ layer, defaults }: { layer: ConfigLayer; defaults: Record<string, unknown> }) {
+  const { can } = useApp();
+  const { toast } = useToast();
+  const readOnly = !can('tenant.config.manage');
+  const [draft, setDraft] = useState<Rules>(() => layer.effective as unknown as Rules);
+  const [review, setReview] = useState<PendingChange[] | null>(null);
+  const value = overridesOf({ ...draft }, defaults);
+  const valid = Number.isInteger(draft.staleDays) && draft.staleDays >= 1 && draft.staleDays <= 90;
+  return (
+    <section aria-labelledby="rules-title" className="mt-6">
+      <h2 id="rules-title" className="m-0 mb-1 text-base font-semibold">{t('rules.title')}</h2>
+      <p className="m-0 mb-3 text-sm text-fg-muted">{t('rules.lead')}</p>
+      <form method="post" className="rounded-card border border-line bg-surface p-4" data-testid="rules-form" onSubmit={(e) => { e.preventDefault(); setReview([{ key: RULES, scope: 'tenant', value, version: layer.version }]); }}>
+        <fieldset disabled={readOnly} className="m-0 flex flex-col gap-3 border-0 p-0">
+          <Field label={t('rules.staleDays')} hint={t('rules.staleDaysHint')}>
+            <Input type="number" min={1} max={90} className="w-32" value={Number.isNaN(draft.staleDays) ? '' : String(draft.staleDays)}
+              onChange={(e) => { setDraft((d) => ({ ...d, staleDays: e.target.value.trim() === '' ? Number.NaN : Number(e.target.value) })); }} data-testid="rules-days" />
+          </Field>
+          <label className="inline-flex items-center gap-2 text-sm">
+            <Switch checked={draft.requireNextStep} onCheckedChange={(v) => { setDraft((d) => ({ ...d, requireNextStep: v })); }} aria-label={t('rules.requireNextStep')} data-testid="rules-next" />
+            {t('rules.requireNextStep')}
+          </label>
+        </fieldset>
+        {readOnly ? null : <div className="mt-4 flex justify-end"><Button type="submit" disabled={!valid || sameJson(value, layer.value)} data-testid="rules-save">{t('policy.review')}</Button></div>}
+        {review ? <SaveConfigDialog changes={review} onClose={() => { setReview(null); }} onSaved={() => { setReview(null); toast({ kind: 'success', title: t('rules.saved') }); }} /> : null}
+      </form>
+    </section>
   );
 }
 

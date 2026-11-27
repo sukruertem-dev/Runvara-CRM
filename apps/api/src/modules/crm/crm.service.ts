@@ -23,6 +23,7 @@ import { loadFieldDefs, validateCustom } from '../tasks/task-fields';
 import { assertCan, assertWritable, canAssignTo, maskRegistry, maskView, recordPredicate } from '../../common/record-access';
 import { CRM, crmRegistry, crmScope, crmViewContext, readCrmRow, type CrmDef, type CrmRow, type CrmType } from './crm-objects';
 import { QuotaService } from '../usage/quota.service';
+import { activityRules, hasNextStep } from '../quotes/forecast.service';
 
 export type AccountCreateBody = z.infer<typeof AccountCreate>;
 export type ContactCreateBody = z.infer<typeof ContactCreate>;
@@ -484,6 +485,11 @@ export class CrmService {
     const to = wf.statuses.find((s) => s.id === result.transition.toStatusId);
     if (!to) throw new ProblemError('WORKFLOW_INVALID');
     if (type === 'lead' && to.key === 'converted') throw new ProblemError('USE_TRANSITION_ENDPOINT', 'use POST /v1/leads/{id}/convert');
+    // B2B activity rule (P9c §20): moving to another open stage needs an open next-step task when the tenant asks for it.
+    if (type === 'opportunity' && row.segment === 'b2b' && to.category !== 'closed' && to.id !== row.status_id
+      && (await activityRules(tx, t.tenant.id)).requireNextStep && !(await hasNextStep(tx, id))) {
+      throw new ProblemError('NEXT_STEP_REQUIRED', 'add an open task as the next step first');
+    }
     const sets: SQL[] = [sql`status_id = ${to.id}`, sql`version = version + 1`, sql`updated_by = ${me}`];
     if (type === 'opportunity' || type === 'case') {
       const wasClosed = row.s_category === 'closed';

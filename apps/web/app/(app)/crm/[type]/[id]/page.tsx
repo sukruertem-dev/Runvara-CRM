@@ -39,6 +39,7 @@ import { PageContainer } from '../../../../_components/app-shell';
 import { DiscountPanel } from '../../../../_components/discount-panel';
 import { QuotesPanel } from '../../../../_components/quotes-panel';
 import { B2bPanels } from '../../../../_components/b2b-panels';
+import { PulsePanel } from '../../../../_components/pulse-panel';
 import { BuyingRoles } from '../../../../_components/buying-roles';
 import { NotesPanel } from '../../../../_components/notes-panel';
 import { ActivityTabs, CommentsPanel, DescriptionEditor, FieldRow, Section, TimelineList, type RecordRef } from '../../../../_components/record-parts';
@@ -361,7 +362,7 @@ export default function CrmRecordPage() {
           </section>
         </div>
         <div className="flex min-w-0 flex-col gap-4">
-          {type === 'opportunity' && r['segment'] === 'b2b' ? <><QuotesPanel opportunityId={r.id} /><B2bPanels opportunityId={r.id} won={(r['status'] as { category?: string } | undefined)?.category === 'closed' && Number(r['probability']) > 0} /><DiscountPanel opportunityId={r.id} /></> : null}
+          {type === 'opportunity' && r['segment'] === 'b2b' ? <><PulsePanel opportunityId={r.id} open={(r['status'] as { category?: string } | undefined)?.category !== 'closed'} /><QuotesPanel opportunityId={r.id} /><B2bPanels opportunityId={r.id} won={(r['status'] as { category?: string } | undefined)?.category === 'closed' && Number(r['probability']) > 0} /><DiscountPanel opportunityId={r.id} /></> : null}
           <Related type={type} record={r} />
         </div>
       </div>

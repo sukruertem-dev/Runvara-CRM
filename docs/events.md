@@ -55,7 +55,8 @@
 | `quote.created` / `quote.submitted` / `quote.revised` / `quote.sent` / `quote.accepted` / `quote.rejected` / `quote.expired` | sales_b2b | quoteId, version | otomasyon, timeline |
 | `contract.created` / `contract.updated` / `contract.renewed` / `contract.terminated` / `contract.renewal_due` | sales_b2b | contractId (renewal_due: endDate, taskId) | hatırlatıcı görev |
 | `order.created` / `order.fulfilled` / `order.cancelled` (B2B) | sales_b2b | orderId | otomasyon |
-| `forecast.snapshot_taken` | sales_b2b | period | rapor |
+| `forecast.snapshot_taken` | sales_b2b | snapshotId, period, kind | rapor |
+| `opportunity.stale` | sales_b2b | opportunityId, idleDays, staleDays | bildirim, otomasyon |
 | `order.created` / `order.status_changed` | sales_b2c | fromStatus, toStatus, channel, sourceCallId | otomasyon, hedef, stok/finans webhook |
 | `return.requested` / `return.decided` | sales_b2c | amount, reason | onay, finans webhook |
 | `consent.changed` | sales_b2c | channel, granted | dialer, kampanya, tıkla-ara |
