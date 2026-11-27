@@ -1,5 +1,34 @@
 # İlerleme
 
+## P9c — G4: forecast ve aktivite kuralları · 2026-11-27 · ✅ (CI PR'da çalışacak)
+
+> `docs/p9-plan.md` §15–21. G4 (B2B) bu adımla biter; sıradaki P9d (B2C).
+
+### Yapılanlar
+- **Forecast:** ay ya da çeyrek; açık fırsatlar ağırlıklı, kazanılanlar tam; kişi ve para birimi bazında; kapsam okuma yetkisi ve forecast kapsamının kesişimi.
+- **Yönetici ayarı** (gerekçeli, denetim kaydıyla) ve **anlık görüntüler**: el ile, ayrıca her pazartesi zamanlanmış.
+- **Dokunulmamış fırsat:** saatlik tarama; sahibine ve ekip yöneticisine bildirim, `opportunity.stale`. Fırsat sayfasında "Sonraki adım" paneli.
+- **Sonraki adım zorunluluğu** (tenant ayarı) ve Ayarlar → Satış hatları → Aktivite kuralları.
+- **Göç** `0022_forecast.sql`; izinler B104.
+
+### Testler
+- API entegrasyon: yeni `forecast.int.test.ts` (5 test).
+- E2E: yeni `forecast.spec.ts` (2 test; uçtan uca B2B akışı AC-G4-1 dahil; axe).
+
+### Notlar
+- Forecast kur çevrimi yapmaz; çok para birimli tenantta toplamlar para birimi başına ayrı gösterilir.
+
+## P9b — G4: satış hatları, sözleşme, B2B sipariş · 2026-11-27 · ✅
+
+> `docs/p9-plan.md` §8–14.
+
+### Yapılanlar
+- Çoklu satış hattı ve aşama olasılıkları (Ayarlar → Satış hatları); firma sayfasında satın alma rolleri.
+- Sözleşme (yenileme, fesih, hatırlatma görevi, dönem sonu) ve kabul edilen tekliften B2B sipariş. **Göç** `0021_contracts_orders.sql`.
+
+### Testler
+- API entegrasyon 211/211 (yeni `contracts.int.test.ts`, 5); E2E `contracts.spec.ts` 2/2, `quotes.spec.ts` 3/3.
+
 ## P9a — G4: teklif · 2026-11-25 · ✅ (CI PR'da çalışacak)
 
 > `docs/p9-plan.md` §1–7. P9 sırası: önce B2B (P9a–P9c), sonra B2C (P9d–P9f). Sıradaki P9b.

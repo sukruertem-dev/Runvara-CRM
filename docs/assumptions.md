@@ -139,3 +139,8 @@
 | B101 | Sözleşme ve sipariş koşulu | Yalnızca kazanılan fırsat; sipariş yalnızca kabul edilen tekliften, teklif başına bir | p9-plan §9, §11 |
 | B102 | Yenileme süresi | Takvim süresi korunur (`age`): 1 Ocak–30 Haziran → 1 Temmuz–31 Aralık | p9-plan §9 |
 | B103 | Hatırlatma alıcısı | Fırsat sahibi; üyeliği pasifse ilk Admin | p9-plan §10 |
+| B104 | Forecast izinleri | `sales_b2b.forecast.read` ve `.adjust` matriste yoktu. Okuma teklif satırına (A14) eklendi: Admin tümü, Yönetici ekibi, Temsilci kendi. Ayar iskonto onayı satırına (A15) eklendi ve `approve` modunda denetlenir: Admin, Yönetici (yönettiği ekip, kendisi hariç) | p9-plan §16–17 |
+| B105 | Forecast tanımı | Açık fırsat kapanış tarihiyle, kazanılan kapanma anıyla döneme girer. Kapanış tarihi olmayan sayılmaz. Para birimleri ayrı toplanır. Yönetici ayarı kişinin tahmininin yerini alır | p9-plan §15 |
+| B106 | Zamanlanmış anlık görüntü | Pazartesi 01:00 UTC; içinde bulunulan ay ve çeyrek; tüm workspace (okurken kapsam süzülür) | p9-plan §18 |
+| B107 | Dokunulmamış fırsat | Son işlem: oluşturma, zaman çizelgesi olayı ya da bağlı görev güncellemesi. Eşik tenant ayarı (7 gün). Uyarı sahibine ve ekip yöneticilerine, son işlem başına bir kez; tarama saatlik | p9-plan §19 |
+| B108 | Sonraki adım | Fırsata bağlı açık görev. Zorunluluk tenant ayarıyla açılır (varsayılan kapalı), yalnızca açık aşamadan açık aşamaya geçişte | p9-plan §20 |

@@ -94,3 +94,55 @@ Fırsatta Sözleşmeler ve Siparişler panelleri, `/sales/b2b/contracts` ve `/sa
 | Satın alma rolleri (B2B-01) | `crm.int.test.ts`, `contracts.spec.ts` |
 | Sözleşme, hatırlatma, yenileme, B2B sipariş (B2B-06) | `contracts.int.test.ts`, `contracts.spec.ts` |
 | Yalnızca B2B yetkilisi görür | `contracts.int.test.ts` |
+
+
+# P9c — forecast, aktivite kuralları, uçtan uca akış
+
+## 15. Forecast (B2B-07)
+- Dönem: ay (`2026-11`) ya da çeyrek (`2026-Q4`). Sayılanlar:
+  - kapanış tarihi (`expected_close`) dönemde olan **açık** B2B fırsatları: açık tutar ve ağırlıklı tutar (tutar × olasılık);
+  - dönemde (tenant saat dilimi) **kazanılan** fırsatlar: tam tutarla.
+- Kapanış tarihi olmayan açık fırsat sayılmaz. Para birimleri ayrı toplanır, kur çevrimi yok.
+- Kişi başına tahmin = Yönetici ayarı varsa o, yoksa kazanılan + ağırlıklı.
+- Hesap her açılışta canlı yapılır: yeniden atanan fırsat yeni sahibin satırına geçer.
+
+## 16. Kapsam (AC-G4-4)
+- `sales_b2b.forecast.read` A14 satırında (B104): Admin tümü, Yönetici ekibi, Temsilci kendi. Analist göremez (403).
+- Bir fırsat yalnızca iki koşul birlikte sağlanırsa sayılır:
+  - kişi onu okuyabilir (kayıt yetkisi);
+  - fırsatın sahibi kişinin forecast kapsamındadır.
+- Tutar alanı gizliyse ya da B2B segmenti yoksa forecast 404 döner. B2C fırsatları hiç sayılmaz.
+
+## 17. Yönetici ayarı
+- `sales_b2b.forecast.adjust` A15 satırında, `approve` modunda (B104): Admin herkesi, Yönetici yönettiği ekiplerin üyelerini ayarlar. Kendi tahminini ayarlayamaz, Temsilci hiç ayarlayamaz.
+- Ayar kişi, dönem ve para birimi başına tektir. Tutar ve gerekçe içerir; `amount: null` ayarı kaldırır. Her değişiklik denetim kaydına yazılır.
+
+## 18. Anlık görüntü
+- El ile: Admin ya da Yönetici, kendi kapsamındaki tabloyu kaydeder.
+- Zamanlanmış: her pazartesi 01:00 UTC (katalog işi `sales_b2b.forecast.snapshot`). B2B açık her workspace için içinde bulunulan ay ve çeyrek kaydedilir.
+- Görüntü değişmez. Okuyan kişi görüntüde yalnızca kendi kapsamındaki kişileri görür. Her görüntü için `forecast.snapshot_taken` olayı yazılır.
+
+## 19. Dokunulmamış fırsat (TRK-05)
+- Son işlem şu üçünden en yenisidir: fırsatın oluşturulması, fırsat zaman çizelgesindeki son olay (alan değişikliği, aşama, yorum, arama/e-posta kaydı, teklif, sözleşme, sipariş), fırsata bağlı görevin son güncellemesi.
+- `sales_b2b.activity_rules.staleDays` gündür (varsayılan 7) işlem görmeyen açık fırsatlar için saatlik tarama şunları yapar:
+  - fırsat sahibine ve ekibinin (üst ekipler dahil) yöneticilerine bildirim gönderir;
+  - `opportunity.stale` olayını yazar.
+- Uyarı her "son işlem" için bir kez gider; yeni bir işlemden sonra yeniden uyarı gidebilir.
+- Ekranlar:
+  - fırsat sayfasında "Sonraki adım" paneli: son işlem, uyarı, sonraki adım;
+  - forecast sayfasında dokunulmamış fırsatlar listesi.
+
+## 20. Sonraki adım
+- Sonraki adım, fırsata bağlı açık görevlerden vadesi en yakın olandır.
+- `requireNextStep` açıksa (varsayılan kapalı) B2B fırsatı başka bir açık aşamaya geçerken açık görev ister; yoksa 422 `NEXT_STEP_REQUIRED` döner. Kapatma (kazanma, kaybetme) bu kurala bağlı değildir.
+- Ayar: Ayarlar → Satış hatları → Aktivite kuralları.
+
+## 21. Kabul (P9c, G4 sonu)
+| Kriter | Kanıt |
+|---|---|
+| Aday → fırsat → teklif → iskonto onayı → sözleşme → sipariş (AC-G4-1) | `forecast.spec.ts` |
+| Teklif sürümleri değişmez (AC-G4-2) | `quotes.int.test.ts` |
+| Yalnızca B2B yetkilisi erişir (AC-G4-3) | `contracts.int.test.ts`, `forecast.int.test.ts` |
+| Forecast kapsam dışı kayıt içermez (AC-G4-4) | `forecast.int.test.ts` |
+| Ağırlıklı forecast, Yönetici ayarı, anlık görüntü (B2B-07) | `forecast.int.test.ts`, `forecast.spec.ts` |
+| Dokunulmamış fırsat uyarısı, sonraki adım (TRK-05) | `forecast.int.test.ts`, `forecast.spec.ts` |
