@@ -146,3 +146,57 @@ Fırsatta Sözleşmeler ve Siparişler panelleri, `/sales/b2b/contracts` ve `/sa
 | Forecast kapsam dışı kayıt içermez (AC-G4-4) | `forecast.int.test.ts` |
 | Ağırlıklı forecast, Yönetici ayarı, anlık görüntü (B2B-07) | `forecast.int.test.ts`, `forecast.spec.ts` |
 | Dokunulmamış fırsat uyarısı, sonraki adım (TRK-05) | `forecast.int.test.ts`, `forecast.spec.ts` |
+
+
+# P9d — B2C müşteri profili ve rıza
+
+## 22. B2C müşterisi (C2)
+- Müşteri, segmentlerinde `b2c` olan kişidir (`contacts`). Telefonlar P3'ten beri E.164 biçiminde saklanır.
+- B2C'ye özgü alanlar ayrı tablolarda tutulur (hepsi `b2c` segmentinde):
+  - `customer_profiles`: tercih ettiği kanal, dil, en çok 20 etiket;
+  - `customer_addresses`: en çok 20 adres, biri varsayılan.
+- Okuma ve yazma yetkisi kişi kaydından gelir (`*record*`). B2C segmenti olmayan kullanıcı ya da B2C olmayan kişi için 404 döner.
+- Profil `If-Match` ile sürümlenir. Her değişiklik kişinin zaman çizelgesine `customer` olarak, yalnızca B2C kullanıcılarının göreceği şekilde düşer.
+
+## 23. Rıza (B2C-06)
+- İzin kanal başınadır: e-posta, SMS, telefon, WhatsApp.
+- Her kayıt şunları taşır: durum (`granted` | `withdrawn`), kaynak (web formu, telefon, mağaza, e-posta, içe aktarma, API, diğer), kanıt, dış kayıt numarası (İYS gibi, A11), müşterinin bildirdiği zaman (geleceğe ait olamaz), kaydeden kişi.
+- Güncel durum `consents` tablosunda tutulur. Her değişiklik ayrıca değiştirilemez `consent_events` tablosuna yazılır.
+- Her değişiklik için `consent.changed` olayı ve denetim kaydı (`consent.granted` / `consent.withdrawn`) yazılır.
+- Yetki A25 satırından gelir (`sales_b2c.consent.read` / `.manage`), kapsam müşterinin sahibine göredir:
+  - Temsilci kendi müşterisi için, Yönetici ekibininki için, Admin herkesinki için okur ve yazar.
+  - Analist yalnızca okur.
+  - Çağrı temsilcisinin kuyruk kapsamı, okuyabildiği müşteriler demektir (B110).
+- Workspace kanalları kapatabilir (`sales_b2c.consent_channels`). Kapalı kanala izin kaydedilmez ve o kanaldan kimseye ulaşılmaz.
+
+## 24. Erişilebilirlik: tek kontrol
+- `GET /v1/sales/b2c/customers/:id/reachability?channel=` ve aynı işi gören sunucu fonksiyonu (`reachability`).
+- Cevap "evet" ya da nedeniyle birlikte "hayır": `not_b2c`, `channel_disabled`, `no_consent`, `withdrawn`, `no_contact_point`.
+- Kampanyalar (P9f), otomasyonlar (bu adım) ve giden arama / dialer (G7–G8) iletişimden önce bu kontrolü kullanır. Liste ekranı `?reachable=kanal` ile yalnızca ulaşılabilir müşterileri süzer.
+
+## 25. Otomasyon: müşteriye e-posta (AC-G5-2)
+- Yeni otomasyon eylemi `email_customer`, yalnızca kişi kurallarında kullanılabilir.
+- Gönderimden önce e-posta izni kontrol edilir. İzin yoksa ileti gönderilmez, çalıştırma başarılı sayılır ve eylem sonucunda engel nedeni (`blocked: no_consent`) görünür.
+- İleti `customer_message` şablonuyla gider: bağlantı içermez, alt bilgi iznin dayanağını ve geri çekme yolunu söyler.
+
+## 26. Bilinen sınırlar
+- Kişiler birleştirilirse birleşen kişinin izinleri taşınmaz. Kalan kişinin kendi izinleri geçerlidir; izin hiçbir zaman varsayılmaz (B112).
+- KVKK kapsamında müşteri verisinin dışa aktarılması ve anonimleştirilmesi siparişlerle birlikte P9e'de yapılacak.
+
+## 27. Ekranlar
+- `/sales/b2c/customers`: arama (ad, e-posta, telefon), etiket, izin süzgeci; yeni müşteri penceresi.
+- `/sales/b2c` şimdilik müşterilere yönlenir.
+- Kişi sayfasında (B2C, modül açık): iletişim izinleri ve geçmişi, profil, adresler.
+- Otomasyon kural editöründe "Müşteriye e-posta gönder" eylemi.
+
+## 28. Olaylar
+- `consent.changed` (channel, status)
+- `customer.updated` (changedFields)
+
+## 29. Kabul (P9d)
+| Kriter | Kanıt |
+|---|---|
+| Müşteri profili, adres, etiket, E.164 (B2C-01) | `customers.int.test.ts`, `crm.int.test.ts`, `customers.spec.ts` |
+| Kanal bazlı rıza, kaynak, zaman, geri çekme (B2C-06) | `customers.int.test.ts`, `customers.spec.ts` |
+| Rızasız müşteriye otomasyon iletisi gitmez (AC-G5-2, otomasyon kısmı) | `customers.int.test.ts` |
+| Yalnızca B2C yetkilisi erişir (AC-G5-3, müşteri kısmı) | `customers.int.test.ts` |

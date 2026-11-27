@@ -144,3 +144,8 @@
 | B106 | Zamanlanmış anlık görüntü | Pazartesi 01:00 UTC; içinde bulunulan ay ve çeyrek; tüm workspace (okurken kapsam süzülür) | p9-plan §18 |
 | B107 | Dokunulmamış fırsat | Son işlem: oluşturma, zaman çizelgesi olayı ya da bağlı görev güncellemesi. Eşik tenant ayarı (7 gün). Uyarı sahibine ve ekip yöneticilerine, son işlem başına bir kez; tarama saatlik | p9-plan §19 |
 | B108 | Sonraki adım | Fırsata bağlı açık görev. Zorunluluk tenant ayarıyla açılır (varsayılan kapalı), yalnızca açık aşamadan açık aşamaya geçişte | p9-plan §20 |
+| B109 | B2C müşteri verisi | Profil ve adres kişinin kayıt yetkisini izler. Etiketler serbest metin (en çok 20, virgülsüz), adresler en çok 20 | p9-plan §22 |
+| B110 | Rıza kapsamı | A25 kapsamı müşterinin sahibine göre: kendi / ekip / tümü. Çağrı temsilcisinin kuyruk kapsamı okuyabildiği müşterileri kapsar | p9-plan §23 |
+| B111 | Rıza zamanı | Müşterinin bildirdiği an kaydedilir (geçmiş olabilir, gelecek olamaz); sistem ayrıca kayıt anını tutar | p9-plan §23 |
+| B112 | Birleştirmede rıza | Birleşen kişinin izinleri taşınmaz; izin varsayılmaz, kalan kişininki geçerli | p9-plan §26 |
+| B113 | Otomasyon e-postası | `email_customer` yalnızca kişi kuralında; izinsizse engellenir ve çalıştırmada nedeni görünür. Dil şimdilik Türkçe şablon | p9-plan §25 |

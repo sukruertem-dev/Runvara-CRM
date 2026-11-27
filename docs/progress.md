@@ -1,5 +1,20 @@
 # İlerleme
 
+## P9d — G5: B2C müşteri profili ve rıza · 2026-11-27 · ✅ (CI PR'da çalışacak)
+
+> `docs/p9-plan.md` §22–29. G5 (B2C) başladı; sıradaki P9e (sipariş, iade, KVKK).
+
+### Yapılanlar
+- **Müşteri profili:** tercih edilen kanal, dil, etiketler; adresler (varsayılan adres). Müşteri listesi: arama, etiket, izin süzgeci; yeni müşteri penceresi.
+- **Rıza:** kanal başına durum, kaynak, kanıt, dış kayıt numarası ve zaman; değiştirilemez geçmiş; denetim kaydı; `consent.changed` olayı.
+- **Tek kontrol** (`reachability`): kampanya, otomasyon ve giden arama aynı cevabı kullanır.
+- **Otomasyon** `email_customer`: e-posta izni olmayan müşteriye gönderilmez, çalıştırmada engellendi olarak görünür.
+- **Göç** `0023_customers.sql`.
+
+### Testler
+- API entegrasyon: yeni `customers.int.test.ts` (4 test).
+- E2E: yeni `customers.spec.ts` (1 test; axe).
+
 ## P9c — G4: forecast ve aktivite kuralları · 2026-11-27 · ✅ (CI PR'da çalışacak)
 
 > `docs/p9-plan.md` §15–21. G4 (B2B) bu adımla biter; sıradaki P9d (B2C).
