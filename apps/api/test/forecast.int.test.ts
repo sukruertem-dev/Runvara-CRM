@@ -44,7 +44,6 @@ async function setup() {
   const day = `${periodBounds(month).from.slice(0, 8)}15`;
   return { ...admin, mgr, rep, other, month, quarter, day };
 }
-type W = Awaited<ReturnType<typeof setup>>;
 const opp = async (c: Client, body: Json) => ok(await c.post('/v1/opportunities', { segment: 'b2b', currency: 'TRY', ...body }), 201);
 const owners = (b: Json) => (b.owners as Json[]).map((o) => [(o.owner as Json).id, o.currency, o.pipeline, o.weighted, o.won, o.forecast]);
 
@@ -78,6 +77,12 @@ describe('forecast (B2B-07)', () => {
 
     // Won in the period counts as won; the forecast is won + weighted.
     ok(await w.rep.c.post(`/v1/opportunities/${String(a.id)}/transition`, { transitionKey: 'win' }));
+    expect(owners(ok(await w.mgr.c.get(`${F}?period=${w.month}`)))).toEqual([[w.rep.userId, 'TRY', '0.00', '0.00', '1000.00', '1000.00']]);
+    // A lost one keeps a hand-set probability, yet it is not won (the stage decides).
+    const lost = await opp(w.rep.c, { name: 'Kaybedilen', amount: '300', expectedClose: w.day });
+    ok(await w.rep.c.patchJson(`/v1/opportunities/${String(lost.id)}`, { probability: 40 }, `"${String(lost.version)}"`));
+    ok(await w.rep.c.post(`/v1/opportunities/${String(lost.id)}/transition`, { transitionKey: 'lose', fields: { wonLostReason: 'Fiyat' } }));
+    expect(ok(await w.rep.c.get(`/v1/opportunities/${String(lost.id)}`))).toMatchObject({ probability: 40, status: { category: 'closed' } });
     expect(owners(ok(await w.mgr.c.get(`${F}?period=${w.month}`)))).toEqual([[w.rep.userId, 'TRY', '0.00', '0.00', '1000.00', '1000.00']]);
   });
 

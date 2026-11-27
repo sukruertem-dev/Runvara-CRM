@@ -55,6 +55,9 @@ export function currentPeriods(timezone: string, now = new Date()): string[] {
   return [`${y}-${mo}`, `${y}-Q${String(Math.floor((Number(mo) - 1) / 3) + 1)}`];
 }
 
+/** The open opportunities listed under a forecast (the totals always cover all of them). */
+const OPPORTUNITY_LIST_LIMIT = 500;
+
 /** Money with exactly two decimals from a numeric string. */
 const money = (v: string | null | undefined): string => {
   const [i = '0', f = ''] = (v ?? '0').split('.');
@@ -66,6 +69,7 @@ type OppRow = {
   id: string; name: string; owner_user_id: string; owner_name: string; currency: string; amount: string; probability: string; weighted: string;
   expected_close: string | null; closed: boolean; stage: string;
 };
+type SumRow = { owner_user_id: string; owner_name: string; currency: string; count: number; pipeline: string; weighted: string; won: string };
 type AdjRow = { owner_user_id: string; currency: string; amount: string; note: string; updated_by: string; updater_name: string; updated_at: string };
 type Person = { id: string; displayName: string };
 export type OwnerRow = {
@@ -128,16 +132,29 @@ export class ForecastService {
   private async compute(tx: Db, timezone: string, period: string, owners: Set<string> | null, visible: SQL): Promise<{ owners: OwnerRow[]; opportunities: OppRow[] }> {
     const b = periodBounds(period);
     const scope: SQL = owners ? sql`t.owner_user_id = ANY(${uuidArray([...owners])})` : sql`TRUE`;
+    // Won = the stage the pipeline counts as won (its configured probability above zero), not the opportunity's own
+    // editable probability: a manual probability survives win and lose (same rule as targets, B86).
+    const wonStage = sql`EXISTS (SELECT 1 FROM pipeline_stages ps WHERE ps.pipeline_id = t.pipeline_id AND ps.status_id = t.status_id AND ps.probability > 0)`;
+    const where = sql`t.deleted_at IS NULL AND t.segment = 'b2b' AND ${scope} AND ${visible}
+        AND ((s.category <> 'closed' AND t.expected_close >= ${b.from}::date AND t.expected_close < ${b.until}::date)
+          OR (s.category = 'closed' AND ${wonStage} AND (t.closed_at AT TIME ZONE ${timezone})::date >= ${b.from}::date
+              AND (t.closed_at AT TIME ZONE ${timezone})::date < ${b.until}::date))`;
+    // Totals over every matching opportunity; only the detail list is limited.
+    const sums = (await tx.execute<SumRow>(sql`
+      SELECT t.owner_user_id, u.display_name AS owner_name, t.currency, (count(*) FILTER (WHERE s.category <> 'closed'))::int AS count,
+        COALESCE(sum(COALESCE(t.amount, 0)) FILTER (WHERE s.category <> 'closed'), 0)::text AS pipeline,
+        COALESCE(sum(round(COALESCE(t.amount, 0) * t.probability / 100, 2)) FILTER (WHERE s.category <> 'closed'), 0)::text AS weighted,
+        COALESCE(sum(COALESCE(t.amount, 0)) FILTER (WHERE s.category = 'closed'), 0)::text AS won
+      FROM ${CRM.opportunity.from} JOIN users u ON u.id = t.owner_user_id
+      WHERE ${where}
+      GROUP BY t.owner_user_id, u.display_name, t.currency`)).rows;
     const opps = (await tx.execute<OppRow>(sql`
       SELECT t.id, t.name, t.owner_user_id, u.display_name AS owner_name, t.currency, COALESCE(t.amount, 0)::text AS amount, t.probability::text AS probability,
-        round(COALESCE(t.amount, 0) * t.probability / 100, 2)::text AS weighted, t.expected_close::text AS expected_close, s.category = 'closed' AS closed,
+        round(COALESCE(t.amount, 0) * t.probability / 100, 2)::text AS weighted, t.expected_close::text AS expected_close, false AS closed,
         COALESCE(s.label_i18n ->> 'tr', s.label_i18n ->> 'en', s.key) AS stage
       FROM ${CRM.opportunity.from} JOIN users u ON u.id = t.owner_user_id
-      WHERE t.deleted_at IS NULL AND t.segment = 'b2b' AND ${scope} AND ${visible}
-        AND ((s.category <> 'closed' AND t.expected_close >= ${b.from}::date AND t.expected_close < ${b.until}::date)
-          OR (s.category = 'closed' AND t.probability > 0 AND (t.closed_at AT TIME ZONE ${timezone})::date >= ${b.from}::date
-              AND (t.closed_at AT TIME ZONE ${timezone})::date < ${b.until}::date))
-      ORDER BY t.expected_close NULLS LAST, t.id LIMIT 5000`)).rows;
+      WHERE ${where} AND s.category <> 'closed'
+      ORDER BY t.expected_close, t.id LIMIT ${OPPORTUNITY_LIST_LIMIT}`)).rows;
     const adjustments = (await tx.execute<AdjRow>(sql`
       SELECT a.owner_user_id, a.currency, a.amount::text AS amount, a.note, a.updated_by, u.display_name AS updater_name, a.updated_at
       FROM forecast_adjustments a JOIN users u ON u.id = a.updated_by
@@ -145,13 +162,11 @@ export class ForecastService {
     const names = new Map<string, string>();
     const rows = new Map<string, Omit<OwnerRow, 'adjustment' | 'forecast'>>();
     const key = (owner: string, currency: string): string => `${owner}|${currency}`;
-    for (const o of opps) {
+    for (const o of sums) {
       names.set(o.owner_user_id, o.owner_name);
-      const k = key(o.owner_user_id, o.currency);
-      const r = rows.get(k) ?? { owner: { id: o.owner_user_id, displayName: o.owner_name }, currency: o.currency, count: 0, pipeline: '0.00', weighted: '0.00', won: '0.00' };
-      rows.set(k, o.closed
-        ? { ...r, won: add(r.won, money(o.amount)) }
-        : { ...r, count: r.count + 1, pipeline: add(r.pipeline, money(o.amount)), weighted: add(r.weighted, money(o.weighted)) });
+      rows.set(key(o.owner_user_id, o.currency), {
+        owner: { id: o.owner_user_id, displayName: o.owner_name }, currency: o.currency, count: o.count, pipeline: money(o.pipeline), weighted: money(o.weighted), won: money(o.won),
+      });
     }
     // A call for someone without open numbers still shows (the Manager may expect business not yet in the pipeline).
     const adjOf = new Map(adjustments.map((a) => [key(a.owner_user_id, a.currency), a]));
@@ -171,7 +186,7 @@ export class ForecastService {
       return { ...r, adjustment, forecast: adjustment ? adjustment.amount : add(r.won, r.weighted) };
     });
     out.sort((a, b) => a.owner.displayName.localeCompare(b.owner.displayName, 'tr') || a.currency.localeCompare(b.currency));
-    return { owners: out, opportunities: opps.filter((o) => !o.closed) };
+    return { owners: out, opportunities: opps };
   }
 
   private async view(tx: Db, t: TenantRequestContext, period: string, d: ReturnType<typeof authorize>) {
@@ -181,7 +196,7 @@ export class ForecastService {
       period, from: b.from, to: b.last,
       totals: totalsOf(r.owners),
       owners: r.owners.map((o) => ({ ...o, canAdjust: this.mayAdjust(t, o.owner.id) })),
-      opportunities: r.opportunities.slice(0, 500).map((o) => ({
+      opportunities: r.opportunities.map((o) => ({
         id: o.id, name: o.name, owner: { id: o.owner_user_id, displayName: o.owner_name }, stage: o.stage, currency: o.currency, amount: money(o.amount),
         probability: Number(o.probability), weighted: money(o.weighted), expectedClose: o.expected_close ?? '',
       })),
@@ -365,7 +380,9 @@ export class ForecastService {
         SELECT x.id, x.name, x.owner, x.touched::text AS touched, floor(extract(epoch FROM now() - x.touched) / 86400)::int AS idle FROM (
           SELECT t.id, t.name, t.owner_user_id AS owner, ${this.touchedSql()} AS touched
           FROM ${CRM.opportunity.from} WHERE t.deleted_at IS NULL AND t.segment = 'b2b' AND s.category <> 'closed'
-        ) x WHERE x.touched <= now() - make_interval(days => ${rules.staleDays}) ORDER BY x.touched LIMIT 500`)).rows;
+        ) x WHERE x.touched <= now() - make_interval(days => ${rules.staleDays})
+          AND NOT EXISTS (SELECT 1 FROM opportunity_stale_alerts a WHERE a.opportunity_id = x.id AND a.touched_at = x.touched)
+        ORDER BY x.touched LIMIT 500`)).rows;
       let made = 0;
       for (const o of due) {
         const claimed = (await tx.execute<{ id: string }>(sql`
