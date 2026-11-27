@@ -7,6 +7,7 @@ import { errorText } from '../../lib/catalog';
 import { CHANNELS, SOURCES, useConsentHistory, useCustomer, useDeleteAddress, usePutProfile, useSaveAddress, useSetConsent, type Channel, type Customer } from '../../lib/customers';
 import { dateTime } from '../../lib/format';
 import { t } from '../../lib/i18n';
+import { CustomerOrders, CustomerPrivacy } from './customer-orders';
 import { Section } from './record-parts';
 
 // B2C customer on the contact page (B2C-01, B2C-06, docs/p9-plan.md §22–28): profile, addresses, channel consent.
@@ -23,7 +24,9 @@ export function CustomerPanels({ contactId }: { contactId: string }) {
     <>
       <ConsentPanel customer={c.data} />
       <ProfilePanel key={`p${String(c.data.version)}`} customer={c.data} />
+      <CustomerOrders customer={c.data} />
       <AddressPanel customer={c.data} />
+      <CustomerPrivacy customer={c.data} />
     </>
   );
 }

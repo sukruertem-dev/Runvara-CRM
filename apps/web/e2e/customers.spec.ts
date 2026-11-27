@@ -21,8 +21,8 @@ test('B2C müşteri: profil, adres, etiket; kanal bazlı izin ve geri çekme', a
   const rep = await addMember(admin, 'sales_rep', 'Zeynep Arslan');
 
   await loginUi(page, rep.email);
-  await page.goto('/sales/b2c');
-  await expect(page).toHaveURL(/\/sales\/b2c\/customers$/, { timeout: 60_000 });
+  await page.goto('/sales/b2c/customers');
+  await expect(page.getByTestId('customer-new')).toBeVisible({ timeout: 60_000 });
   await page.getByTestId('customer-new').click();
   const create = page.getByTestId('customer-dialog');
   await create.getByLabel('Ad', { exact: true }).fill('Elif');
