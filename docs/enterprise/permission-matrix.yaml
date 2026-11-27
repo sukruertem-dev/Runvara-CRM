@@ -170,8 +170,8 @@ matrix_a:
   - id: A14
     label: Teklif oluşturma ve gönderme (B2B)
     module: sales_b2b
-    # Contracts follow the quote's grants (B100).
-    permissions: [sales_b2b.quote.create, sales_b2b.quote.send, sales_b2b.contract.manage]
+    # Contracts follow the quote's grants (B100); so does reading the forecast: own, the team's, all (B104).
+    permissions: [sales_b2b.quote.create, sales_b2b.quote.send, sales_b2b.contract.manage, sales_b2b.forecast.read]
     cells: { admin: "●", manager: "◐", sales_rep: "◐", call_agent: "—", analyst: "—" }
     grants:
       admin:     { mode: full, scope: all }
@@ -180,7 +180,8 @@ matrix_a:
   - id: A15
     label: İskonto onayı
     module: sales_b2b
-    permissions: [sales_b2b.discount.approve]
+    # The Manager's forecast call is an approval-like act: Admin all, Manager their team, Representative none (B104).
+    permissions: [sales_b2b.discount.approve, sales_b2b.forecast.adjust]
     cells: { admin: "●", manager: "✓ (limitine kadar)", sales_rep: "T", call_agent: "—", analyst: "—" }
     grants:
       admin:     { mode: full, scope: all }

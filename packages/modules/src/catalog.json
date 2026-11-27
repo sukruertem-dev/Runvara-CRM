@@ -532,7 +532,8 @@
       },
       "configKeys": [
         "sales_b2b.quote_template",
-        "sales_b2b.discount_rules"
+        "sales_b2b.discount_rules",
+        "sales_b2b.activity_rules"
       ],
       "planEntitlement": {
         "includedIn": [

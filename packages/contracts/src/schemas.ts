@@ -110,6 +110,8 @@ export const UI_CAPABILITIES = [
   'sales_tracking.target.manage',
   'sales_b2b.quote.create',
   'sales_b2b.contract.manage',
+  'sales_b2b.forecast.read',
+  'sales_b2b.forecast.adjust',
   'mentions.create',
 ] as const;
 

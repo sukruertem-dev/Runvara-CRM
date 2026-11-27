@@ -208,6 +208,20 @@ export const CONFIG_KEYS: readonly ConfigKeyDef[] = [
     default: { prefix: 'T', validDays: 30, intro: '', terms: '', footer: '' },
   },
   {
+    key: 'sales_b2b.activity_rules',
+    module: 'sales_b2b',
+    schemaVersion: 1,
+    description: 'B2B activity rules (TRK-05): days without a touch before an open opportunity is flagged, and whether moving it to another open stage needs an open next-step task.',
+    overridableAt: ['tenant'],
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['staleDays', 'requireNextStep'],
+      properties: { staleDays: { type: 'integer', minimum: 1, maximum: 90 }, requireNextStep: { type: 'boolean' } },
+    },
+    default: { staleDays: 7, requireNextStep: false },
+  },
+  {
     key: 'approvals',
     module: 'core',
     schemaVersion: 1,
