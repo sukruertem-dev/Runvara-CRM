@@ -66,6 +66,11 @@ export function render(job: MailJob): RenderedMail {
       return tr
         ? make(job.vars.subject, job.vars.body.split(PARAGRAPH_BREAK), { label: 'Kaydı aç', url: job.vars.url }, `${job.vars.tenantName} çalışma alanındaki bir otomasyon kuralı tarafından gönderildi.`)
         : make(job.vars.subject, job.vars.body.split(PARAGRAPH_BREAK), { label: 'Open record', url: job.vars.url }, `Sent by an automation rule in the ${job.vars.tenantName} workspace.`);
+    case 'customer_message':
+      // Written by the workspace for its customer, sent only with e-mail consent (B2C-06); escaped like all text.
+      return tr
+        ? make(job.vars.subject, job.vars.body.split(PARAGRAPH_BREAK), null, `${job.vars.tenantName} tarafından, e-posta iletişim izninize dayanarak gönderildi. İzninizi geri çekmek için ${job.vars.tenantName} ile iletişime geçebilirsiniz.`)
+        : make(job.vars.subject, job.vars.body.split(PARAGRAPH_BREAK), null, `Sent by ${job.vars.tenantName} with your consent to e-mail. Contact ${job.vars.tenantName} to withdraw it.`);
     case 'quote': {
       // The sender's own words; the document is attached. No link: the customer has no account.
       const extra = job.vars.message ? job.vars.message.split(PARAGRAPH_BREAK) : [];

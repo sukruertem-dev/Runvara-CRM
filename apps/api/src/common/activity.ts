@@ -8,7 +8,7 @@ import type { TenantRequestContext } from './request-context';
 
 export type ActivityKind =
   | 'created' | 'field_changed' | 'status_changed' | 'assigned' | 'deleted' | 'restored'
-  | 'converted' | 'merged' | 'comment' | 'attachment' | 'email_log' | 'call_log' | 'quote' | 'contract' | 'order';
+  | 'converted' | 'merged' | 'comment' | 'attachment' | 'email_log' | 'call_log' | 'quote' | 'contract' | 'order' | 'consent' | 'customer';
 
 /** View fields that change on every write and carry no information of their own. */
 const VOLATILE = new Set(['version', 'updatedAt', 'updatedBy', 'createdAt', 'createdBy', 'deletedAt', 'closedAt', 'contactPoints', 'accounts', 'tagIds', 'position', 'depth']);
@@ -62,6 +62,8 @@ function eventOf(type: string, kind: ActivityKind, diff: Record<string, unknown>
     case 'quote': return { type: `quote.${typeof data.action === 'string' ? data.action : 'changed'}`, payload: { quoteId: data.quoteId ?? null, version: data.version ?? null } };
     case 'contract':
     case 'order': return { type: `${kind}.${typeof data.action === 'string' ? data.action : 'changed'}`, payload: { [`${kind}Id`]: data[`${kind}Id`] ?? null } };
+    case 'consent': return { type: 'consent.changed', payload: { channel: data.channel ?? null, status: data.status ?? null } };
+    case 'customer': return { type: 'customer.updated', payload: { changedFields: Object.keys(diff).sort() } };
     case 'email_log':
     case 'call_log': return { type: 'activity.logged', payload: { kind } };
   }
@@ -70,10 +72,11 @@ function eventOf(type: string, kind: ActivityKind, diff: Record<string, unknown>
 export async function recordActivity(
   tx: Db,
   t: TenantRequestContext,
-  e: { type: string; id: string; kind: ActivityKind; diff?: Record<string, unknown>; data?: Record<string, unknown> },
+  /** `segment` narrows the entry below the record's own (B2C consent on a contact shared with B2B). */
+  e: { type: string; id: string; kind: ActivityKind; diff?: Record<string, unknown>; data?: Record<string, unknown>; segment?: 'b2b' | 'b2c' },
 ): Promise<void> {
   if (e.kind === 'field_changed' && (!e.diff || Object.keys(e.diff).length === 0)) return;
-  const segment = await attachedSegment(tx, e.type, e.id);
+  const segment = e.segment ?? (await attachedSegment(tx, e.type, e.id));
   await tx.execute(sql`
     INSERT INTO activity_events (tenant_id, record_type, record_id, segment, kind, actor_id, diff, data)
     VALUES (${t.tenant.id}, ${e.type}, ${e.id}, ${segment}::segment, ${e.kind}, ${t.principal.userId},

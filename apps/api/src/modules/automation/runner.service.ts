@@ -15,6 +15,7 @@ import { taskReadPredicate, TasksService } from '../tasks/tasks.service';
 import { WebhooksService } from '../integrations/webhooks.service';
 import { pickAssignee } from './assignment';
 import { conditionRegistry, shapeOf, updateBody, type RuleAction, type RuleDefinition } from './rule-support';
+import { reachability } from '../customers/customers.service';
 
 type RuleRow = { id: string; name: string; resource_type: ShareType; trigger_type: string; definition: RuleDefinition; run_as: string; version: number };
 type RunStatus = 'succeeded' | 'skipped' | 'failed' | 'halted_depth' | 'halted_loop' | 'dead';
@@ -36,7 +37,8 @@ export function stableUuid(key: string): string {
 
 /** Mail produced by a run is enqueued only after its transaction commits (job id = run + action index, so a
  *  redelivered event re-enqueues the same jobs and the queue drops the duplicates). */
-interface PendingMail { jobId: string; userId: string; subject: string; body: string; recordType: string; recordId: string }
+/** To a member (`userId`) or, for `email_customer`, to the customer's address (`to`, checked for consent when queued). */
+interface PendingMail { jobId: string; userId?: string; to?: string; subject: string; body: string; recordType: string; recordId: string }
 interface PendingWebhook { tenantId: string; deliveryId: string; event: DomainEvent }
 
 export interface ProcessResult { rule: string; record: string; status: RunStatus | 'duplicate' }
@@ -278,6 +280,15 @@ export class AutomationRunner {
         mails.push(mail);
         return { type: action.type, userId, mail };
       }
+      case 'email_customer': {
+        if (type !== 'contact') throw new ProblemError('RULE_DEFINITION_INVALID', 'email_customer is for contact rules');
+        // B2C-06: never without the customer's e-mail consent; a blocked message is recorded, the run goes on.
+        const r = await reachability(tx, ctx.tenant.id, recordId, 'email');
+        if (!r.allowed || !r.address) return { type: action.type, blocked: r.reason ?? 'no_contact_point' };
+        const mail: PendingMail = { jobId: `mail-${stableUuid(jobId)}`, to: r.address, subject: action.subject, body: action.body, recordType: type, recordId };
+        mails.push(mail);
+        return { type: action.type, mail };
+      }
       case 'transition': {
         if (type === 'task') await this.tasks.transitionByKeyIn(tx, ctx, recordId, action.transitionKey);
         else if (isCrmType(type) && type !== 'account' && type !== 'contact') await this.crm.transitionIn(tx, ctx, type, recordId, { transitionKey: action.transitionKey });
@@ -295,6 +306,11 @@ export class AutomationRunner {
   }
 
   private async sendMail(ctx: TenantRequestContext, m: PendingMail): Promise<void> {
+    if (m.to) {
+      await this.mailer.send({ template: 'customer_message', to: m.to, locale: 'tr-TR', vars: { tenantName: ctx.tenant.name, subject: m.subject, body: m.body } }, { jobId: m.jobId });
+      return;
+    }
+    if (!m.userId) return;
     const r = await this.db.withTenant(dbCtx(ctx), (tx) => tx.execute<{ email: string; locale: string }>(sql`
       SELECT u.email::text AS email, u.locale FROM users u JOIN memberships m ON m.user_id = u.id WHERE u.id = ${m.userId} AND m.status = 'active'`));
     const u = r.rows[0];

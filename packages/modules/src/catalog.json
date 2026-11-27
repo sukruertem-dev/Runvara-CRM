@@ -626,6 +626,19 @@
       },
       "menu": [
         {
+          "id": "b2c_customers",
+          "labelKey": "module.sales_b2c.menu.customers",
+          "path": "/sales/b2c/customers",
+          "icon": "users",
+          "requires": [
+            "*record*.read"
+          ],
+          "salesModes": [
+            "b2c_only",
+            "both"
+          ]
+        },
+        {
           "id": "orders",
           "labelKey": "module.sales_b2c.menu.orders",
           "path": "/sales/b2c",

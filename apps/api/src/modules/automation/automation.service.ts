@@ -61,6 +61,7 @@ export class AutomationService {
         updateBody(d.resourceType, a.field, a.value);
       }
       if (a.type === 'transition' && !WORKFLOW_TYPES.has(d.resourceType)) bad(`${d.resourceType} has no workflow`);
+      if (a.type === 'email_customer' && d.resourceType !== 'contact') bad('email_customer is for contact rules');
       if (a.type === 'call_webhook') {
         const w = await tx.execute(sql`SELECT 1 FROM webhook_subscriptions WHERE id = ${a.subscriptionId}`);
         if ((w.rowCount ?? 0) === 0) bad('unknown webhook subscription');

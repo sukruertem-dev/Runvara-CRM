@@ -222,6 +222,20 @@ export const CONFIG_KEYS: readonly ConfigKeyDef[] = [
     default: { staleDays: 7, requireNextStep: false },
   },
   {
+    key: 'sales_b2c.consent_channels',
+    module: 'sales_b2c',
+    schemaVersion: 1,
+    description: 'B2C channels the workspace uses for customer communication (B2C-06); consent is kept per channel, a turned-off channel reaches no one.',
+    overridableAt: ['tenant'],
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['channels'],
+      properties: { channels: { type: 'array', uniqueItems: true, maxItems: 4, items: { enum: ['email', 'sms', 'phone', 'whatsapp'] } } },
+    },
+    default: { channels: ['email', 'sms', 'phone', 'whatsapp'] },
+  },
+  {
     key: 'approvals',
     module: 'core',
     schemaVersion: 1,
