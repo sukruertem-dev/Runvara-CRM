@@ -59,7 +59,8 @@
 | `opportunity.stale` | sales_b2b | opportunityId, idleDays, staleDays | bildirim, otomasyon |
 | `order.created` / `order.status_changed` | sales_b2c | fromStatus, toStatus, channel, sourceCallId | otomasyon, hedef, stok/finans webhook |
 | `return.requested` / `return.decided` | sales_b2c | amount, reason | onay, finans webhook |
-| `consent.changed` | sales_b2c | channel, granted | dialer, kampanya, tıkla-ara |
+| `consent.changed` | sales_b2c | channel, status | dialer, kampanya, tıkla-ara |
+| `customer.updated` | sales_b2c | changedFields | otomasyon |
 | `campaign.started` / `campaign.finished` | sales_b2c | | otomasyon |
 | `customer.rfm_recomputed` | sales_b2c | segmentChanges | otomasyon (geri kazanım) |
 | `target.at_risk` | sales_tracking | targetId, progress, expected | Yönetici bildirimi |

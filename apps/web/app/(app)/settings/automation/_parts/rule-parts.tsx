@@ -13,7 +13,7 @@ export type Action = RuleDefinition['actions'][number];
 export type Target = Extract<Action, { type: 'assign' }>['to'];
 
 export const TRIGGER_TYPES = ['record.created', 'record.updated', 'field_changed', 'status_changed', 'schedule', 'inbound_webhook', 'sla'] as const;
-export const ACTION_TYPES = ['update_field', 'create_task', 'assign', 'notify', 'send_email', 'transition', 'call_webhook'] as const;
+export const ACTION_TYPES = ['update_field', 'create_task', 'assign', 'notify', 'send_email', 'email_customer', 'transition', 'call_webhook'] as const;
 const SLA_RESOURCES: readonly Resource[] = ['case', 'task', 'lead'];
 
 /** Field names an action or a field_changed trigger may name (`^[a-zA-Z]…$` or `custom.cf_…`). */
@@ -36,6 +36,7 @@ export function defaultAction(type: Action['type'], fields: RqlField[]): Action 
     case 'assign': return { type, to: { kind: 'record_owner' } };
     case 'notify': return { type, to: { kind: 'record_owner' }, message: t('settings.rule.defaultMessage') };
     case 'send_email': return { type, to: { kind: 'record_owner' }, subject: t('settings.rule.defaultSubject'), body: t('settings.rule.defaultMessage') };
+    case 'email_customer': return { type, subject: t('settings.rule.defaultSubject'), body: t('settings.rule.defaultMessage') };
     case 'transition': return { type, transitionKey: 'start' };
     case 'call_webhook': return { type, subscriptionId: '' };
   }
@@ -213,6 +214,14 @@ export function ActionEditor({ action, onChange, fields, transitions, webhooks }
       return (
         <div className="flex flex-col gap-3">
           <TargetEditor label={t('settings.rule.recipient')} value={action.to} onChange={(to) => { onChange({ ...action, to }); }} />
+          <Field label={t('settings.rule.subject')}><Input value={action.subject} maxLength={200} onChange={(e) => { onChange({ ...action, subject: e.target.value }); }} /></Field>
+          <Field label={t('settings.rule.body')}><Textarea value={action.body} maxLength={5000} rows={4} onChange={(e) => { onChange({ ...action, body: e.target.value }); }} /></Field>
+        </div>
+      );
+    case 'email_customer':
+      return (
+        <div className="flex flex-col gap-3">
+          <p className="m-0 text-sm text-fg-muted">{t('settings.rule.customerConsent')}</p>
           <Field label={t('settings.rule.subject')}><Input value={action.subject} maxLength={200} onChange={(e) => { onChange({ ...action, subject: e.target.value }); }} /></Field>
           <Field label={t('settings.rule.body')}><Textarea value={action.body} maxLength={5000} rows={4} onChange={(e) => { onChange({ ...action, body: e.target.value }); }} /></Field>
         </div>

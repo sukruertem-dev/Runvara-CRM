@@ -14,6 +14,7 @@ import * as K from './catalog';
 import * as P from './approvals';
 import * as Q from './quotes';
 import * as BB from './b2b';
+import * as BC from './b2c';
 
 export type HttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 export type AuthMode = 'none' | 'access' | 'tenant' | 'refresh_cookie';
@@ -390,6 +391,15 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   { method: 'post', path: '/v1/sales/b2b/forecast/snapshots', summary: 'Record the forecast of a period as it is now', tag: 'forecast', auth: 'tenant', body: BB.ForecastSnapshotCreate, responses: { 201: BB.ForecastSnapshotView }, errors: [400, 401, 403, 404] },
   { method: 'get', path: '/v1/sales/b2b/opportunities/stale', summary: 'Open B2B opportunities untouched for the configured days', tag: 'forecast', auth: 'tenant', responses: { 200: BB.StaleOpportunityListResponse }, errors: [401, 404] },
   { method: 'get', path: '/v1/sales/b2b/opportunities/{id}/pulse', summary: 'Last touch, untouched warning and next step of an opportunity', tag: 'forecast', auth: 'tenant', responses: { 200: BB.OpportunityPulse }, errors: [401, 404] },
+  { method: 'get', path: '/v1/sales/b2c/customers', summary: 'B2C customers the caller may read (?q=&tag=&reachable=channel&cursor=&limit=)', tag: 'customers', auth: 'tenant', responses: { 200: BC.CustomerListResponse }, errors: [400, 401, 404] },
+  { method: 'get', path: '/v1/sales/b2c/customers/{id}', summary: 'Profile, addresses and channel consents of a B2C customer', tag: 'customers', auth: 'tenant', responses: { 200: BC.CustomerView }, errors: [401, 404] },
+  { method: 'put', path: '/v1/sales/b2c/customers/{id}/profile', summary: 'Preferred channel, language and tags (If-Match)', tag: 'customers', auth: 'tenant', body: BC.CustomerProfilePut, responses: { 200: BC.CustomerView }, errors: [400, 401, 403, 404, 412, 428] },
+  { method: 'post', path: '/v1/sales/b2c/customers/{id}/addresses', summary: 'Add an address', tag: 'customers', auth: 'tenant', body: BC.CustomerAddressInput, responses: { 201: BC.CustomerView }, errors: [400, 401, 403, 404] },
+  { method: 'put', path: '/v1/sales/b2c/customers/{id}/addresses/{addressId}', summary: 'Replace an address', tag: 'customers', auth: 'tenant', body: BC.CustomerAddressInput, responses: { 200: BC.CustomerView }, errors: [400, 401, 403, 404] },
+  { method: 'delete', path: '/v1/sales/b2c/customers/{id}/addresses/{addressId}', summary: 'Remove an address', tag: 'customers', auth: 'tenant', responses: { 200: BC.CustomerView }, errors: [401, 403, 404] },
+  { method: 'post', path: '/v1/sales/b2c/customers/{id}/consents', summary: 'Record a consent given or withdrawn for a channel (source and time)', tag: 'customers', auth: 'tenant', body: BC.ConsentSet, responses: { 200: BC.CustomerView }, errors: [400, 401, 403, 404, 422] },
+  { method: 'get', path: '/v1/sales/b2c/customers/{id}/consents/history', summary: 'Every consent change of the customer, newest first', tag: 'customers', auth: 'tenant', responses: { 200: BC.ConsentHistoryResponse }, errors: [400, 401, 403, 404] },
+  { method: 'get', path: '/v1/sales/b2c/customers/{id}/reachability', summary: 'May the customer be contacted on a channel now (?channel=)', tag: 'customers', auth: 'tenant', responses: { 200: BC.ReachabilityView }, errors: [400, 401, 404] },
   { method: 'get', path: '/v1/targets', summary: 'Targets running on a day with their attainment (?on=)', tag: 'targets', auth: 'tenant', responses: { 200: P.TargetListResponse }, errors: [400, 401, 403, 404] },
   { method: 'post', path: '/v1/targets', summary: 'Set a target for a person, team or segment', tag: 'targets', auth: 'tenant', body: P.TargetCreate, responses: { 201: P.TargetView }, errors: [400, 401, 403, 404, 409, 422] },
   { method: 'patch', path: '/v1/targets/{id}', summary: 'Change the target value (If-Match)', tag: 'targets', auth: 'tenant', body: P.TargetPatch, responses: { 200: P.TargetView }, errors: [400, 401, 403, 404, 412, 428] },

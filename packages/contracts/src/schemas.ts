@@ -112,6 +112,8 @@ export const UI_CAPABILITIES = [
   'sales_b2b.contract.manage',
   'sales_b2b.forecast.read',
   'sales_b2b.forecast.adjust',
+  'sales_b2c.consent.read',
+  'sales_b2c.consent.manage',
   'mentions.create',
 ] as const;
 
@@ -284,6 +286,13 @@ export const MailJob = z.discriminatedUnion('template', [
     to: z.string(),
     locale: Locale,
     vars: z.object({ tenantName: z.string(), subject: z.string(), body: z.string(), url: z.url() }),
+  }),
+  z.object({
+    /** To a B2C customer who gave e-mail consent (P9d); no link, the customer has no account. */
+    template: z.literal('customer_message'),
+    to: z.string(),
+    locale: Locale,
+    vars: z.object({ tenantName: z.string(), subject: z.string(), body: z.string() }),
   }),
   z.object({
     template: z.literal('quota_warning'),

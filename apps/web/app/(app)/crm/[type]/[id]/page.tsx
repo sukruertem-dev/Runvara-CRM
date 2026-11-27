@@ -40,6 +40,7 @@ import { DiscountPanel } from '../../../../_components/discount-panel';
 import { QuotesPanel } from '../../../../_components/quotes-panel';
 import { B2bPanels } from '../../../../_components/b2b-panels';
 import { PulsePanel } from '../../../../_components/pulse-panel';
+import { CustomerPanels } from '../../../../_components/customer-panels';
 import { BuyingRoles } from '../../../../_components/buying-roles';
 import { NotesPanel } from '../../../../_components/notes-panel';
 import { ActivityTabs, CommentsPanel, DescriptionEditor, FieldRow, Section, TimelineList, type RecordRef } from '../../../../_components/record-parts';
@@ -208,7 +209,9 @@ export default function CrmRecordPage() {
   const type = (TYPES.includes(params.type as CrmResource) ? params.type : 'account') as CrmResource;
   const id = params.id;
   const qc = useQueryClient();
-  const { me } = useApp();
+  const { me, nav } = useApp();
+  // B2C profile and consent on a contact: the module is on and the person works in B2C (P9d).
+  const b2cOn = (nav?.modules.some((m) => m.id === 'sales_b2c') ?? false) && (nav?.segments ?? []).includes('b2c');
   const { toast } = useToast();
   const [remoteChange, setRemoteChange] = useState(false);
   const q = useQuery({ queryKey: rk.record(type, id), queryFn: ({ signal }) => request<CrmRecord>(`/v1/${PATH[type]}/${id}`, { signal }) });
@@ -363,6 +366,7 @@ export default function CrmRecordPage() {
         </div>
         <div className="flex min-w-0 flex-col gap-4">
           {type === 'opportunity' && r['segment'] === 'b2b' ? <><PulsePanel opportunityId={r.id} open={(r['status'] as { category?: string } | undefined)?.category !== 'closed'} /><QuotesPanel opportunityId={r.id} /><B2bPanels opportunityId={r.id} won={(r['status'] as { category?: string } | undefined)?.category === 'closed' && Number(r['probability']) > 0} /><DiscountPanel opportunityId={r.id} /></> : null}
+          {type === 'contact' && ((r['segments'] as string[] | undefined) ?? []).includes('b2c') && b2cOn ? <CustomerPanels contactId={r.id} /> : null}
           <Related type={type} record={r} />
         </div>
       </div>

@@ -92,7 +92,7 @@ function Builder({ rule }: { rule: Rule | null }) {
   const wf = workflows.data?.data.find((w) => w.resourceType === def.resourceType && w.isDefault);
   const webhooksOn = nav?.modules.some((x) => x.id === 'api_webhooks') ?? false;
   const webhooks = useWebhooks(webhooksOn);
-  const actionTypes = ACTION_TYPES.filter((a) => (a !== 'call_webhook' || webhooksOn) && (a !== 'transition' || wf));
+  const actionTypes = ACTION_TYPES.filter((a) => (a !== 'call_webhook' || webhooksOn) && (a !== 'transition' || wf) && (a !== 'email_customer' || def.resourceType === 'contact'));
 
   const setDef = (patch: Partial<RuleDefinition>) => { setDraft((d) => ({ ...d, definition: { ...d.definition, ...patch } })); };
   const setAction = (i: number, a: Action) => { setDef({ actions: def.actions.map((x, j) => (j === i ? a : x)) }); };

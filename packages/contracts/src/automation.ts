@@ -45,6 +45,8 @@ export const AutomationAction = z.discriminatedUnion('type', [
   z.object({ type: z.literal('assign'), to: Target }).strict(),
   z.object({ type: z.literal('notify'), to: Target, message: z.string().trim().min(1).max(500) }).strict(),
   z.object({ type: z.literal('send_email'), to: Target, subject: z.string().trim().min(1).max(200), body: z.string().trim().min(1).max(5000) }).strict(),
+  /** E-mails the B2C customer (contact rules only); sent only with their e-mail consent, otherwise recorded as blocked. */
+  z.object({ type: z.literal('email_customer'), subject: z.string().trim().min(1).max(200), body: z.string().trim().min(1).max(5000) }).strict(),
   z.object({ type: z.literal('transition'), transitionKey: z.string().regex(/^[a-z][a-z0-9_]{1,47}$/) }).strict(),
   /** Sends the triggering event to a webhook subscription (signed, retried like any delivery). */
   z.object({ type: z.literal('call_webhook'), subscriptionId: Uuid }).strict(),
