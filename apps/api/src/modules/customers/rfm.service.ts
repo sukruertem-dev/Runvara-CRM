@@ -4,11 +4,12 @@ import { sql, type Db, type DbHandle } from '@flexa/db';
 import { authorize } from '../../common/authorize';
 import { buildTenantContext } from '../../common/guards';
 import { ProblemError } from '../../common/problem';
-import { recordPredicate } from '../../common/record-access';
+import { recordPredicate, uuidArray } from '../../common/record-access';
 import { dbCtx, type TenantRequestContext } from '../../common/request-context';
 import { DB, MAILER, type Mailer } from '../../infra/tokens';
 import { CRM } from '../crm/crm-objects';
 import { TasksService } from '../tasks/tasks.service';
+import { CampaignsService } from './campaigns.service';
 import { contactMask } from './customer-mask';
 import { reachability } from './customers.service';
 
@@ -19,7 +20,7 @@ type Segment = 'champions' | 'loyal' | 'new' | 'at_risk' | 'hibernating' | 'regu
 type Rules = { windowDays: number; hibernatingDays: number };
 type Step = { enabled: boolean; subject: string; body: string };
 type Automations = { abandonedOrder: Step & { afterHours: number }; repeatPurchase: Step & { afterDays: number }; winback: Step & { task: boolean } };
-type Mail = { to: string; jobId: string; subject: string; body: string; tenantName: string };
+type Mail = { to: string; jobId: string; subject: string; body: string; tenantName: string; tenantId: string; kind: string; key: string };
 
 async function setting<T>(tx: Db, tenantId: string, key: string): Promise<T> {
   const r = await tx.execute<{ value: JsonObject }>(sql`
@@ -47,7 +48,7 @@ export function rfmSegment(recencyDays: number, frequency: number, hibernatingDa
 export class RfmService {
   private readonly log = new Logger('b2c');
 
-  constructor(@Inject(DB) private readonly db: DbHandle, @Inject(MAILER) private readonly mailer: Mailer, private readonly tasks: TasksService) {}
+  constructor(@Inject(DB) private readonly db: DbHandle, @Inject(MAILER) private readonly mailer: Mailer, private readonly tasks: TasksService, private readonly campaigns: CampaignsService) {}
 
   // ------------------------------------------------------------------ reading
   async summary(t: TenantRequestContext, segment: Segment | undefined, limit: number) {
@@ -103,6 +104,8 @@ export class RfmService {
     for (const { tenant_id: tenantId } of await this.tenants()) {
       try {
         n += await this.automateTenant(tenantId);
+        n += await this.requeueTenant(tenantId);
+        n += await this.campaigns.requeue(tenantId);
       } catch (e) {
         this.log.warn(`b2c automations failed for a tenant: ${(e as Error).message}`);
       }
@@ -139,7 +142,11 @@ export class RfmService {
             rfm_score = EXCLUDED.rfm_score, rfm_segment = EXCLUDED.rfm_segment, rfm_at = EXCLUDED.rfm_at, last_order_at = EXCLUDED.last_order_at`);
         if (s.segment === 'hibernating' && r.was !== 'hibernating') entered.push(r.customer_id);
       }
-      const changed = rows.filter((r) => r.was !== rfmSegment(r.recency, r.frequency, rules.hibernatingDays).segment).length;
+      // No qualifying order any more (cancelled, returned): no RFM, so no segment-targeted discount or message.
+      const cleared = await tx.execute(sql`
+        UPDATE customer_profiles SET rfm_recency = NULL, rfm_frequency = NULL, rfm_monetary = NULL, rfm_score = NULL, rfm_segment = NULL, rfm_at = now(), last_order_at = NULL
+        WHERE rfm_segment IS NOT NULL AND NOT (contact_id = ANY(${uuidArray(rows.map((r) => r.customer_id))}))`);
+      const changed = rows.filter((r) => r.was !== rfmSegment(r.recency, r.frequency, rules.hibernatingDays).segment).length + (cleared.rowCount ?? 0);
       await tx.execute(sql`INSERT INTO outbox_events (tenant_id, type, segment, actor, payload, correlation_id)
         VALUES (${tenantId}, 'customer.rfm_recomputed', 'b2c', ${JSON.stringify({ type: 'system', id: null })}::jsonb,
           ${JSON.stringify({ customers: rows.length, segmentChanges: changed })}::jsonb, gen_random_uuid())`);
@@ -166,12 +173,40 @@ export class RfmService {
       VALUES (${tenantId}, ${kind}, ${key}, ${customerId}, ${r.allowed}, ${r.allowed ? null : (r.reason ?? 'no_consent')}, ${taskId})
       ON CONFLICT (tenant_id, kind, subject_key) DO NOTHING`);
     if ((claimed.rowCount ?? 0) === 0) return false;
-    if (r.allowed && r.address) mails.push({ to: r.address, jobId: `b2c-${kind}-${key}`.replace(/:/g, '-'), subject: step.subject, body: step.body, tenantName });
+    if (r.allowed && r.address) mails.push({ to: r.address, jobId: `b2c-${kind}-${key}`.replace(/:/g, '-'), subject: step.subject, body: step.body, tenantName, tenantId, kind, key });
     return true;
   }
 
+  /** Queues the mails after the commit and marks each run once its mail is on the queue (`requeueTenant` retries). */
   private async send(mails: readonly Mail[]): Promise<void> {
-    for (const m of mails) await this.mailer.send({ template: 'customer_message', to: m.to, locale: 'tr-TR', vars: { tenantName: m.tenantName, subject: m.subject, body: m.body } }, { jobId: m.jobId });
+    for (const m of mails) {
+      await this.mailer.send({ template: 'customer_message', to: m.to, locale: 'tr-TR', vars: { tenantName: m.tenantName, subject: m.subject, body: m.body } }, { jobId: m.jobId });
+      await this.db.withTenant({ tenantId: m.tenantId, userId: null, segments: ['b2c'] }, (tx) => tx.execute(sql`
+        UPDATE b2c_automation_runs SET queued_at = now() WHERE kind = ${m.kind} AND subject_key = ${m.key}`));
+    }
+  }
+
+  /** Automation mails that never reached the queue are queued again, consent asked again, with the current text. */
+  async requeueTenant(tenantId: string): Promise<number> {
+    const { due, a, name } = await this.db.withTenant({ tenantId, userId: null, segments: ['b2c'] }, async (tx) => ({
+      due: (await tx.execute<{ kind: 'abandoned_order' | 'repeat_purchase' | 'winback'; subject_key: string; customer_id: string }>(sql`
+        SELECT kind, subject_key, customer_id FROM b2c_automation_runs WHERE emailed AND queued_at IS NULL AND at < now() - interval '5 minutes' ORDER BY at LIMIT 1000`)).rows,
+      a: await setting<Automations>(tx, tenantId, 'sales_b2c.automations'),
+      name: (await tx.execute<{ name: string }>(sql`SELECT name FROM tenants`)).rows[0]?.name ?? '',
+    }));
+    const steps = { abandoned_order: a.abandonedOrder, repeat_purchase: a.repeatPurchase, winback: a.winback };
+    let n = 0;
+    for (const d of due) {
+      const r = await this.db.withTenant({ tenantId, userId: null, segments: ['b2c'] }, (tx) => reachability(tx, tenantId, d.customer_id, 'email'));
+      if (r.allowed && r.address) {
+        await this.mailer.send({ template: 'customer_message', to: r.address, locale: 'tr-TR', vars: { tenantName: name, subject: steps[d.kind].subject, body: steps[d.kind].body } },
+          { jobId: `b2c-${d.kind}-${d.subject_key}`.replace(/:/g, '-') });
+        n += 1;
+      }
+      await this.db.withTenant({ tenantId, userId: null, segments: ['b2c'] }, (tx) => tx.execute(sql`
+        UPDATE b2c_automation_runs SET queued_at = now() WHERE kind = ${d.kind} AND subject_key = ${d.subject_key}`));
+    }
+    return n;
   }
 
   async automateTenant(tenantId: string): Promise<number> {

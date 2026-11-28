@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { superQuery } from '@flexa/db/testing';
+import { CampaignsService } from '../src/modules/customers/campaigns.service';
 import { RfmService } from '../src/modules/customers/rfm.service';
 import { Client, PASSWORD, signupAndLogin, startHarness, uniq, type Harness, type Res } from './harness';
 
@@ -71,6 +72,11 @@ describe('campaigns and coupons (B2C-04)', () => {
     expect(ok(await w.c.get(`${K}/${String(draft.id)}`)).canApprove).toBe(true);
     expect(ok(await w.c.post(`${K}/${String(draft.id)}/approve`))).toMatchObject({ status: 'active', approvedBy: { id: expect.any(String) } });
     expect((ok(await w.rep.c.get(K)).data as Json[]).map((c) => c.status)).toEqual(['active']);
+    // A Manager's coupon on the running campaign starts off; only an Admin turns it on.
+    const k = ok(await w.mgr.c.post(`${K}/${String(draft.id)}/coupons`, { code: 'YONETICI100', discountPercent: '100' }), 201);
+    expect(k).toMatchObject({ active: false });
+    expect((await w.mgr.c.req('PATCH', `/v1/sales/b2c/coupons/${String(k.id)}`, { active: true })).status).toBe(403);
+    expect(ok(await w.c.req('PATCH', `/v1/sales/b2c/coupons/${String(k.id)}`, { active: true }))).toMatchObject({ active: true });
     // An Admin's own campaign starts at once.
     const own = ok(await campaign(w.c), 201);
     expect(ok(await w.c.post(`${K}/${String(own.id)}/submit`))).toMatchObject({ status: 'active' });
@@ -125,6 +131,25 @@ describe('campaigns and coupons (B2C-04)', () => {
     const rows = await sql(`SELECT customer_id::text AS c, outcome FROM campaign_deliveries WHERE tenant_id = $1 AND outcome = 'sent'`, [w.tenantId]);
     expect(rows.map((r) => r.c)).toEqual([vipOk]);
   });
+
+  it('a campaign mail lost after the commit is queued again by the hourly sweep', async () => {
+    const w = await setup();
+    await w.customer('Ayşe', 'ayse@ornek.test', { consent: true });
+    const k = ok(await campaign(w.c, { name: 'Kesinti', message: { subject: 'Kesinti testi', body: 'Merhaba.' } }), 201);
+    ok(await w.c.post(`${K}/${String(k.id)}/submit`));
+    const send = h.mailer.send.bind(h.mailer);
+    h.mailer.send = (job, opts) => (job.template === 'customer_message' ? Promise.reject(new Error('queue down')) : send(job, opts));
+    try {
+      expect((await w.c.post(`${K}/${String(k.id)}/send`)).status).toBe(500);
+    } finally {
+      h.mailer.send = send;
+    }
+    expect(h.mailer.jobs.filter((j) => j.template === 'customer_message' && j.vars.subject === 'Kesinti testi')).toEqual([]);
+    await sql(`UPDATE campaign_deliveries SET at = now() - interval '10 minutes' WHERE tenant_id = $1`, [w.tenantId]);
+    expect(await h.app.get(CampaignsService).requeue(w.tenantId)).toBe(1);
+    expect(await h.app.get(CampaignsService).requeue(w.tenantId)).toBe(0);
+    expect(h.mailer.jobs.filter((j) => j.template === 'customer_message' && j.vars.subject === 'Kesinti testi').map((j) => j.to)).toEqual(['ayse@ornek.test']);
+  });
 });
 
 describe('RFM and B2C automations (B2C-07)', () => {
@@ -155,6 +180,11 @@ describe('RFM and B2C automations (B2C-07)', () => {
     await h.app.get(RfmService).recomputeTenant(w.tenantId);
     expect((await sql(`SELECT count(*)::int AS n FROM tasks WHERE tenant_id = $1 AND title LIKE 'Geri kazanım:%'`, [w.tenantId]))[0]?.n).toBe(2);
     expect(ok(await w.rep.c.get('/v1/sales/b2c/rfm?segment=hibernating')).customers).toHaveLength(2);
+    // No qualifying order left (cancelled): the RFM goes away, so no segment-targeted offer.
+    const only = (ok(await w.rep.c.get(`${O}?customerId=${fresh}`)).data as Json[])[0];
+    ok(await w.rep.c.post(`${O}/${String(only?.id)}/step`, { step: 'cancel', note: 'Vazgeçti' }));
+    await h.app.get(RfmService).recomputeTenant(w.tenantId);
+    expect(ok(await w.rep.c.get(`${C}/${fresh}`)).rfm).toBeNull();
   });
 
   it('an abandoned order and a repeat purchase reminder, once each, with consent only', async () => {

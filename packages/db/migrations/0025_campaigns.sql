@@ -80,6 +80,8 @@ CREATE TABLE campaign_deliveries (
   outcome     text NOT NULL CHECK (outcome IN ('sent', 'blocked')),
   reason      text CHECK (reason IN ('not_b2c', 'no_consent', 'withdrawn', 'channel_disabled', 'no_contact_point')),
   at          timestamptz NOT NULL DEFAULT now(),
+  -- Set once the mail is on the queue; a `sent` row without it is retried (the queue de-duplicates by job id).
+  queued_at   timestamptz,
   UNIQUE (tenant_id, campaign_id, customer_id),
   CHECK ((outcome = 'blocked') = (reason IS NOT NULL)),
   FOREIGN KEY (tenant_id, campaign_id) REFERENCES campaigns (tenant_id, id) ON DELETE CASCADE,
@@ -108,6 +110,7 @@ CREATE TABLE b2c_automation_runs (
   blocked     text,
   task_id     uuid,
   at          timestamptz NOT NULL DEFAULT now(),
+  queued_at   timestamptz,
   UNIQUE (tenant_id, kind, subject_key),
   FOREIGN KEY (tenant_id, customer_id) REFERENCES contacts (tenant_id, id) ON DELETE CASCADE
 );
@@ -129,7 +132,10 @@ CREATE POLICY campaign_visible ON campaign_deliveries AS RESTRICTIVE USING (
 CREATE POLICY coupon_visible ON coupon_redemptions AS RESTRICTIVE USING (
   EXISTS (SELECT 1 FROM coupons c WHERE c.tenant_id = coupon_redemptions.tenant_id AND c.id = coupon_redemptions.coupon_id));
 GRANT SELECT, INSERT, UPDATE ON campaigns, coupons TO flexa_app;
-GRANT SELECT, INSERT ON coupon_redemptions, campaign_deliveries, b2c_automation_runs TO flexa_app;
+GRANT SELECT, INSERT ON coupon_redemptions TO flexa_app;
+GRANT SELECT, INSERT, UPDATE ON campaign_deliveries, b2c_automation_runs TO flexa_app;
+CREATE INDEX campaign_deliveries_unqueued ON campaign_deliveries (tenant_id, at) WHERE outcome = 'sent' AND queued_at IS NULL;
+CREATE INDEX b2c_automation_runs_unqueued ON b2c_automation_runs (tenant_id, at) WHERE emailed AND queued_at IS NULL;
 
 -- Workspaces with B2C on (the nightly RFM job and the B2C automations).
 CREATE FUNCTION app.b2c_tenants() RETURNS TABLE (tenant_id uuid, timezone text)

@@ -203,6 +203,8 @@ export class CampaignsService {
     this.b2c(t);
     authorize(t, 'sales_b2c.campaign.manage');
     return this.db.withTenant(dbCtx(t), async (tx) => {
+      // Locked first: the version and the draft state hold until this update commits.
+      await tx.execute(sql`SELECT 1 FROM campaigns WHERE id = ${id} FOR UPDATE`);
       const c = await this.one(tx, id);
       if (c.version !== ifMatch) throw new ProblemError('PRECONDITION_FAILED');
       if (c.status !== 'draft') throw new ProblemError('CAMPAIGN_STATE', 'only a draft is changed', { campaignStatus: c.status });
@@ -221,6 +223,7 @@ export class CampaignsService {
 
   private async move(t: TenantRequestContext, id: string, from: readonly string[], to: string, extra: SQL = sql``): Promise<void> {
     await this.db.withTenant(dbCtx(t), async (tx) => {
+      await tx.execute(sql`SELECT 1 FROM campaigns WHERE id = ${id} FOR UPDATE`);
       const c = await this.one(tx, id);
       if (!from.includes(c.status) || (c.status === 'active' && c.ended && to !== 'ended')) throw new ProblemError('CAMPAIGN_STATE', undefined, { campaignStatus: c.ended && c.status === 'active' ? 'ended' : c.status });
       await tx.execute(sql`UPDATE campaigns SET status = ${to}, version = version + 1 ${extra} WHERE id = ${id}`);
@@ -234,6 +237,7 @@ export class CampaignsService {
     const w = this.writeGrant(t, 'sales_b2c.campaign.manage');
     const to = w?.approvalNeeded ? 'pending_approval' : 'active';
     await this.db.withTenant(dbCtx(t), async (tx) => {
+      await tx.execute(sql`SELECT 1 FROM campaigns WHERE id = ${id} FOR UPDATE`);
       const c = await this.one(tx, id);
       if (c.status !== 'draft') throw new ProblemError('CAMPAIGN_STATE', undefined, { campaignStatus: c.status });
       await tx.execute(sql`UPDATE campaigns SET status = ${to}, version = version + 1 ${to === 'active' ? sql`, approved_by = ${t.principal.userId}` : sql``} WHERE id = ${id}`);
@@ -308,11 +312,11 @@ export class CampaignsService {
       await tx.execute(sql`SELECT 1 FROM campaigns WHERE id = ${id} FOR UPDATE`);
       const c = await this.one(tx, id);
       if (c.status !== 'active' || c.ended || c.sent_at || !c.message_subject || !c.message_body) throw new ProblemError('CAMPAIGN_STATE', 'an active campaign with a message, sent once', { campaignStatus: c.status });
-      const out: { to: string; jobId: string }[] = [];
+      const out: { to: string; jobId: string; customerId: string }[] = [];
       const blocked: Record<string, number> = {};
       for (const p of await this.audienceRows(tx, t, c)) {
         const r = await reachability(tx, t.tenant.id, p.id, 'email');
-        if (r.allowed && r.address) out.push({ to: r.address, jobId: `campaign-${id}-${p.id}` });
+        if (r.allowed && r.address) out.push({ to: r.address, jobId: `campaign-${id}-${p.id}`, customerId: p.id });
         else blocked[r.reason ?? 'no_consent'] = (blocked[r.reason ?? 'no_consent'] ?? 0) + 1;
         await tx.execute(sql`INSERT INTO campaign_deliveries (tenant_id, campaign_id, customer_id, outcome, reason) VALUES (${t.tenant.id}, ${id}, ${p.id},
           ${r.allowed ? 'sent' : 'blocked'}, ${r.allowed ? null : (r.reason ?? 'no_consent')})`);
@@ -324,24 +328,57 @@ export class CampaignsService {
       await audit(tx, t.tenant.id, { action: 'campaign.sent', actorType: 'user', actorId: t.principal.userId, targetType: 'campaign', targetId: id, details: { sent: out.length, blocked } });
       return { mails: out.map((m) => ({ ...m, subject: c.message_subject ?? '', body: c.message_body ?? '' })), result: { sent: out.length, blocked } };
     });
-    for (const m of mails) await this.mailer.send({ template: 'customer_message', to: m.to, locale: 'tr-TR', vars: { tenantName: t.tenant.name, subject: m.subject, body: m.body } }, { jobId: m.jobId });
+    for (const m of mails) {
+      await this.mailer.send({ template: 'customer_message', to: m.to, locale: 'tr-TR', vars: { tenantName: t.tenant.name, subject: m.subject, body: m.body } }, { jobId: m.jobId });
+      await this.db.withTenant(dbCtx(t), (tx) => tx.execute(sql`UPDATE campaign_deliveries SET queued_at = now() WHERE campaign_id = ${id} AND customer_id = ${m.customerId}`));
+    }
     return result;
+  }
+
+  /** Hourly: campaign mails that never reached the queue (a crash or a queue outage after the commit) are queued
+   *  again, with the consent asked again; the queue de-duplicates by job id. */
+  async requeue(tenantId: string): Promise<number> {
+    const due = await this.db.withTenant({ tenantId, userId: null, segments: ['b2c'] }, async (tx) => (await tx.execute<{ campaign_id: string; customer_id: string; subject: string; body: string; tenant_name: string }>(sql`
+      SELECT d.campaign_id, d.customer_id, c.message_subject AS subject, c.message_body AS body, (SELECT name FROM tenants) AS tenant_name
+      FROM campaign_deliveries d JOIN campaigns c ON c.id = d.campaign_id
+      WHERE d.outcome = 'sent' AND d.queued_at IS NULL AND d.at < now() - interval '5 minutes' ORDER BY d.at LIMIT 1000`)).rows);
+    let n = 0;
+    for (const d of due) {
+      const r = await this.db.withTenant({ tenantId, userId: null, segments: ['b2c'] }, (tx) => reachability(tx, tenantId, d.customer_id, 'email'));
+      if (r.allowed && r.address) {
+        await this.mailer.send({ template: 'customer_message', to: r.address, locale: 'tr-TR', vars: { tenantName: d.tenant_name, subject: d.subject, body: d.body } }, { jobId: `campaign-${d.campaign_id}-${d.customer_id}` });
+        n += 1;
+      }
+      // Withdrawn meanwhile: nothing goes out; the row is settled either way.
+      await this.db.withTenant({ tenantId, userId: null, segments: ['b2c'] }, (tx) => tx.execute(sql`
+        UPDATE campaign_deliveries SET queued_at = now() WHERE campaign_id = ${d.campaign_id} AND customer_id = ${d.customer_id}`));
+    }
+    return n;
   }
 
   // ------------------------------------------------------------------ coupons
   async addCoupon(t: TenantRequestContext, campaignId: string, body: z.infer<typeof CouponCreate>) {
     this.b2c(t);
     authorize(t, 'sales_b2c.coupon.manage');
+    // A26 `requires_approval`: a Manager's coupon on a campaign already approved or waiting is created off; an Admin
+    // turns it on. On a draft it goes through the campaign's own approval.
+    const needsApproval = this.writeGrant(t, 'sales_b2c.coupon.manage')?.approvalNeeded ?? true;
     return this.db.withTenant(dbCtx(t), async (tx) => {
+      await tx.execute(sql`SELECT 1 FROM campaigns WHERE id = ${campaignId} FOR UPDATE`);
       const c = await this.one(tx, campaignId);
       if (c.status === 'cancelled' || c.status === 'ended' || c.ended) throw new ProblemError('CAMPAIGN_STATE', undefined, { campaignStatus: c.status });
+      const active = !needsApproval || c.status === 'draft';
       try {
         const [k] = (await tx.execute<CouponRow>(sql`
-          INSERT INTO coupons (tenant_id, campaign_id, code, discount_percent, max_uses, per_customer_limit)
-          VALUES (${t.tenant.id}, ${campaignId}, ${body.code}, ${body.discountPercent}::numeric, ${body.maxUses}, ${body.perCustomerLimit})
+          INSERT INTO coupons (tenant_id, campaign_id, code, discount_percent, max_uses, per_customer_limit, active)
+          VALUES (${t.tenant.id}, ${campaignId}, ${body.code}, ${body.discountPercent}::numeric, ${body.maxUses}, ${body.perCustomerLimit}, ${active})
           RETURNING id, code, discount_percent::text AS discount_percent, max_uses, per_customer_limit, uses, active`)).rows;
         if (!k) throw new Error('coupon not written');
-        await audit(tx, t.tenant.id, { action: 'coupon.created', actorType: 'user', actorId: t.principal.userId, targetType: 'coupon', targetId: k.id, details: { code: k.code } });
+        await audit(tx, t.tenant.id, { action: 'coupon.created', actorType: 'user', actorId: t.principal.userId, targetType: 'coupon', targetId: k.id, details: { code: k.code, active } });
+        if (!active) {
+          const admins = await tx.execute<{ u: string }>(sql`SELECT ur.user_id::text AS u FROM user_roles ur JOIN roles r ON r.id = ur.role_id JOIN memberships m ON m.user_id = ur.user_id AND m.status = 'active' WHERE r.key = 'admin'`);
+          await notify(tx, t, { users: admins.rows.map((a) => a.u), kind: 'approval', sourceType: 'coupon', sourceId: k.id, recordType: 'campaign', recordId: campaignId, message: `${c.name.slice(0, 300)} · ${k.code}` });
+        }
         return { id: k.id, code: k.code, discountPercent: pct(k.discount_percent), maxUses: k.max_uses, perCustomerLimit: k.per_customer_limit, uses: k.uses, active: k.active };
       } catch (e) {
         if (isUniqueViolation(e)) throw new ProblemError('CONFLICT', 'a coupon with this code exists');
@@ -353,6 +390,12 @@ export class CampaignsService {
   async patchCoupon(t: TenantRequestContext, id: string, active: boolean) {
     this.b2c(t);
     authorize(t, 'sales_b2c.coupon.manage');
+    // Turning a coupon on is the approval: not for a grant that needs one (a Manager may still turn it off).
+    if (active && (this.writeGrant(t, 'sales_b2c.coupon.manage')?.approvalNeeded ?? true)) {
+      const draft = await this.db.withTenant(dbCtx(t), async (tx) => (await tx.execute(sql`
+        SELECT 1 FROM coupons k JOIN campaigns c ON c.id = k.campaign_id WHERE k.id = ${id} AND c.status = 'draft'`)).rowCount ?? 0);
+      if (draft === 0) throw new ProblemError('FORBIDDEN', 'an Admin turns this coupon on');
+    }
     return this.db.withTenant(dbCtx(t), async (tx) => {
       const [k] = (await tx.execute<CouponRow>(sql`UPDATE coupons SET active = ${active} WHERE id = ${id}
         RETURNING id, code, discount_percent::text AS discount_percent, max_uses, per_customer_limit, uses, active`)).rows;
