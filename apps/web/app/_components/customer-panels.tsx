@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { errorText } from '../../lib/catalog';
 import { CHANNELS, SOURCES, useConsentHistory, useCustomer, useDeleteAddress, usePutProfile, useSaveAddress, useSetConsent, type Channel, type Customer } from '../../lib/customers';
 import { dateTime } from '../../lib/format';
-import { t } from '../../lib/i18n';
+import { t, tOptional } from '../../lib/i18n';
 import { CustomerOrders, CustomerPrivacy } from './customer-orders';
 import { Section } from './record-parts';
 
@@ -53,6 +53,13 @@ function ProfilePanel({ customer }: { customer: Customer }) {
   }
   return (
     <Section title={t('customer.profile')} testId="customer-profile">
+      {customer.rfm ? (
+        <p className="m-0 mb-3 flex flex-wrap items-center gap-2 text-sm" data-testid="customer-rfm">
+          <Badge tone="neutral">RFM {customer.rfm.score}</Badge>
+          <span>{tOptional(`rfm.segment.${customer.rfm.segment}`) ?? customer.rfm.segment}</span>
+          <span className="text-fg-muted">{t('rfm.line', { days: String(customer.rfm.recencyDays), orders: String(customer.rfm.frequency) })}</span>
+        </p>
+      ) : null}
       <form method="post" className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); save(); }}>
         <fieldset disabled={!customer.canEdit} className="m-0 flex flex-col gap-3 border-0 p-0">
           <div className="grid gap-3 sm:grid-cols-2">

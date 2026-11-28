@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useApp } from '../../lib/app-context';
+import { checkCoupon } from '../../lib/campaigns';
 import { errorText, useProducts } from '../../lib/catalog';
 import type { Customer } from '../../lib/customers';
 import { formatDate } from '../../lib/format';
@@ -54,11 +55,13 @@ function NewOrderDialog({ customer, onClose }: { customer: Customer; onClose: ()
   const [address, setAddress] = useState<string>(customer.addresses.find((a) => a.isDefault)?.id ?? NONE);
   const [payment, setPayment] = useState<(typeof PAYMENTS)[number]>('pending');
   const [note, setNote] = useState('');
+  const [coupon, setCoupon] = useState('');
+  const [couponInfo, setCouponInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const valid = lines.length > 0 && lines.every((l) => /^\d+(\.\d{1,3})?$/.test(l.quantity) && Number(l.quantity) > 0);
   function save(): void {
     setError(null);
-    create.mutateAsync({ customerId: customer.id, channel, lines: lines.map((l) => ({ productId: l.productId, quantity: l.quantity })), shippingAddressId: address === NONE ? null : address, paymentStatus: payment, note: note.trim() }).then(
+    create.mutateAsync({ customerId: customer.id, channel, lines: lines.map((l) => ({ productId: l.productId, quantity: l.quantity })), shippingAddressId: address === NONE ? null : address, paymentStatus: payment, note: note.trim(), ...(coupon.trim() ? { couponCode: coupon.trim() } : {}) }).then(
       (o) => { router.push(`/sales/b2c/orders/${o.id}`); },
       (e: unknown) => { setError(errorText(e)); },
     );
@@ -92,6 +95,15 @@ function NewOrderDialog({ customer, onClose }: { customer: Customer; onClose: ()
             <Select aria-label={t('b2corder.shipTo')} value={address} onValueChange={setAddress}
               options={[{ value: NONE, label: '—' }, ...customer.addresses.map((a) => ({ value: a.id, label: `${a.label || a.city} · ${a.line1}` }))]} />
           </Field>
+          <div className="flex items-end gap-2">
+            <div className="flex-1"><Field label={t('coupon.code')} hint={couponInfo ?? undefined}><Input value={coupon} maxLength={40} onChange={(e) => { setCoupon(e.target.value.toUpperCase()); setCouponInfo(null); }} data-testid="order-coupon" /></Field></div>
+            <Button variant="secondary" size="sm" disabled={!coupon.trim()} onClick={() => {
+              checkCoupon(coupon.trim(), customer.id).then(
+                (r) => { setCouponInfo(r.valid ? t('coupon.valid', { percent: r.discountPercent ?? '' }) : t(`coupon.reason.${r.reason ?? 'unknown'}`)); },
+                (e: unknown) => { setCouponInfo(errorText(e)); },
+              );
+            }} data-testid="order-coupon-check">{t('coupon.check')}</Button>
+          </div>
           <Field label={t('b2corder.note')}><Textarea value={note} maxLength={4000} rows={2} onChange={(e) => { setNote(e.target.value); }} /></Field>
           <p className="m-0 text-xs text-fg-muted">{t('b2corder.priceHint')}</p>
           <DialogFooter>
