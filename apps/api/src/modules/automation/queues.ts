@@ -8,6 +8,7 @@ import { TargetsService } from '../approvals/targets.service';
 import { QuotesService } from '../quotes/quotes.service';
 import { B2bService } from '../quotes/b2b.service';
 import { ForecastService } from '../quotes/forecast.service';
+import { RfmService } from '../customers/rfm.service';
 import { SlaService } from '../integrations/sla.service';
 import { WebhooksService } from '../integrations/webhooks.service';
 import { DeliveryService } from '../records/delivery.service';
@@ -67,6 +68,7 @@ export class AutomationQueues implements OnModuleInit, OnApplicationShutdown {
     private readonly quotes: QuotesService,
     private readonly b2b: B2bService,
     private readonly forecast: ForecastService,
+    private readonly rfm: RfmService,
   ) {
     this.events = new Queue(EVENTS_QUEUE, { connection: redis, defaultJobOptions: EVENT_JOB_OPTIONS });
     this.shards = Array.from({ length: env.EVENT_SHARDS }, (_, i) => new Queue(eventShardQueue(i), { connection: redis, defaultJobOptions: EVENT_JOB_OPTIONS }));
@@ -127,6 +129,8 @@ export class AutomationQueues implements OnModuleInit, OnApplicationShutdown {
       else if (job.name === 'contract-due') await this.b2b.runDue();
       else if (job.name === 'forecast-snapshot') await this.forecast.snapshotAll();
       else if (job.name === 'stale-scan') await this.forecast.scanStale();
+      else if (job.name === 'rfm-recompute') await this.rfm.recomputeAll();
+      else if (job.name === 'b2c-automations') await this.rfm.runAutomations();
       else if (job.name === 'quote-deliver') await this.quotes.deliverDue();
       else if (job.name === 'delivery-watch') await this.delivery.watch();
       else if (job.name === 'target-risk') await this.targets.scanRisk();
@@ -148,6 +152,9 @@ export class AutomationQueues implements OnModuleInit, OnApplicationShutdown {
     // Weekly forecast snapshots (catalogue cron, Monday 01:00 UTC) and the untouched-opportunity scan (TRK-05).
     void this.slaCheckQueue.upsertJobScheduler('forecast-snapshot', { pattern: '0 1 * * 1' }, { name: 'forecast-snapshot' });
     void this.slaCheckQueue.upsertJobScheduler('stale-scan', { every: 3_600_000 }, { name: 'stale-scan' });
+    // Nightly RFM (catalogue cron `sales_b2c.rfm.recompute`, then win-back) and the hourly B2C automations (B2C-07).
+    void this.slaCheckQueue.upsertJobScheduler('rfm-recompute', { pattern: '0 2 * * *' }, { name: 'rfm-recompute' });
+    void this.slaCheckQueue.upsertJobScheduler('b2c-automations', { every: 3_600_000 }, { name: 'b2c-automations' });
     void this.slaCheckQueue.upsertJobScheduler('quote-expire', { every: 3_600_000 }, { name: 'quote-expire' });
     // E-mails of sent quotes the mail queue did not take.
     void this.slaCheckQueue.upsertJobScheduler('quote-deliver', { every: 60_000 }, { name: 'quote-deliver' });

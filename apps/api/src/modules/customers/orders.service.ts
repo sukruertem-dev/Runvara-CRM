@@ -15,6 +15,7 @@ import { dbCtx, type TenantRequestContext } from '../../common/request-context';
 import { DB } from '../../infra/tokens';
 import { PricingService } from '../catalog/pricing.service';
 import { CRM, readCrmRow, type CrmRow } from '../crm/crm-objects';
+import { discountFor, redeemCoupon } from './campaigns.service';
 import { contactMask } from './customer-mask';
 
 // P9e (docs/p9-plan.md §30–35): B2C orders — catalogue lines priced from the B2C price lists, channel, payment status,
@@ -23,7 +24,8 @@ import { contactMask } from './customer-mask';
 
 type OrderRow = {
   id: string; number: string; customer_id: string; full_name: string; owner_user_id: string; channel: 'web' | 'store' | 'phone' | 'social'; status: B2cOrderStatus;
-  payment_status: 'pending' | 'paid' | 'failed' | 'refunded' | 'partially_refunded'; currency: string; totals: { net?: string; tax?: string; total?: string };
+  payment_status: 'pending' | 'paid' | 'failed' | 'refunded' | 'partially_refunded'; currency: string; totals: { subtotal?: string; discount?: string; net?: string; tax?: string; total?: string };
+  discount_percent: string; campaign_id: string | null; campaign_name: string | null; coupon_code: string | null;
   shipping_address: Record<string, string> | null; carrier: string | null; tracking_number: string | null; note: string; created_by: string; creator_name: string;
   created_at: string; version: number;
 };
@@ -74,11 +76,21 @@ export class OrdersService {
 
   // ------------------------------------------------------------------ orders: reading
   private async orderRows(tx: Db, t: TenantRequestContext, where: SQL, limit = 100): Promise<OrderRow[]> {
+    // The page of orders first, newest first along the index, the customer's visibility checked per order; then
+    // the details. Driving from the customers instead sorts every matching order (AC-G5-4, docs/perf/p9-b2c-orders.md).
     return (await tx.execute<OrderRow>(sql`
+      WITH page AS MATERIALIZED (
+        SELECT o.id FROM orders o
+        WHERE o.segment = 'b2c' AND ${where}
+          AND EXISTS (SELECT 1 FROM contacts t WHERE t.tenant_id = o.tenant_id AND t.id = o.customer_id AND t.deleted_at IS NULL AND ${await recordPredicate(tx, t, CRM.contact.shape, 'read')})
+        ORDER BY o.id DESC LIMIT ${limit}
+      )
       SELECT o.id, o.number, o.customer_id, t.full_name, t.owner_user_id, o.channel, o.status, o.payment_status, o.currency, o.totals, o.shipping_address,
-        o.carrier, o.tracking_number, o.note, o.created_by, u.display_name AS creator_name, o.created_at, o.version
-      FROM orders o JOIN contacts t ON t.tenant_id = o.tenant_id AND t.id = o.customer_id JOIN users u ON u.id = o.created_by
-      WHERE ${await this.visible(tx, t)} AND ${where} ORDER BY o.id DESC LIMIT ${limit}`)).rows;
+        o.carrier, o.tracking_number, o.note, o.created_by, u.display_name AS creator_name, o.created_at, o.version,
+        trim_scale(o.discount_percent)::text AS discount_percent, o.campaign_id, cm.name AS campaign_name, cp.code AS coupon_code
+      FROM page JOIN orders o ON o.id = page.id JOIN contacts t ON t.tenant_id = o.tenant_id AND t.id = o.customer_id JOIN users u ON u.id = o.created_by
+        LEFT JOIN campaigns cm ON cm.id = o.campaign_id LEFT JOIN coupons cp ON cp.id = o.coupon_id
+      ORDER BY o.id DESC`)).rows;
   }
 
   private summary(t: TenantRequestContext, o: OrderRow) {
@@ -106,7 +118,10 @@ export class OrdersService {
     return {
       ...this.summary(t, o),
       deliveryStatus: b2cDeliveryStatus(o.status),
-      totals: { net: money(o.totals.net, d), tax: money(o.totals.tax, d), total: money(o.totals.total, d) },
+      totals: {
+        subtotal: money(o.totals.subtotal ?? o.totals.net, d), discount: money(o.totals.discount, d), net: money(o.totals.net, d), tax: money(o.totals.tax, d), total: money(o.totals.total, d),
+      },
+      discount: { percent: o.discount_percent, campaign: o.campaign_id ? { id: o.campaign_id, name: o.campaign_name ?? '' } : null, coupon: o.coupon_code },
       lines: lines.map((l) => ({
         id: l.id, productId: l.product_id, sku: l.sku, name: l.name, unit: l.unit, quantity: trimQty(l.quantity), unitPrice: l.unit_price, taxPercent: l.tax_percent,
         net: money(l.net, d), tax: money(l.tax, d), total: money((Number(l.net) + Number(l.tax)).toFixed(d), d), returnedQuantity: trimQty(l.returned),
@@ -171,7 +186,9 @@ export class OrdersService {
         const unitPrice = prices.data[i]?.price?.unitPrice ?? '0';
         return { ...l, sku: p?.sku ?? '', name: p?.name ?? '', unit: p?.unit ?? '', unitPrice, taxPercent: p?.tax ?? '0' };
       });
-      const priced = priceQuote(lines.map((l) => ({ quantity: l.quantity, unitPrice: l.unitPrice, listPrice: l.unitPrice, discountPercent: '0', taxPercent: l.taxPercent })), '0', currency);
+      // Campaign discount and coupon (B2C-04): the conflict rule decides; the coupon row stays locked until commit.
+      const discount = await discountFor(tx, t, body.customerId, body.couponCode);
+      const priced = priceQuote(lines.map((l) => ({ quantity: l.quantity, unitPrice: l.unitPrice, listPrice: l.unitPrice, discountPercent: '0', taxPercent: l.taxPercent })), discount.percent, currency);
       let address: Record<string, string> | null = null;
       if (body.shippingAddressId) {
         const [a] = (await tx.execute<Record<string, string>>(sql`
@@ -181,15 +198,18 @@ export class OrdersService {
       }
       const number = await nextDocumentNumber(tx, t, 'order');
       const [o] = (await tx.execute<{ id: string }>(sql`
-        INSERT INTO orders (tenant_id, number, segment, customer_id, channel, status, payment_status, currency, totals, shipping_address, note, created_by)
+        INSERT INTO orders (tenant_id, number, segment, customer_id, channel, status, payment_status, currency, totals, shipping_address, note, created_by,
+          discount_percent, campaign_id, coupon_id)
         VALUES (${t.tenant.id}, ${number}, 'b2c', ${body.customerId}, ${body.channel}, 'new', ${body.paymentStatus}, ${currency},
-          ${JSON.stringify({ net: priced.totals.net, tax: priced.totals.tax, total: priced.totals.total })}::jsonb, ${address ? JSON.stringify(address) : null}::jsonb, ${body.note}, ${t.principal.userId})
+          ${JSON.stringify(priced.totals)}::jsonb, ${address ? JSON.stringify(address) : null}::jsonb, ${body.note}, ${t.principal.userId},
+          ${discount.percent}::numeric, ${discount.campaignId}, ${discount.couponId})
         RETURNING id`)).rows;
       if (!o) throw new Error('order not written');
+      if (discount.couponId) await redeemCoupon(tx, t, discount.couponId, o.id, body.customerId);
       for (const [i, l] of lines.entries()) {
         const x = priced.lines[i];
         await tx.execute(sql`INSERT INTO order_lines (tenant_id, order_id, position, product_id, sku, name, unit, quantity, unit_price, discount_percent, tax_percent, net, tax)
-          VALUES (${t.tenant.id}, ${o.id}, ${i}, ${l.productId}, ${l.sku}, ${l.name}, ${l.unit}, ${l.quantity}::numeric, ${l.unitPrice}::numeric, 0, ${l.taxPercent}::numeric, ${x?.net ?? '0'}::numeric, ${x?.tax ?? '0'}::numeric)`);
+          VALUES (${t.tenant.id}, ${o.id}, ${i}, ${l.productId}, ${l.sku}, ${l.name}, ${l.unit}, ${l.quantity}::numeric, ${l.unitPrice}::numeric, ${discount.percent}::numeric, ${l.taxPercent}::numeric, ${x?.net ?? '0'}::numeric, ${x?.tax ?? '0'}::numeric)`);
       }
       await this.history(tx, t, o.id, 'status', null, 'new', '');
       await this.history(tx, t, o.id, 'payment', null, body.paymentStatus, '');

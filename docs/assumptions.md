@@ -154,3 +154,8 @@
 | B116 | İade onay limiti | Yönetici, ekibinin müşterilerine ait iadeleri `managerLimit` tutarına kadar onaylar (varsayılan 5000, kur yok); üstü Admin. Kendi talebine kimse karar veremez | p9-plan §32 |
 | B117 | İade tutarı | Kalemin KDV dahil tutarı × iade miktarı / sipariş miktarı, para biriminin küsuratına yuvarlanır | p9-plan §32 |
 | B118 | KVKK anonimleştirme | Kimlik verisi silinir, siparişler ve iadeler muhasebe için kalır, izinler geri çekilir. Admin ve müşteri adının yeniden yazılması gerekir | p9-plan §34 |
+| B119 | RFM okuma izni | `sales_b2c.rfm.read` matriste yoktu; A25 satırına (rıza kayıtları) eklendi: aynı kapsam | p9-plan §42 |
+| B120 | Kampanya onayı | Yöneticinin kampanyası (A26 `requires_approval`) Admin onayıyla başlar; Admin'inki doğrudan. Kampanya yetkisi müşteri kapsamıyla daralmaz, hedef ise gönderenin görebildiği müşterilerdir | p9-plan §39, §41 |
+| B121 | Çakışma kuralı | Otomatik kampanya indirimi ile kupon toplanır; biri birleşmez işaretliyse büyük olan tek başına geçerli; üst sınır %100 | p9-plan §40 |
+| B122 | RFM eşikleri | Mutlak bantlar (R: 30/60/90 gün ve uyku eşiği; F: 1/2/3/5/10 sipariş); M göreli beşte birlik dilim. İptal ve iade edilmiş siparişler sayılmaz | p9-plan §42 |
+| B123 | B2C otomasyonları | Yerleşik üç otomasyon, varsayılan kapalı; her konu için bir kez; e-posta yalnızca izinle. İleti dili şimdilik Türkçe şablon | p9-plan §43 |

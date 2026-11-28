@@ -78,6 +78,12 @@ function Order({ o }: { o: B2cOrder }) {
           </tbody>
         </table>
         <dl className="m-0 mt-3 grid grid-cols-2 gap-1 text-sm sm:ml-auto sm:w-72" data-testid="b2corder-totals">
+          {o.totals.discount !== '0.00' ? (
+            <>
+              <dt className="text-fg-muted">{t('b2corder.discount', { percent: o.discount.percent })}{o.discount.coupon ? ` · ${o.discount.coupon}` : ''}</dt>
+              <dd className="m-0 text-right tabular-nums" data-testid="b2corder-discount">−{quoteMoney(o.totals.discount, o.currency)}</dd>
+            </>
+          ) : null}
           <dt className="text-fg-muted">{t('quote.net')}</dt><dd className="m-0 text-right tabular-nums">{quoteMoney(o.totals.net, o.currency)}</dd>
           <dt className="text-fg-muted">{t('quote.tax')}</dt><dd className="m-0 text-right tabular-nums">{quoteMoney(o.totals.tax, o.currency)}</dd>
           <dt className="font-semibold">{t('quote.total')}</dt><dd className="m-0 text-right font-semibold tabular-nums">{quoteMoney(o.totals.total, o.currency)}</dd>

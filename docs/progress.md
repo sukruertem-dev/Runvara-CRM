@@ -1,5 +1,20 @@
 # İlerleme
 
+## P9f — G5: kampanya, kupon, RFM, otomasyonlar · 2026-11-28 · ✅ (CI PR'da çalışacak)
+
+> `docs/p9-plan.md` §39–47. **P9 bitti (G4 + G5).** Sıradaki faz `docs/phase-plan.md` sırasıyla P10.
+
+### Yapılanlar
+- **Kampanya:** tarih, indirim, çakışma kuralı, etiket ve RFM hedefi; Yönetici kampanyası Admin onayıyla başlar; hedef önizlemesi; ileti yalnızca izinliye (teslim kaydı nedeniyle).
+- **Kupon:** kod, kullanım ve müşteri başına sınır; siparişte otomatik kampanya indirimiyle çakışma kuralı.
+- **RFM:** gecelik hesap, segment ekranı, müşteri profilinde RFM.
+- **Otomasyonlar:** terk edilmiş sipariş, tekrar satın alma, geri kazanım görevi; hepsi izinli e-postayla.
+- **Ölçüm:** 100 bin siparişte liste p95 < 200 ms; sorgu yeniden yapılandırıldı. **Göç** `0025_campaigns.sql`.
+
+### Testler
+- API entegrasyon: yeni `campaigns.int.test.ts` (5 test); performans: `b2c-orders.perf.test.ts`.
+- E2E: yeni `campaigns.spec.ts` (1 test; axe).
+
 ## P9e — G5: B2C sipariş, iade, KVKK · 2026-11-28 · ✅ (CI PR'da çalışacak)
 
 > `docs/p9-plan.md` §30–37. Sıradaki P9f (kampanya, kupon, RFM, otomasyonlar, 100 bin sipariş ölçümü); G5 orada biter.

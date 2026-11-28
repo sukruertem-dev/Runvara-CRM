@@ -47,6 +47,7 @@ export default function B2cOrdersPage() {
         <h1 className="m-0 flex-1 font-display text-xl font-bold">{t('b2corder.title')}</h1>
         <Button asChild variant="secondary" size="sm"><Link href="/sales/b2c/returns" data-testid="returns-link">{t('return.title')}</Link></Button>
         <Button asChild variant="secondary" size="sm"><Link href="/sales/b2c/customers">{t('customer.title')}</Link></Button>
+        <Button asChild variant="secondary" size="sm"><Link href="/sales/b2c/campaigns" data-testid="campaigns-link">{t('campaign.title')}</Link></Button>
       </div>
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
         <Input type="search" value={text} onChange={(e) => { setText(e.target.value); }} aria-label={t('b2corder.search')} placeholder={t('b2corder.search')} />

@@ -95,8 +95,10 @@ export class CustomersService {
   // ------------------------------------------------------------------ reading
   private async view(tx: Db, t: TenantRequestContext, row: CrmRow) {
     const id = row.id;
-    const [p] = (await tx.execute<{ preferred_channel: Channel | null; language: 'tr' | 'en' | null; tags: string[]; version: number }>(sql`
-      SELECT preferred_channel, language, tags, version FROM customer_profiles WHERE contact_id = ${id}`)).rows;
+    const [p] = (await tx.execute<{ preferred_channel: Channel | null; language: 'tr' | 'en' | null; tags: string[]; version: number;
+      rfm_segment: string | null; rfm_score: string | null; rfm_recency: number | null; rfm_frequency: number | null; rfm_monetary: string | null; rfm_at: string | null }>(sql`
+      SELECT preferred_channel, language, tags, version, rfm_segment, rfm_score, rfm_recency, rfm_frequency, rfm_monetary::text AS rfm_monetary, rfm_at
+      FROM customer_profiles WHERE contact_id = ${id}`)).rows;
     const addresses = (await tx.execute<AddressRow>(sql`
       SELECT id, label, recipient, line1, line2, district, city, postal_code, country, is_default FROM customer_addresses WHERE contact_id = ${id} ORDER BY is_default DESC, created_at, id`)).rows;
     const owner = (await tx.execute<{ display_name: string }>(sql`SELECT display_name FROM users WHERE id = ${row.owner_user_id}`)).rows[0];
@@ -115,6 +117,10 @@ export class CustomersService {
         const c = consents.find((x) => x.channel === channel);
         return { channel, consent: c ? consentView(c) : null };
       }) : [],
+      rfm: p?.rfm_segment && can(t.authz, 'sales_b2c.rfm.read', 'read').allow ? {
+        segment: p.rfm_segment, score: p.rfm_score ?? '', recencyDays: p.rfm_recency ?? 0, frequency: p.rfm_frequency ?? 0,
+        monetary: Number(p.rfm_monetary ?? 0).toFixed(2), at: iso(p.rfm_at ?? new Date().toISOString()),
+      } : null,
       canEdit: await this.mayEdit(tx, t, id),
       canManageConsent: this.consentAllowed(t, row.owner_user_id, 'sales_b2c.consent.manage'),
       version: p?.version ?? 0,

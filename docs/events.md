@@ -64,8 +64,8 @@
 | `order.status_changed` / `order.payment_changed` (B2C) | sales_b2c | orderId | stok, finans, otomasyon |
 | `return.requested` / `return.approved` / `return.rejected` / `return.cancelled` | sales_b2c | returnId | stok, finans |
 | `customer.anonymized` | sales_b2c | — | entegrasyonlar (KVKK) |
-| `campaign.started` / `campaign.finished` | sales_b2c | | otomasyon |
-| `customer.rfm_recomputed` | sales_b2c | segmentChanges | otomasyon (geri kazanım) |
+| `campaign.started` | sales_b2c | campaignId, sent | otomasyon |
+| `customer.rfm_recomputed` | sales_b2c | customers, segmentChanges | otomasyon (geri kazanım) |
 | `target.at_risk` | sales_tracking | targetId, progress, expected | Yönetici bildirimi |
 | `call.ringing` | call_center | callId, direction, match (known/multiple/unknown) | ekran açma (SSE), wallboard |
 | `call.answered` / `call.held` / `call.resumed` / `call.transferred` | call_center | agentUserId | wallboard, durum |
