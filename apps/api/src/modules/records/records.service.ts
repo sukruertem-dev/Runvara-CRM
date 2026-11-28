@@ -66,9 +66,11 @@ export class RecordsService {
       // Field-level security: diffs of fields the reader may not see are removed (an event that only
       // touched hidden fields disappears entirely).
       const hidden = type === 'task' ? new Set<string>() : hiddenFields(t, type);
+      // An anonymized customer (KVKK): what changed is still shown, the old values are not.
+      const erased = type === 'contact' && ((await tx.execute(sql`SELECT 1 FROM contacts WHERE id = ${id} AND anonymized_at IS NOT NULL`)).rowCount ?? 0) > 0;
       const rows = r.rows.slice(0, limit);
       const data = rows.flatMap((e) => {
-        const diff = Object.fromEntries(Object.entries(e.diff).filter(([k]) => !hidden.has(k)));
+        const diff = Object.fromEntries(Object.entries(e.diff).filter(([k]) => !hidden.has(k)).map(([k, v]) => [k, erased ? { from: null, to: null } : v]));
         if (e.kind === 'field_changed' && Object.keys(diff).length === 0) return [];
         return [{
           id: e.id, kind: e.kind, actor: e.actor_id ? { id: e.actor_id, displayName: e.actor_name } : null, diff, data: e.data,

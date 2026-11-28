@@ -61,6 +61,9 @@
 | `return.requested` / `return.decided` | sales_b2c | amount, reason | onay, finans webhook |
 | `consent.changed` | sales_b2c | channel, status | dialer, kampanya, tıkla-ara |
 | `customer.updated` | sales_b2c | changedFields | otomasyon |
+| `order.status_changed` / `order.payment_changed` (B2C) | sales_b2c | orderId | stok, finans, otomasyon |
+| `return.requested` / `return.approved` / `return.rejected` / `return.cancelled` | sales_b2c | returnId | stok, finans |
+| `customer.anonymized` | sales_b2c | — | entegrasyonlar (KVKK) |
 | `campaign.started` / `campaign.finished` | sales_b2c | | otomasyon |
 | `customer.rfm_recomputed` | sales_b2c | segmentChanges | otomasyon (geri kazanım) |
 | `target.at_risk` | sales_tracking | targetId, progress, expected | Yönetici bildirimi |

@@ -190,7 +190,8 @@ matrix_a:
   - id: A16
     label: İade / iptal onayı
     module: sales_b2c
-    permissions: [sales_b2c.return.approve]
+    # Asking for a return is a request on the same row: whoever holds any grant may ask (B115).
+    permissions: [sales_b2c.return.approve, sales_b2c.return.create]
     cells: { admin: "●", manager: "✓", sales_rep: "T", call_agent: "T", analyst: "—" }
     grants:
       admin:      { mode: full, scope: all }

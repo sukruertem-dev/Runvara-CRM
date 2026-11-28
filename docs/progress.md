@@ -1,5 +1,20 @@
 # İlerleme
 
+## P9e — G5: B2C sipariş, iade, KVKK · 2026-11-28 · ✅ (CI PR'da çalışacak)
+
+> `docs/p9-plan.md` §30–37. Sıradaki P9f (kampanya, kupon, RFM, otomasyonlar, 100 bin sipariş ölçümü); G5 orada biter.
+
+### Yapılanlar
+- **B2C siparişi:** B2C fiyat listesinden fiyatlanan kalemler, kanal, ödeme durumu, teslimat adresi, kargo bilgisi; müşteriden türeyen görünürlük.
+- **Rol bazlı akış** (`packages/workflow`), toplu adım, değiştirilemez durum geçmişi.
+- **İade:** teslim edilmiş kalemler; ekip Yöneticisi limit içinde, üstünü Admin onaylar; tam ya da kısmi geri ödeme ve `returned` durumu; olaylar.
+- **KVKK:** müşteri verisini dışa aktarma ve anonimleştirme.
+- **Ekranlar:** sipariş listesi ve ayrıntısı, iadeler, müşteri sayfasında siparişler ve KVKK talepleri. **Göç** `0024_b2c_orders.sql`.
+
+### Testler
+- API entegrasyon: yeni `orders.int.test.ts` (5 test); `b2c-order.test.ts` (4 test).
+- E2E: yeni `orders.spec.ts` (2 test; AC-G5-1, axe).
+
 ## P9d — G5: B2C müşteri profili ve rıza · 2026-11-27 · ✅ (CI PR'da çalışacak)
 
 > `docs/p9-plan.md` §22–29. G5 (B2C) başladı; sıradaki P9e (sipariş, iade, KVKK).

@@ -236,6 +236,39 @@ export const CONFIG_KEYS: readonly ConfigKeyDef[] = [
     default: { channels: ['email', 'sms', 'phone', 'whatsapp'] },
   },
   {
+    key: 'sales_b2c.order_workflow',
+    module: 'sales_b2c',
+    schemaVersion: 1,
+    description: 'B2C order workflow (B2C-03): the roles that may take each step (confirm, prepare, ship, deliver, cancel) and change the payment status.',
+    overridableAt: ['tenant'],
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['confirm', 'prepare', 'ship', 'deliver', 'cancel', 'payment'],
+      properties: Object.fromEntries(['confirm', 'prepare', 'ship', 'deliver', 'cancel', 'payment'].map((k) => [k, {
+        type: 'array', uniqueItems: true, maxItems: 10, items: { enum: ['admin', 'manager', 'sales_rep', 'call_agent', 'analyst'] },
+      }])),
+    },
+    default: {
+      confirm: ['admin', 'manager', 'sales_rep', 'call_agent'], prepare: ['admin', 'manager'], ship: ['admin', 'manager'], deliver: ['admin', 'manager'],
+      cancel: ['admin', 'manager', 'sales_rep'], payment: ['admin', 'manager', 'sales_rep', 'call_agent'],
+    },
+  },
+  {
+    key: 'sales_b2c.returns',
+    module: 'sales_b2c',
+    schemaVersion: 1,
+    description: 'Returns (B2C-05): the amount up to which a team Manager approves a return (in the order currency); above it an Admin decides.',
+    overridableAt: ['tenant'],
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['managerLimit'],
+      properties: { managerLimit: { type: 'string', pattern: '^[0-9]{1,14}(\\.[0-9]{1,4})?$' } },
+    },
+    default: { managerLimit: '5000' },
+  },
+  {
     key: 'approvals',
     module: 'core',
     schemaVersion: 1,
