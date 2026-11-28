@@ -269,6 +269,51 @@ export const CONFIG_KEYS: readonly ConfigKeyDef[] = [
     default: { managerLimit: '5000' },
   },
   {
+    key: 'sales_b2c.rfm',
+    module: 'sales_b2c',
+    schemaVersion: 1,
+    description: 'RFM (B2C-07): the window of orders counted (days) and the days without an order after which a customer is hibernating.',
+    overridableAt: ['tenant'],
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['windowDays', 'hibernatingDays'],
+      properties: { windowDays: { type: 'integer', minimum: 30, maximum: 1095 }, hibernatingDays: { type: 'integer', minimum: 14, maximum: 730 } },
+    },
+    default: { windowDays: 365, hibernatingDays: 120 },
+  },
+  {
+    key: 'sales_b2c.automations',
+    module: 'sales_b2c',
+    schemaVersion: 1,
+    description: 'Built-in B2C automations (B2C-07): an abandoned order, a repeat purchase reminder, a win-back task; e-mails go only to customers with e-mail consent.',
+    overridableAt: ['tenant'],
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['abandonedOrder', 'repeatPurchase', 'winback'],
+      properties: {
+        abandonedOrder: {
+          type: 'object', additionalProperties: false, required: ['enabled', 'afterHours', 'subject', 'body'],
+          properties: { enabled: { type: 'boolean' }, afterHours: { type: 'integer', minimum: 1, maximum: 720 }, subject: { type: 'string', minLength: 1, maxLength: 200 }, body: { type: 'string', minLength: 1, maxLength: 5000 } },
+        },
+        repeatPurchase: {
+          type: 'object', additionalProperties: false, required: ['enabled', 'afterDays', 'subject', 'body'],
+          properties: { enabled: { type: 'boolean' }, afterDays: { type: 'integer', minimum: 1, maximum: 365 }, subject: { type: 'string', minLength: 1, maxLength: 200 }, body: { type: 'string', minLength: 1, maxLength: 5000 } },
+        },
+        winback: {
+          type: 'object', additionalProperties: false, required: ['enabled', 'task', 'subject', 'body'],
+          properties: { enabled: { type: 'boolean' }, task: { type: 'boolean' }, subject: { type: 'string', minLength: 1, maxLength: 200 }, body: { type: 'string', minLength: 1, maxLength: 5000 } },
+        },
+      },
+    },
+    default: {
+      abandonedOrder: { enabled: false, afterHours: 24, subject: 'Siparişiniz sizi bekliyor', body: 'Siparişinizi tamamlamak için bizimle iletişime geçebilirsiniz.' },
+      repeatPurchase: { enabled: false, afterDays: 30, subject: 'Yeniden görmek isteriz', body: 'Son siparişinizden memnun kaldıysanız yeni ürünlerimize göz atın.' },
+      winback: { enabled: false, task: true, subject: 'Sizi özledik', body: 'Uzun zamandır görüşemedik; size özel fırsatlarımız var.' },
+    },
+  },
+  {
     key: 'approvals',
     module: 'core',
     schemaVersion: 1,

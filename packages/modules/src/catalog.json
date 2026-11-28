@@ -675,6 +675,7 @@
         "sales_b2c.order_workflow",
         "sales_b2c.consent_channels",
         "sales_b2c.returns",
+        "sales_b2c.automations",
         "sales_b2c.rfm"
       ],
       "planEntitlement": {

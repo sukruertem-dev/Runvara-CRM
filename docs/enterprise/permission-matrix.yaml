@@ -281,7 +281,8 @@ matrix_a:
   - id: A25
     label: Müşteri rıza kayıtları (B2C)
     module: sales_b2c
-    permissions: [sales_b2c.consent.read, sales_b2c.consent.manage]
+    # RFM is read with the same reach as consent records (B119).
+    permissions: [sales_b2c.consent.read, sales_b2c.consent.manage, sales_b2c.rfm.read]
     cells: { admin: "●", manager: "◐", sales_rep: "◐", call_agent: "◐", analyst: "R" }
     grants:
       admin:      { mode: full, scope: all }

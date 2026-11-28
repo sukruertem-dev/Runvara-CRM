@@ -88,6 +88,7 @@ export const CustomerView = z
     addresses: z.array(CustomerAddressView),
     /** One entry per enabled channel; `null` status = nothing on record. */
     consents: z.array(z.object({ channel: ConsentChannel, consent: ConsentView.nullable() })),
+    rfm: z.object({ segment: z.string(), score: z.string(), recencyDays: z.number().int(), frequency: z.number().int(), monetary: z.string(), at: z.string() }).nullable(),
     canEdit: z.boolean(),
     canManageConsent: z.boolean(),
     version: z.number().int(),
@@ -130,6 +131,8 @@ export const B2cOrderCreate = z
     shippingAddressId: Uuid.nullable().default(null),
     paymentStatus: PaymentStatus.default('pending'),
     note: z.string().trim().max(4000).default(''),
+    /** A coupon of an active campaign (B2C-04). */
+    couponCode: z.string().trim().toUpperCase().min(1).max(40).optional(),
   })
   .strict()
   .openapi('B2cOrderCreate');
@@ -177,7 +180,9 @@ export const B2cOrderSummary = z
   .openapi('B2cOrderSummary');
 export const B2cOrderView = B2cOrderSummary.extend({
   deliveryStatus: z.enum(['pending', 'preparing', 'shipped', 'delivered', 'none']),
-  totals: z.object({ net: Money, tax: Money, total: Money }),
+  totals: z.object({ subtotal: Money, discount: Money, net: Money, tax: Money, total: Money }),
+  /** The discount applied and where it came from (campaign and/or coupon, B2C-04). */
+  discount: z.object({ percent: z.string(), campaign: z.object({ id: Uuid, name: z.string() }).nullable(), coupon: z.string().nullable() }),
   lines: z.array(z.object({
     id: Uuid, productId: Uuid, sku: z.string(), name: z.string(), unit: z.string(), quantity: z.string(), unitPrice: z.string(), taxPercent: z.string(),
     net: Money, tax: Money, total: Money,
@@ -230,3 +235,77 @@ export const CustomerAnonymize = z
   .object({ /** The customer's full name, typed again: the step cannot be undone. */ confirmName: z.string().trim().min(1).max(300) })
   .strict()
   .openapi('CustomerAnonymize');
+
+// ------------------------------------------------------------------ campaigns and coupons (P9f, docs/p9-plan.md §39–42)
+export const RfmSegment = z.enum(['champions', 'loyal', 'new', 'at_risk', 'hibernating', 'regular']);
+export const CampaignStatus = z.enum(['draft', 'pending_approval', 'active', 'ended', 'cancelled']);
+const Percent = z.string().regex(/^\d{1,3}(\.\d{1,3})?$/).refine((v) => Number(v) <= 100, 'must be 100 or less');
+const CampaignFields = z.object({
+  name: z.string().trim().min(1).max(200),
+  startsOn: z.iso.date(),
+  endsOn: z.iso.date(),
+  discountPercent: Percent.default('0'),
+  exclusive: z.boolean().default(false),
+  audienceTags: z.array(Tag).max(20).default([]),
+  audienceRfm: z.array(RfmSegment).max(6).default([]),
+  message: z.object({ subject: z.string().trim().min(1).max(200), body: z.string().trim().min(1).max(5000) }).strict().nullable().default(null),
+});
+export const CampaignCreate = CampaignFields.strict().refine((v) => v.startsOn <= v.endsOn, { message: 'endsOn before startsOn', path: ['endsOn'] }).openapi('CampaignCreate');
+export const CampaignPatch = CampaignFields.partial().strict().openapi('CampaignPatch');
+export const CampaignListQuery = z.object({ status: CampaignStatus.optional() }).strict();
+export const CouponCreate = z
+  .object({
+    code: z.string().trim().toUpperCase().regex(/^[A-Z0-9][A-Z0-9_-]{2,39}$/),
+    discountPercent: Percent.refine((v) => Number(v) > 0, 'must be greater than zero'),
+    maxUses: z.number().int().min(1).max(10_000_000).nullable().default(null),
+    perCustomerLimit: z.number().int().min(1).max(1000).default(1),
+  })
+  .strict()
+  .openapi('CouponCreate');
+export const CouponPatch = z.object({ active: z.boolean() }).strict().openapi('CouponPatch');
+export const CouponView = z
+  .object({ id: Uuid, code: z.string(), discountPercent: z.string(), maxUses: z.number().int().nullable(), perCustomerLimit: z.number().int(), uses: z.number().int(), active: z.boolean() })
+  .openapi('CouponView');
+export const CampaignView = z
+  .object({
+    id: Uuid, name: z.string(), status: CampaignStatus, startsOn: z.string(), endsOn: z.string(), discountPercent: z.string(), exclusive: z.boolean(),
+    audienceTags: z.array(z.string()), audienceRfm: z.array(RfmSegment), message: z.object({ subject: z.string(), body: z.string() }).nullable(),
+    sentAt: z.string().nullable(), createdBy: Person, approvedBy: Person.nullable(), coupons: z.array(CouponView),
+    /** sent / blocked by reason, once the message went out. */
+    deliveries: z.object({ sent: z.number().int(), blocked: z.record(z.string(), z.number().int()) }),
+    canEdit: z.boolean(), canSubmit: z.boolean(), canApprove: z.boolean(), canSend: z.boolean(),
+    version: z.number().int(),
+  })
+  .openapi('CampaignView');
+export const CampaignListResponse = z.object({ data: z.array(CampaignView.omit({ coupons: true })) }).openapi('CampaignListResponse');
+export const CampaignAudience = z
+  .object({
+    total: z.number().int(),
+    reachable: z.number().int(),
+    blocked: z.record(z.string(), z.number().int()),
+    sample: z.array(z.object({ id: Uuid, fullName: z.string(), allowed: z.boolean(), reason: z.string().nullable() })),
+  })
+  .openapi('CampaignAudience');
+export const CampaignSendResult = z.object({ sent: z.number().int(), blocked: z.record(z.string(), z.number().int()) }).openapi('CampaignSendResult');
+export const CouponCheckQuery = z.object({ code: z.string().trim().min(1).max(40), customerId: Uuid }).strict();
+export const CouponCheck = z
+  .object({
+    valid: z.boolean(),
+    reason: z.enum(['unknown', 'inactive', 'not_started', 'expired', 'used_up', 'customer_limit', 'not_in_audience']).nullable(),
+    discountPercent: z.string().nullable(),
+    campaign: z.object({ id: Uuid, name: z.string(), exclusive: z.boolean() }).nullable(),
+  })
+  .openapi('CouponCheck');
+
+// ------------------------------------------------------------------ RFM (B2C-07)
+export const RfmView = z
+  .object({ segment: RfmSegment, score: z.string(), recencyDays: z.number().int(), frequency: z.number().int(), monetary: z.string(), at: z.string() })
+  .openapi('RfmView');
+export const RfmSummary = z
+  .object({
+    segments: z.array(z.object({ segment: RfmSegment, count: z.number().int() })),
+    customers: z.array(z.object({ id: Uuid, fullName: z.string(), owner: Person, rfm: RfmView })),
+    computedAt: z.string().nullable(),
+  })
+  .openapi('RfmSummary');
+export const RfmQuery = z.object({ segment: RfmSegment.optional(), limit: z.coerce.number().int().min(1).max(200).default(50) }).strict();

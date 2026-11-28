@@ -55,6 +55,9 @@ import { CustomersController } from './modules/customers/customers.controller';
 import { CustomersService } from './modules/customers/customers.service';
 import { OrdersController } from './modules/customers/orders.controller';
 import { OrdersService } from './modules/customers/orders.service';
+import { CampaignsController } from './modules/customers/campaigns.controller';
+import { CampaignsService } from './modules/customers/campaigns.service';
+import { RfmService } from './modules/customers/rfm.service';
 import { QuotesController } from './modules/quotes/quotes.controller';
 import { QuotesService } from './modules/quotes/quotes.service';
 import { CatalogController } from './modules/catalog/catalog.controller';
@@ -92,7 +95,7 @@ export class AppModule {
         // Operation routes first: Fastify matches static segments before parameters either way, but keep it explicit.
         CrmOperationsController, AccountsController, ContactsController, LeadsController, OpportunitiesController, CasesController, NotesController,
         AccessAdminController, ...SHARES_CONTROLLERS,
-        GovernanceController, RecordItemsController, ...RECORD_EXTRAS_CONTROLLERS, AutomationController, IntegrationsController, BundleController, UsageController, OperatorController, SupportAccessController, PrivacyController, CatalogController, ApprovalsController, QuotesController, B2bController, ForecastController, CustomersController, OrdersController],
+        GovernanceController, RecordItemsController, ...RECORD_EXTRAS_CONTROLLERS, AutomationController, IntegrationsController, BundleController, UsageController, OperatorController, SupportAccessController, PrivacyController, CatalogController, ApprovalsController, QuotesController, B2bController, ForecastController, CustomersController, OrdersController, CampaignsController],
       providers: [
         { provide: ENV, useValue: deps.env },
         { provide: DB, useValue: deps.db },
@@ -118,6 +121,8 @@ export class AppModule {
         ForecastService,
         CustomersService,
         OrdersService,
+        CampaignsService,
+        RfmService,
         PricingService,
         ProvisioningService,
         AuthService,
