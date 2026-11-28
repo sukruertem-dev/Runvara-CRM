@@ -253,10 +253,10 @@ Yetki senaryoları ve `SCN-*` testleri `docs/enterprise/permission-matrix.yaml`'
 | **B2C-01** | Bireysel müşteri profili, iletişim tercihleri, adresler, etiketler (E.164 normalize) | M | G5 | `T-B2C-01-a`<br>`T-B2C-01-b` | int<br>unit | `apps/api/test/customers.int.test.ts`<br>`apps/api/test/crm.int.test.ts` |
 | **B2C-02** | Sipariş: kalemler, kanal, ödeme durumu, teslimat durumu | M | G5 | `T-B2C-02-a` | int | `apps/api/test/orders.int.test.ts` |
 | **B2C-03** | Sipariş workflow'u (yeni → onaylandı → hazırlanıyor → kargoda → teslim edildi → iade/iptal), rol bazlı geçişler | M | G5 | `T-B2C-03-a`<br>`T-B2C-03-b` | unit<br>int | `packages/workflow/src/b2c-order.test.ts`<br>`apps/api/test/orders.int.test.ts` |
-| **B2C-04** | Kampanya ve kupon (tarih, kullanım limiti, hedef segment, çakışma kuralı) | S | G5 | `T-B2C-04-a` | int | `apps/api/test/integration/b2c/campaign-coupon-limits.int.test.ts` |
+| **B2C-04** | Kampanya ve kupon (tarih, kullanım limiti, hedef segment, çakışma kuralı) | S | G5 | `T-B2C-04-a` | int | `apps/api/test/campaigns.int.test.ts` |
 | **B2C-05** | İade/iptal talebi ve onayı (stok/finans olay yayını) | M | G5 | `T-B2C-05-a`<br>`T-B2C-05-b` | int<br>int | `apps/api/test/orders.int.test.ts`<br>`apps/api/test/orders.int.test.ts` |
 | **B2C-06** | Rıza yönetimi (kanal bazlı, kaynak, zaman damgası, geri çekme); izinsiz müşteriye kampanya, otomasyon ve giden arama engeli | M | G5 (G7) | `T-B2C-06-a`<br>`T-B2C-06-b`<br>`T-B2C-06-c`<br>`T-B2C-06-d` | int<br>int<br>int<br>e2e | `apps/api/test/customers.int.test.ts`<br>`apps/api/test/customers.int.test.ts`<br>`apps/api/test/integration/telephony/consent-blocks-outbound-call.int.test.ts` (G7)<br>`apps/web/e2e/customers.spec.ts` |
-| **B2C-07** | RFM segmentasyonu ve tekrar satın alma/geri kazanım otomasyonu | S | G5 | `T-B2C-07-a`<br>`T-B2C-07-b` | int<br>int | `apps/worker/test/integration/b2c/rfm-scheduled-job.int.test.ts`<br>`apps/worker/test/integration/b2c/winback-automation-consented-only.int.test.ts` |
+| **B2C-07** | RFM segmentasyonu ve tekrar satın alma/geri kazanım otomasyonu | S | G5 | `T-B2C-07-a`<br>`T-B2C-07-b` | int<br>int | `apps/api/test/campaigns.int.test.ts`<br>`apps/api/test/campaigns.int.test.ts` |
 | **B2C-08** | Müşteri yaşam boyu değeri (LTV) | C | G5 sonrası (sonraki sürüm) | `T-B2C-08-a` | int | `apps/api/test/integration/b2c/customer-ltv.int.test.ts` |
 
 ### 4.12 10.2.2-F Satış takibi
@@ -528,10 +528,10 @@ Kriter sırası spesifikasyondaki "Kabul kriterleri" listesindeki sıradır. `Ba
 | **AC-G4-2** | Teklif versiyonları değiştirilemez | G4 | B2B-04 | `T-B2B-04-a`<br>`T-B2B-04-b` |
 | **AC-G4-3** | Yalnızca B2B yetkili kullanıcılar B2B verisine erişebiliyor | G4 | SEG-03, SEG-04 | `T-SEG-03-b`<br>`T-SEG-03-c` |
 | **AC-G4-4** | Forecast kapsam dışı kayıtları içermiyor | G4 | B2B-07 | `T-B2B-07-a`<br>`T-B2B-07-b` |
-| **AC-G5-1** | Sipariş → ödeme durumu → teslim → iade akışı E2E testle geçiyor | G5 | B2C-02, B2C-03, B2C-05 | `T-AC-G5-1-a` (e2e: `apps/web/e2e/b2c/order-payment-delivery-return-flow.spec.ts`) |
+| **AC-G5-1** | Sipariş → ödeme durumu → teslim → iade akışı E2E testle geçiyor | G5 | B2C-02, B2C-03, B2C-05 | `T-AC-G5-1-a` (e2e: `apps/web/e2e/orders.spec.ts`) |
 | **AC-G5-2** | Rızası olmayan müşteriye kampanya/otomasyon iletisi gönderilmiyor | G5 | B2C-06 | `T-B2C-06-a`<br>`T-B2C-06-b`<br>`T-B2C-06-c`<br>`T-B2C-06-d` |
 | **AC-G5-3** | Yalnızca B2C yetkili kullanıcılar B2C verisine erişebiliyor | G5 | SEG-03, SEG-04 | `T-SEG-03-b`<br>`T-SEG-03-c` |
-| **AC-G5-4** | 100 bin sipariş kayıtlı listede p95 < 200 ms | G5 | NFR-01, B2C-02 | `T-AC-G5-4-a` (perf: `perf/k6/b2c-orders-100k.js`) |
+| **AC-G5-4** | 100 bin sipariş kayıtlı listede p95 < 200 ms | G5 | NFR-01, B2C-02 | `T-AC-G5-4-a` (perf: `apps/api/test/perf/b2c-orders.perf.test.ts`, `docs/perf/p9-b2c-orders.md`) |
 | **AC-G6-1** | Çevrimiçi anılan kullanıcıya bildirim uçtan uca p95 < 2 sn (ölçüm çıktısıyla) | G6 | MEN-06 | `T-MEN-06-a` |
 | **AC-G6-2** | Bağlantısı kopan kullanıcı yeniden bağlanınca kaçırdığı bildirimleri alıyor | G6 | MEN-06, API-09 | `T-MEN-06-b`<br>`T-MEN-06-c` |
 | **AC-G6-3** | Erişimi olmayan kullanıcı anılamıyor (arayüz ve API); bildirim içeriği sızmıyor | G6 | MEN-03, MEN-04, MEN-09 | `T-MEN-03-a`<br>`T-MEN-03-b`<br>`T-MEN-04-a`<br>`T-MEN-04-b`<br>`T-MEN-09-a`<br>`T-MEN-09-b` |

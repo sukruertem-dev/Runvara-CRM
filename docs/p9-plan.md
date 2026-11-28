@@ -276,3 +276,80 @@ Fırsatta Sözleşmeler ve Siparişler panelleri, `/sales/b2b/contracts` ve `/sa
 | İade talebi ve onayı, olaylar (B2C-05) | `orders.int.test.ts` |
 | Yalnızca B2C yetkilisi erişir (AC-G5-3) | `orders.int.test.ts`, `customers.int.test.ts` |
 | KVKK: müşteri verisini dışa aktarma ve anonimleştirme | `orders.int.test.ts`, `orders.spec.ts` |
+
+
+# P9f — kampanya, kupon, RFM, otomasyonlar, ölçüm (G5 sonu)
+
+## 39. Kampanya (B2C-04)
+- Kampanyanın bilgileri:
+  - ad ve başlangıç/bitiş tarihi;
+  - indirim yüzdesi (0 = yalnızca ileti);
+  - çakışma kuralı (`exclusive`);
+  - hedef müşteriler: etiketlerden ve RFM segmentlerinden herhangi biri; ikisi de boşsa tüm B2C müşterileri;
+  - isteğe bağlı e-posta iletisi.
+- Durum akışı: `draft → pending_approval → active → ended | cancelled`. Bitiş tarihi geçince kampanya kendiliğinden `ended` görünür.
+- Yetki A26'dan gelir:
+  - Admin kampanyayı doğrudan başlatır.
+  - Yöneticinin kampanyası (`requires_approval`) Admin onayını bekler; Admin'lere bildirim gider (US-MGR-12).
+  - Temsilci, çağrı temsilcisi ve analist yalnızca okur.
+- Yalnızca taslak düzenlenir (`If-Match`). Her adım denetim kaydına yazılır.
+
+## 40. Kupon ve çakışma kuralı
+- Kupon bir kampanyaya bağlıdır. Kupon bilgileri: kod (büyük harf, tekil), indirim yüzdesi, en çok kullanım sayısı, müşteri başına kullanım sınırı, etkin/kapalı.
+- Kuponun geçmesi için kampanya yürürlükte, gün kampanya aralığında ve müşteri kampanyanın hedefinde olmalıdır. Aksi halde neden döner: `unknown`, `inactive`, `not_started`, `expired`, `used_up`, `customer_limit`, `not_in_audience`.
+- Kullanım siparişle aynı işlemde sayılır. Kupon satırı kilitlenir ve sayaç koşullu artırılır; 501. kullanım reddedilir.
+- Sipariş indirimi:
+  - Müşterinin hedefinde olduğu en yüksek indirimli kampanya kendiliğinden uygulanır; kupon verilmişse kuponun indirimi de eklenir.
+  - İki indirim toplanır, ancak biri birleşmez (`exclusive`) işaretliyse yalnızca büyük olan geçerlidir. Toplam en çok %100'dür.
+  - Kuponun kendi kampanyası ayrıca kendiliğinden uygulanmaz.
+  - İndirim tekliflerdeki hesaplama fonksiyonuyla sipariş geneline uygulanır. Siparişte ara toplam, indirim, kampanya ve kupon görünür.
+
+## 41. Kampanya iletisi ve rıza (AC-G5-2)
+- Önizleme (`/audience`): hedefteki müşteri sayısı, e-posta gidebilecek müşteri sayısı ve gidemeyenlerin nedenleri (`no_consent`, `withdrawn`, `no_contact_point`, …).
+- Gönderim yalnızca yürürlükteki kampanyada ve bir kez yapılır. Her hedef müşteri için bir kayıt düşer (`campaign_deliveries`): `sent` ya da `blocked` (nedeniyle).
+- E-posta yalnızca izni olana gider (`reachability`). `campaign.started` olayı yazılır.
+
+## 42. RFM (B2C-07)
+- Her gece 02:00'de (katalog işi `sales_b2c.rfm.recompute`) iptal edilmemiş ve iade edilmemiş B2C siparişlerinden hesaplanır.
+- R: son siparişten bu yana geçen gün sayısına göre 1–5 puan; eşikler 30, 60, 90 gün ve uyku eşiği.
+- F: pencere içindeki sipariş sayısına göre 1–5 puan; eşikler 1, 2, 3, 5 ve 10 sipariş.
+- M: tutarın workspace içindeki beşte birlik dilimi.
+- Segment:
+  - **Uyuyan:** uyku eşiği aşıldıysa (varsayılan 120 gün).
+  - **Şampiyon:** R≥4 ve F≥4.
+  - **Sadık:** F≥3.
+  - **Yeni:** R≥4 ve tek sipariş.
+  - **Risk altında:** R≤2.
+  - **Düzenli:** diğerleri.
+- Ayar `sales_b2c.rfm`: pencere (varsayılan 365 gün) ve uyku eşiği. Admin hesabı istediği an yeniden çalıştırabilir.
+- RFM verisini okuma `sales_b2c.rfm.read` izniyle olur (A25 kapsamı, B119). `customer.rfm_recomputed` olayı yazılır.
+
+## 43. B2C otomasyonları
+- Ayar `sales_b2c.automations`; hepsi varsayılan olarak kapalıdır.
+- **Terk edilmiş sipariş:** `new` durumunda ve ödemesi bekleyen sipariş N saat sonra.
+- **Tekrar satın alma:** teslim edilmiş siparişten N gün sonra, müşteri arada yeni sipariş vermediyse.
+- **Geri kazanım:** müşteri "Uyuyan" segmentine girince sahibine "Geri kazanım: …" görevi açılır.
+- Her üçünde e-posta yalnızca izin varsa gider. Her otomasyon her konu için bir kez çalışır (`b2c_automation_runs`); izin yoksa çalıştırma kaydında neden tutulur.
+
+## 44. Ölçüm (AC-G5-4)
+- 100 000 sipariş ve 5 000 müşteriyle sipariş listesinin p95 değeri 200 ms'nin altındadır: `docs/perf/p9-b2c-orders.md`.
+- Liste sorgusu önce sipariş sayfasını, sipariş numarası sırasıyla dizin üzerinden seçer; müşteri görünürlüğünü her sipariş için ayrıca denetler; ayrıntıları en son ekler. Önceki biçim müşterilerden başlıyor ve eşleşen tüm siparişleri sıralıyordu (durum süzgeciyle p95 198 → 38 ms).
+- Kanal süzgeci için ayrı bir dizin eklendi.
+
+## 45. Bilinen sınırlar
+- Kampanya iletisi yalnızca e-posta kanalından gider. SMS ve WhatsApp sağlayıcısı entegrasyonlarla (G9) gelecek. İzin kontrolü kanalı zaten tanıyor.
+- Kampanya indirimi kur çevirmez; yüzde olarak uygulanır.
+
+## 46. Ekranlar
+- `/sales/b2c/campaigns`: liste ve yeni kampanya penceresi.
+- `/sales/b2c/campaigns/:id`: onay, hedef önizlemesi, gönderim, kuponlar.
+- `/sales/b2c/rfm`: segment sayıları, segmente göre müşteriler, yeniden hesapla.
+- Siparişte kupon kodu ve "Dene"; sipariş sayfasında indirim satırı; müşteri profilinde RFM.
+
+## 47. Kabul (P9f, G5 sonu)
+| Kriter | Kanıt |
+|---|---|
+| Kampanya ve kupon: tarih, kullanım limiti, hedef, çakışma kuralı (B2C-04) | `campaigns.int.test.ts`, `campaigns.spec.ts` |
+| Rızasız müşteriye kampanya ve otomasyon iletisi gitmez (AC-G5-2) | `campaigns.int.test.ts`, `customers.int.test.ts`, `campaigns.spec.ts` |
+| RFM ve geri kazanım, tekrar satın alma ve terk edilmiş sipariş otomasyonları (B2C-07) | `campaigns.int.test.ts` |
+| 100 bin siparişte p95 < 200 ms (AC-G5-4) | `test/perf/b2c-orders.perf.test.ts`, `docs/perf/p9-b2c-orders.md` |
